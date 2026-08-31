@@ -512,3 +512,63 @@ func stringListValues(list *StringList) []string {
 	}
 	return values
 }
+
+// TestExportDiagnosticBundleDoesNotAbortOnAnUnreadableEntry pins that a
+// failure while COPYING one log file costs that file, not the export.
+//
+// The concrete trigger used here is the one that is reachable without an
+// injected i/o error: on the redacted path zipWriteEntry scans lines with a
+// 4 MiB cap, so a single longer line -- a corrupt or non-newline-terminated
+// file, and glog files run to 16 MB -- returns bufio.ErrTooLong. That used to
+// abort ExportDiagnosticBundle outright, discarding every other process's
+// logs and leaving a truncated zip on disk at a path the platform had already
+// been told to share.
+func TestExportDiagnosticBundleDoesNotAbortOnAnUnreadableEntry(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	good := "urnetwork.host.user.log.INFO.20260830-101112.4242"
+	writeTestingLogFile(t, appDir, good)
+
+	// one line past the redaction scanner's cap, no trailing newline
+	oversize := "urnetwork.host.user.log.WARNING.20260830-101112.4243"
+	if err := os.WriteFile(filepath.Join(appDir, oversize),
+		[]byte(strings.Repeat("x", 5*1024*1024)), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "oversize-line.zip")
+	opts := NewExportOptions()
+	opts.Redact = true
+
+	result, err := ExportDiagnosticBundle(destPath, opts)
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil -- one unreadable entry must not fail the export", err)
+	}
+	if result.FileCount < 1 {
+		t.Fatalf("FileCount = %d, want the readable files to still be exported", result.FileCount)
+	}
+
+	reported := false
+	for i := 0; i < result.MissingSources.Len(); i += 1 {
+		if strings.HasPrefix(result.MissingSources.Get(i), oversize+": ") {
+			reported = true
+		}
+	}
+	if !reported {
+		t.Fatalf("MissingSources does not name the entry that could not be copied; has %v",
+			stringListValues(result.MissingSources))
+	}
+
+	// the archive must still be a well-formed zip carrying the other files
+	if got := readZipEntry(t, destPath, "logs/app/"+good); !strings.Contains(got, "x.go:1") {
+		t.Fatalf("readable log entry is missing or empty: %q", got)
+	}
+}

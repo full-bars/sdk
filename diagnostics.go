@@ -268,6 +268,18 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 
 	zipWriter := zip.NewWriter(zipFile)
 
+	// os.Create has already truncated or created destPath, so from here on a
+	// returned error must not leave a half-written zip behind for the platform
+	// to hand to the user or to a share sheet. Close before removing: on
+	// windows, where the desktop c abi artifacts run, an open file cannot be
+	// unlinked.
+	fail := func(err error) (*ExportResult, error) {
+		zipWriter.Close()
+		zipFile.Close()
+		os.Remove(destPath)
+		return nil, err
+	}
+
 	inventory, unreadable := logInventory()
 	for _, entry := range unreadable {
 		result.MissingSources.Add(entry)
@@ -291,8 +303,16 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		err = zipWriteEntry(zipWriter, "logs/"+info.Source+"/"+info.Name, f, fi, transform)
 		f.Close()
 		if err != nil {
-			zipWriter.Close()
-			return nil, err
+			// Reading one log file is not allowed to end the export. An i/o
+			// error partway through a file, or a line past the redaction
+			// scanner's 4 MiB cap (a corrupt or non-newline-terminated file),
+			// used to abort here and return with a truncated zip still on
+			// disk. The spec makes only an unwritable destination fatal;
+			// everything else is reported. Whatever was copied stays in the
+			// archive as a valid entry, and the file is named as incomplete
+			// rather than counted as exported.
+			result.MissingSources.Add(info.Name + ": incomplete, " + err.Error())
+			continue
 		}
 		result.FileCount += 1
 	}
@@ -312,8 +332,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 			})
 		}
 		if err := zipWriteEntry(zipWriter, "manifest.json", strings.NewReader(manifestJson), nil, transform); err != nil {
-			zipWriter.Close()
-			return nil, err
+			return fail(err)
 		}
 	}
 
@@ -327,8 +346,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 				transform,
 			)
 			if err != nil {
-				zipWriter.Close()
-				return nil, err
+				return fail(err)
 			}
 		}
 	}
@@ -343,12 +361,11 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	// MissingSourceReason text lands here too and is equally unfiltered at
 	// source.
 	if err := zipWriteEntry(zipWriter, "README.txt", strings.NewReader(exportReadme(opts, result)), nil, transform); err != nil {
-		zipWriter.Close()
-		return nil, err
+		return fail(err)
 	}
 
 	if err := zipWriter.Close(); err != nil {
-		return nil, err
+		return fail(err)
 	}
 	if info, err := zipFile.Stat(); err == nil {
 		result.ByteCount = info.Size()
