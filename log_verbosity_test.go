@@ -565,6 +565,82 @@ func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 	connect.AssertEqual(t, persisted, true)
 }
 
+// A hosted DeviceRemote is the platform client -- a browser or wasm process,
+// one per user -- driving a DeviceLocal that shares its process with unrelated
+// tenants. What the hosted guard protects is that shared process: the level
+// must never be sent to it, nor left queued for the next sync to send.
+//
+// This process is a different matter. It is the client's own, its level is
+// already raised on the spot, and it is the level the exported manifest
+// reports -- so it is recorded and restored like anywhere else. Guarding the
+// record too would leave the platform client showing a level it silently
+// forgets at the next reload.
+func TestDeviceRemoteHostedSetLogVerbosityStopsAtThisProcess(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	networkSpace, byJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+	localState := networkSpace.GetAsyncLocalState().GetLocalState()
+
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
+	}
+
+	// the hosted rpc client: hosted-incompatible mutations are dropped, and
+	// nothing is listening on the address either way
+	settings := defaultDeviceRpcSettings()
+	settings.DisableHostedIncompatible = true
+	settings.Address = requireRemoteAddress(testing_freeHostPort())
+	newHostedRemote := func() *DeviceRemote {
+		t.Helper()
+		deviceRemote, err := newDeviceRemoteWithOverrides(
+			networkSpace,
+			byJwt,
+			NewId(),
+			settings,
+			connect.NewId(),
+			NewWebsocketDeviceRpcDialer(settings.Address, "", "", settings),
+		)
+		if err != nil {
+			t.Fatalf("device remote: %v", err)
+		}
+		t.Cleanup(deviceRemote.Close)
+		return deviceRemote
+	}
+	queuedForTheDevice := func(deviceRemote *DeviceRemote) bool {
+		deviceRemote.stateLock.Lock()
+		defer deviceRemote.stateLock.Unlock()
+		return deviceRemote.state.LogVerbosity.IsSet
+	}
+
+	deviceRemote := newHostedRemote()
+	deviceRemote.SetLogVerbosity(LogVerbosityDetail)
+
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityDetail)
+	if !testing_awaitPersistedLogVerbosity(t, localState, LogVerbosityDetail) {
+		t.Fatal("the client did not record its own level, so it reports one it does not keep")
+	}
+	if queuedForTheDevice(deviceRemote) {
+		t.Fatal("the level is queued for a hosted device, whose process is shared with unrelated tenants")
+	}
+
+	// and at the client's next launch, with this process reset the way
+	// initGlog resets it
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
+	}
+	relaunched := newHostedRemote()
+	connect.AssertEqual(t, relaunched.GetLogVerbosity(), LogVerbosityDetail)
+	if queuedForTheDevice(relaunched) {
+		t.Fatal("the restored level is queued for a hosted device, which the guard exists to prevent")
+	}
+}
+
 // Restoring is for a level the user chose. With nothing persisted there is no
 // instruction to apply, and applying the default anyway would clear a level an
 // embedder set another way -- a server that passed -v on its command line

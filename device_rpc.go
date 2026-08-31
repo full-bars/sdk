@@ -510,13 +510,15 @@ func newDeviceRemoteWithOverrides(
 	// all (a reinstalled or cleared extension container). The first sync
 	// carries it, and the device persists its own copy from there.
 	//
+	// Only the queuing is hosted-guarded, matching SetLogVerbosity: a hosted
+	// device's process is shared with unrelated tenants and is not this
+	// client's to raise, while this process's own level is its own.
+	//
 	// Safe to touch state directly: the sync loop below has not started yet.
-	if !settings.DisableHostedIncompatible {
-		if asyncLocalState := networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
-			level, ok := applyPersistedLogVerbosity(asyncLocalState.GetLocalState(), deviceRemote.log)
-			if ok {
-				deviceRemote.state.LogVerbosity.Set(level)
-			}
+	if asyncLocalState := networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
+		level, ok := applyPersistedLogVerbosity(asyncLocalState.GetLocalState(), deviceRemote.log)
+		if ok && !settings.DisableHostedIncompatible {
+			deviceRemote.state.LogVerbosity.Set(level)
 		}
 	}
 
@@ -5693,6 +5695,11 @@ func (self *DeviceRemote) FlushGlog() {
 // extension's copy is a separate file that a fresh install or a cleared
 // extension container may not have.
 //
+// The hosted guard covers the crossing only. Raising and recording this
+// process's own level is not the hosted device's business either way: what a
+// hosted device must never take is a level from one tenant, because its
+// process is shared with unrelated ones and the flag is process-global.
+//
 // The rpc tolerates a missing method so a device peer from an older build
 // refuses the call without the session being torn down; the app process is
 // still raised either way.
@@ -5701,14 +5708,17 @@ func (self *DeviceRemote) SetLogVerbosity(level int) {
 		self.log.Infof("[dr]set log verbosity %d err = %s", level, err)
 	}
 
+	// this process's own record, for its own restart. Before the hosted guard,
+	// and for the same reason the raise above is not guarded: this local state
+	// is THIS process's container -- on the hosted path a platform client, one
+	// per user -- and writing it changes nothing in the device's process
+	self.persistLogVerbosity(level)
+
 	if self.hostedIncompatibleGuarded("SetLogVerbosity") {
-		// the device side guards this too -- do not spend an rpc on a call it
-		// is going to ignore
+		// the device side guards this too -- do not spend an rpc, or queue a
+		// value, on a call it is going to ignore
 		return
 	}
-
-	// this process's own record, for its own restart
-	self.persistLogVerbosity(level)
 
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
