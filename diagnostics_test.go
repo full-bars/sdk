@@ -3,6 +3,7 @@ package sdk
 import (
 	"archive/zip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -570,5 +571,133 @@ func TestExportDiagnosticBundleDoesNotAbortOnAnUnreadableEntry(t *testing.T) {
 	// the archive must still be a well-formed zip carrying the other files
 	if got := readZipEntry(t, destPath, "logs/app/"+good); !strings.Contains(got, "x.go:1") {
 		t.Fatalf("readable log entry is missing or empty: %q", got)
+	}
+}
+
+// TestExportDiagnosticBundleManifestCarriesModeAndSourceAvailability pins the
+// two export-metadata fields the spec requires and the bundle had nowhere
+// else: the mode, and the per-source availability list.
+//
+// Without them nothing machine-readable in the bundle says whether it was
+// redacted -- the mode survived only as English prose in README.txt -- so a
+// support engineer or any tooling reading manifest.json could not tell a
+// redacted bundle from a raw one, nor an unreachable source from an empty one.
+func TestExportDiagnosticBundleManifestCarriesModeAndSourceAvailability(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeTestingLogFile(t, appDir, "urnetwork.host.user.log.INFO.20260830-101112.4242")
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	for _, redact := range []bool{true, false} {
+		destPath := filepath.Join(t.TempDir(), "manifest-mode.zip")
+		opts := NewExportOptions()
+		opts.Redact = redact
+		opts.IncludeManifest = true
+		// the platform-supplied half must survive the merge
+		opts.SetManifestJson(`{"sdk_version":"0.0.0-test","device_available":true}`)
+		opts.MissingSourceReason("extension", "app group container unavailable")
+
+		if _, err := ExportDiagnosticBundle(destPath, opts); err != nil {
+			t.Fatalf("ExportDiagnosticBundle = %v", err)
+		}
+
+		var manifest map[string]any
+		raw := readZipEntry(t, destPath, "manifest.json")
+		if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
+			t.Fatalf("manifest.json is not valid json: %v\n%s", err, raw)
+		}
+
+		wantMode := "raw"
+		if redact {
+			wantMode = "redacted"
+		}
+		if manifest["export_mode"] != wantMode {
+			t.Fatalf("export_mode = %v, want %q\n%s", manifest["export_mode"], wantMode, raw)
+		}
+		if manifest["sdk_version"] != "0.0.0-test" {
+			t.Fatalf("the platform-supplied manifest body did not survive the merge: %s", raw)
+		}
+
+		sources, ok := manifest["sources"].([]any)
+		if !ok {
+			t.Fatalf("manifest.json has no sources list; has %v", manifest)
+		}
+		seen := map[string]map[string]any{}
+		for _, entry := range sources {
+			source, ok := entry.(map[string]any)
+			if !ok {
+				t.Fatalf("sources entry is not an object: %v", entry)
+			}
+			seen[fmt.Sprintf("%v", source["source"])] = source
+		}
+
+		app, ok := seen["app"]
+		if !ok {
+			t.Fatalf("sources missing the app source; has %v", seen)
+		}
+		if app["available"] != true {
+			t.Fatalf("app source available = %v, want true", app["available"])
+		}
+		if app["file_count"].(float64) < 1 {
+			t.Fatalf("app source file_count = %v, want at least 1", app["file_count"])
+		}
+
+		extension, ok := seen["extension"]
+		if !ok {
+			t.Fatalf("sources missing the declared-unavailable extension source; has %v", seen)
+		}
+		if extension["available"] != false {
+			t.Fatalf("extension source available = %v, want false", extension["available"])
+		}
+		if extension["reason"] == nil {
+			t.Fatalf("extension source carries no reason: %v", extension)
+		}
+	}
+}
+
+// A manifest body the platform could not produce as a json object must not
+// cost the bundle its export metadata, and must be reported rather than
+// written through as-is.
+func TestExportDiagnosticBundleReportsAnUnparseableSuppliedManifest(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "app"), 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "bad-manifest.zip")
+	opts := NewExportOptions()
+	opts.IncludeManifest = true
+	opts.SetManifestJson("this is not json")
+
+	result, err := ExportDiagnosticBundle(destPath, opts)
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil", err)
+	}
+
+	reported := false
+	for i := 0; i < result.MissingSources.Len(); i += 1 {
+		if strings.HasPrefix(result.MissingSources.Get(i), "manifest: ") {
+			reported = true
+		}
+	}
+	if !reported {
+		t.Fatalf("MissingSources does not report the unusable manifest; has %v", stringListValues(result.MissingSources))
+	}
+
+	var manifest map[string]any
+	raw := readZipEntry(t, destPath, "manifest.json")
+	if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
+		t.Fatalf("manifest.json is not valid json: %v\n%s", err, raw)
+	}
+	if manifest["export_mode"] != "raw" {
+		t.Fatalf("export_mode = %v, want raw even on the fallback manifest", manifest["export_mode"])
 	}
 }

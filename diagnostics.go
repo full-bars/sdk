@@ -79,16 +79,16 @@ const logRootSourceName = "log root"
 // reporting zero missing sources, while a whole process's logs were absent.
 // The spec's degradation promise is that a source that cannot be read is
 // recorded as missing, never silently dropped.
-func logInventory() (*LogFileInfoList, []string) {
+func logInventory() (*LogFileInfoList, []unreadableSource) {
 	inventory := NewLogFileInfoList()
-	unreadable := []string{}
+	unreadable := []unreadableSource{}
 
 	root := GetLogRoot()
 	if root == "" {
 		// legacy single-directory configuration: report it as one source
 		if dir := GetLogDir(); dir != "" {
 			if err := appendLogFilesIn(inventory, dir, "app"); err != nil {
-				unreadable = append(unreadable, "app: "+err.Error())
+				unreadable = append(unreadable, unreadableSource{"app", err.Error()})
 			}
 		}
 		return inventory, unreadable
@@ -96,17 +96,23 @@ func logInventory() (*LogFileInfoList, []string) {
 
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return inventory, append(unreadable, logRootSourceName+": "+err.Error())
+		return inventory, append(unreadable, unreadableSource{logRootSourceName, err.Error()})
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		if err := appendLogFilesIn(inventory, filepath.Join(root, entry.Name()), entry.Name()); err != nil {
-			unreadable = append(unreadable, entry.Name()+": "+err.Error())
+			unreadable = append(unreadable, unreadableSource{entry.Name(), err.Error()})
 		}
 	}
 	return inventory, unreadable
+}
+
+// unreadableSource is a log source directory that could not be listed.
+type unreadableSource struct {
+	Source string
+	Reason string
 }
 
 func appendLogFilesIn(inventory *LogFileInfoList, dir string, source string) error {
@@ -256,8 +262,10 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	FlushGlog()
 
 	result := &ExportResult{MissingSources: NewStringList()}
+	sources := newExportSourceReport()
 	for i := 0; i < opts.missingNames.Len(); i += 1 {
 		result.MissingSources.Add(opts.missingNames.Get(i) + ": " + opts.missingWhy.Get(i))
+		sources.unavailable(opts.missingNames.Get(i), opts.missingWhy.Get(i))
 	}
 
 	zipFile, err := os.Create(destPath)
@@ -282,7 +290,8 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 
 	inventory, unreadable := logInventory()
 	for _, entry := range unreadable {
-		result.MissingSources.Add(entry)
+		result.MissingSources.Add(entry.Source + ": " + entry.Reason)
+		sources.unavailable(entry.Source, entry.Reason)
 	}
 	for i := 0; i < inventory.Len(); i += 1 {
 		info := inventory.Get(i)
@@ -292,12 +301,14 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		f, err := os.Open(info.Path)
 		if err != nil {
 			result.MissingSources.Add(info.Name + ": " + err.Error())
+			sources.incomplete(info.Source, info.Name, err.Error())
 			continue
 		}
 		fi, err := f.Stat()
 		if err != nil {
 			f.Close()
 			result.MissingSources.Add(info.Name + ": " + err.Error())
+			sources.incomplete(info.Source, info.Name, err.Error())
 			continue
 		}
 		err = zipWriteEntry(zipWriter, "logs/"+info.Source+"/"+info.Name, f, fi, transform)
@@ -312,8 +323,10 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 			// archive as a valid entry, and the file is named as incomplete
 			// rather than counted as exported.
 			result.MissingSources.Add(info.Name + ": incomplete, " + err.Error())
+			sources.incomplete(info.Source, info.Name, err.Error())
 			continue
 		}
+		sources.included(info.Source, info.ByteCount)
 		result.FileCount += 1
 	}
 
@@ -326,10 +339,20 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 			// hand-written literal, so this path and the normal one share a
 			// single source of truth for the manifest's shape and can't drift
 			// apart on key names again.
-			manifestJson = buildDiagnosticManifestJson(diagnosticManifestInput{
-				SdkVersion:      Version,
-				DeviceAvailable: false,
-			})
+			manifestJson = fallbackDiagnosticManifestJson()
+		}
+		manifestJson, err := addExportMetadata(manifestJson, opts.Redact, sources.all())
+		if err != nil {
+			// The platform handed over something that is not a json object, so
+			// there is nothing to merge into. Say so, and write the sdk's own
+			// manifest instead of dropping the export metadata with it: a
+			// bundle whose manifest cannot say whether it was redacted is
+			// precisely what this metadata exists to prevent.
+			result.MissingSources.Add("manifest: " + err.Error())
+			manifestJson, err = addExportMetadata(fallbackDiagnosticManifestJson(), opts.Redact, sources.all())
+			if err != nil {
+				return fail(err)
+			}
 		}
 		if err := zipWriteEntry(zipWriter, "manifest.json", strings.NewReader(manifestJson), nil, transform); err != nil {
 			return fail(err)
@@ -395,6 +418,124 @@ func exportReadme(opts *ExportOptions, result *ExportResult) string {
 		}
 	}
 	return b.String()
+}
+
+// exportModeRedacted and exportModeRaw are the two values of the manifest's
+// export_mode field, the machine-readable form of what README.txt says in
+// prose.
+const (
+	exportModeRedacted = "redacted"
+	exportModeRaw      = "raw"
+)
+
+// manifestSourceAvailability is one entry of the manifest's per-source
+// availability list, in the shape the spec names:
+// {"source": "extension", "available": false, "reason": "app group container
+// unavailable"}.
+type manifestSourceAvailability struct {
+	Source    string `json:"source"`
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+	FileCount int    `json:"file_count"`
+	ByteCount int64  `json:"byte_count"`
+	// Incomplete names files that were listed but could not be copied whole,
+	// so "available: true, file_count: 2" is never read as "everything this
+	// source had is in the bundle" when it is not.
+	Incomplete []string `json:"incomplete,omitempty"`
+}
+
+// exportSourceReport accumulates the per-source availability list as the
+// export runs.
+type exportSourceReport struct {
+	order   []string
+	entries map[string]*manifestSourceAvailability
+}
+
+func newExportSourceReport() *exportSourceReport {
+	return &exportSourceReport{entries: map[string]*manifestSourceAvailability{}}
+}
+
+func (self *exportSourceReport) entry(source string) *manifestSourceAvailability {
+	entry, ok := self.entries[source]
+	if !ok {
+		entry = &manifestSourceAvailability{Source: source}
+		self.entries[source] = entry
+		self.order = append(self.order, source)
+	}
+	return entry
+}
+
+func (self *exportSourceReport) included(source string, byteCount int64) {
+	entry := self.entry(source)
+	entry.FileCount += 1
+	entry.ByteCount += byteCount
+	if entry.Reason == "" {
+		entry.Available = true
+	}
+}
+
+func (self *exportSourceReport) unavailable(source string, reason string) {
+	entry := self.entry(source)
+	entry.Available = false
+	entry.Reason = reason
+}
+
+func (self *exportSourceReport) incomplete(source string, name string, reason string) {
+	entry := self.entry(source)
+	entry.Incomplete = append(entry.Incomplete, name+": "+reason)
+}
+
+func (self *exportSourceReport) all() []manifestSourceAvailability {
+	all := make([]manifestSourceAvailability, 0, len(self.order))
+	for _, source := range self.order {
+		all = append(all, *self.entries[source])
+	}
+	return all
+}
+
+// addExportMetadata merges what the sdk knows about THIS export into the
+// manifest body the platform supplied.
+//
+// The spec defines manifest.json as the DiagnosticManifestJson output plus
+// export metadata, and two of those fields are safety-relevant: the mode, so a
+// reader can tell a redacted bundle from a raw one without parsing English out
+// of README.txt, and the per-source availability list, so a source that was
+// unreachable is distinguishable from a source that had nothing to say.
+// Neither platform augments the manifest, so if the sdk does not add these
+// they exist nowhere machine-readable in the bundle.
+//
+// The spec's remaining manifest fields -- app version and build, os version,
+// device model -- are deliberately not here. The sdk cannot know them, and
+// inventing them would put wrong values in the one file support trusts;
+// carrying them needs new api surface on both platforms to inject them.
+func addExportMetadata(manifestJson string, redact bool, sources []manifestSourceAvailability) (string, error) {
+	manifest := map[string]any{}
+	if err := json.Unmarshal([]byte(manifestJson), &manifest); err != nil {
+		return "", err
+	}
+	if redact {
+		manifest["export_mode"] = exportModeRedacted
+	} else {
+		manifest["export_mode"] = exportModeRaw
+	}
+	if sources == nil {
+		sources = []manifestSourceAvailability{}
+	}
+	manifest["sources"] = sources
+	encoded, err := json.Marshal(manifest)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+// fallbackDiagnosticManifestJson is the manifest written when no platform
+// supplied one, or when the one supplied could not be parsed.
+func fallbackDiagnosticManifestJson() string {
+	return buildDiagnosticManifestJson(diagnosticManifestInput{
+		SdkVersion:      Version,
+		DeviceAvailable: false,
+	})
 }
 
 // diagnosticManifestInput is the plain-Go input to the manifest. It is not
