@@ -6557,7 +6557,7 @@ func (self *DeviceLocal) DiagnosticManifestJson() string {
 // from it via zip.FileInfoHeader so the entry keeps the file's real
 // Modified time and permission bits, with only Name and Method overridden.
 // fi is nil for synthetic entries with no backing file (manifest.json,
-// README.txt, platform/*), which instead get Modified set to time.Now() so
+// README.txt, files under platform/), which instead get Modified set to time.Now() so
 // they carry a real date rather than zip's 1979 zero-value sentinel.
 func zipWriteEntry(zipWriter *zip.Writer, name string, r io.Reader, fi os.FileInfo, transform func(string) string) error {
 	var hdr *zip.FileHeader

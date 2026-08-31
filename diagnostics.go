@@ -120,7 +120,8 @@ type ExportOptions struct {
 	// the platform via SetManifestJson, because on ios the device-side state
 	// lives in the extension and arrives over the rpc.
 	IncludeManifest bool
-	// IncludePlatformLogs writes platform/*.txt from SetPlatformLog entries.
+	// IncludePlatformLogs writes platform log files (platform/NAME.txt) from
+	// SetPlatformLog entries.
 	IncludePlatformLogs bool
 	// SelectedNames limits the export to these LogFileInfo.Name values. Empty
 	// means every file.
