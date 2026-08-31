@@ -63,7 +63,7 @@ func logSeverityOf(name string) string {
 // Symlinks are skipped: glog maintains a <program>.<SEVERITY> symlink beside
 // each real file, and following it would list the same bytes twice.
 func LogInventory() *LogFileInfoList {
-	inventory, _ := logInventory()
+	inventory, _, _ := logInventory()
 	return inventory
 }
 
@@ -72,7 +72,15 @@ func LogInventory() *LogFileInfoList {
 const logRootSourceName = "log root"
 
 // logInventory is LogInventory plus the directories it could not read, as
-// "<source>: <reason>" entries.
+// "<source>: <reason>" entries, plus where each source was read from.
+//
+// The third result maps a source to the directory the enumeration read it
+// from: the shared per-process root in the normal layout, where the files live
+// in <root>/<source>, or, under the legacy single-directory configuration,
+// that directory itself. The manifest reports it per source because the
+// process that BUILDS the manifest is not always the process that reads the
+// files -- on ios the manifest comes from the extension over the rpc while the
+// archive is assembled in the app, from the app's container.
 //
 // The exported LogInventory drops them because its bound signature has nowhere
 // to put them, but ExportDiagnosticBundle must not: an unreadable log root or
@@ -82,34 +90,39 @@ const logRootSourceName = "log root"
 // reporting zero missing sources, while a whole process's logs were absent.
 // The spec's degradation promise is that a source that cannot be read is
 // recorded as missing, never silently dropped.
-func logInventory() (*LogFileInfoList, []unreadableSource) {
+func logInventory() (*LogFileInfoList, []unreadableSource, map[string]string) {
 	inventory := NewLogFileInfoList()
 	unreadable := []unreadableSource{}
+	sourceRoots := map[string]string{}
 
 	root := GetLogRoot()
 	if root == "" {
-		// legacy single-directory configuration: report it as one source
+		// legacy single-directory configuration: report it as one source, read
+		// from that directory and not from a root above it
 		if dir := GetLogDir(); dir != "" {
+			sourceRoots["app"] = dir
 			if err := appendLogFilesIn(inventory, dir, "app"); err != nil {
 				unreadable = append(unreadable, unreadableSource{"app", err.Error()})
 			}
 		}
-		return inventory, unreadable
+		return inventory, unreadable, sourceRoots
 	}
 
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return inventory, append(unreadable, unreadableSource{logRootSourceName, err.Error()})
+		sourceRoots[logRootSourceName] = root
+		return inventory, append(unreadable, unreadableSource{logRootSourceName, err.Error()}), sourceRoots
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
+		sourceRoots[entry.Name()] = root
 		if err := appendLogFilesIn(inventory, filepath.Join(root, entry.Name()), entry.Name()); err != nil {
 			unreadable = append(unreadable, unreadableSource{entry.Name(), err.Error()})
 		}
 	}
-	return inventory, unreadable
+	return inventory, unreadable, sourceRoots
 }
 
 // unreadableSource is a log source directory that could not be listed.
@@ -320,7 +333,10 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		return nil, err
 	}
 
-	inventory, unreadable := logInventory()
+	inventory, unreadable, sourceRoots := logInventory()
+	// from here on every source entry names the directory its files were
+	// actually read from, in THIS process
+	sources.withRoots(sourceRoots)
 	for _, entry := range unreadable {
 		if declaredMissing[entry.Source] {
 			// the platform already said why this source is missing, in words
@@ -490,6 +506,18 @@ type manifestSourceAvailability struct {
 	// so "available: true, file_count: 2" is never read as "everything this
 	// source had is in the bundle" when it is not.
 	Incomplete []string `json:"incomplete,omitempty"`
+	// LogRoot is the directory the export read this source from, in the
+	// process that assembled the archive: the per-process root that contains
+	// <root>/<source>, or the log directory itself under the legacy
+	// single-directory configuration.
+	//
+	// It is per source, and it is the path a reader should follow, because the
+	// manifest's own log fields come from the process that BUILT the manifest
+	// -- on ios the extension, whose container is not the one the files were
+	// read from. Empty when this export never enumerated the source, which is
+	// the case for one the platform declared missing with no directory of its
+	// own under this process's root.
+	LogRoot string `json:"log_root,omitempty"`
 }
 
 // exportSourceReport accumulates the per-source availability list as the
@@ -497,10 +525,26 @@ type manifestSourceAvailability struct {
 type exportSourceReport struct {
 	order   []string
 	entries map[string]*manifestSourceAvailability
+	// roots is where the enumeration read each source from, once it has run
+	roots map[string]string
 }
 
 func newExportSourceReport() *exportSourceReport {
 	return &exportSourceReport{entries: map[string]*manifestSourceAvailability{}}
+}
+
+// withRoots supplies the directory each source was read from, and backfills
+// the entries already made -- the sources the platform declared missing, which
+// are recorded before the enumeration runs. A source the enumeration never saw
+// keeps an empty root, which is the truthful answer for it: nothing read it
+// from anywhere.
+func (self *exportSourceReport) withRoots(roots map[string]string) {
+	self.roots = roots
+	for source, entry := range self.entries {
+		if entry.LogRoot == "" {
+			entry.LogRoot = roots[source]
+		}
+	}
 }
 
 func (self *exportSourceReport) entry(source string) *manifestSourceAvailability {
@@ -509,6 +553,9 @@ func (self *exportSourceReport) entry(source string) *manifestSourceAvailability
 		entry = &manifestSourceAvailability{Source: source}
 		self.entries[source] = entry
 		self.order = append(self.order, source)
+	}
+	if entry.LogRoot == "" {
+		entry.LogRoot = self.roots[source]
 	}
 	return entry
 }
@@ -545,12 +592,15 @@ func (self *exportSourceReport) all() []manifestSourceAvailability {
 // manifest body the platform supplied.
 //
 // The spec defines manifest.json as the DiagnosticManifestJson output plus
-// export metadata, and two of those fields are safety-relevant: the mode, so a
-// reader can tell a redacted bundle from a raw one without parsing English out
-// of README.txt, and the per-source availability list, so a source that was
-// unreachable is distinguishable from a source that had nothing to say.
-// Neither platform augments the manifest, so if the sdk does not add these
-// they exist nowhere machine-readable in the bundle.
+// export metadata, and three of those fields are safety-relevant: the mode, so
+// a reader can tell a redacted bundle from a raw one without parsing English
+// out of README.txt; the per-source availability list, so a source that was
+// unreachable is distinguishable from a source that had nothing to say; and
+// the verbosity, because it decides what a reader can expect to find at all --
+// at the default level the connect package writes none of its V(1) contract
+// and transport lines, so their absence means nothing. Neither platform
+// augments the manifest, so if the sdk does not add these they exist nowhere
+// machine-readable in the bundle.
 //
 // The spec's remaining manifest fields -- app version and build, os version,
 // device model -- are deliberately not here. The sdk cannot know them, and
@@ -566,6 +616,14 @@ func addExportMetadata(manifestJson string, redact bool, sources []manifestSourc
 	} else {
 		manifest["export_mode"] = exportModeRaw
 	}
+	// the exporting process's own log configuration. export_log_root is the
+	// root this process read the archive's files from, which is NOT
+	// necessarily the one the manifest body names: on ios the body is built in
+	// the extension and the archive is assembled in the app, from a different
+	// container. export_log_verbosity says what the app's own lines were
+	// written at.
+	manifest["export_log_root"] = GetLogRoot()
+	manifest["export_log_verbosity"] = GetLogVerbosity()
 	if sources == nil {
 		sources = []manifestSourceAvailability{}
 	}
@@ -610,7 +668,17 @@ func buildDiagnosticManifestJson(input diagnosticManifestInput) string {
 		"device_available": input.DeviceAvailable,
 		"connect_enabled":  input.ConnectEnabled,
 		"provide_enabled":  input.ProvideEnabled,
-		"log_root":         GetLogRoot(),
+		// the log fields are prefixed manifest_ because they describe THIS
+		// process -- the one building the manifest -- and nothing else. On ios
+		// that is the extension, reached over the rpc, while the archive is
+		// assembled in the app from a different container: a plain "log_root"
+		// here named the extension's root above an archive of the app's files,
+		// and a support engineer following it opened the wrong container. The
+		// path the archive's files came from is in sources[].log_root, per
+		// source.
+		"manifest_log_root":      GetLogRoot(),
+		"manifest_log_dir":       GetLogDir(),
+		"manifest_log_verbosity": GetLogVerbosity(),
 	}
 	encoded, err := json.Marshal(manifest)
 	if err != nil {
