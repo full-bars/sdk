@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"flag"
 	"strconv"
 	"testing"
@@ -83,4 +84,82 @@ func TestLogVerbosityClampsOutOfRange(t *testing.T) {
 	}
 	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDefault)
 	connect.AssertEqual(t, bool(glog.V(glog.Level(1))), false)
+}
+
+// TestDeviceLocalSetLogVerbosity: the device-level setter raises the process
+// it runs in, which on ios is the network extension -- the process that writes
+// the contract and transport lines a bundle is collected for.
+func TestDeviceLocalSetLogVerbosity(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	device, _ := testing_newBlockDevice(ctx, t, false)
+	defer device.Close()
+
+	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityDefault)
+
+	device.SetLogVerbosity(LogVerbosityDetail)
+	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, connect.NewGlogLogger().V(2).Enabled(), true)
+}
+
+// A hosted device shares one process with unrelated customers' devices, and
+// the verbosity flag is process-global. One tenant raising it would put every
+// other tenant's traffic into the host's logs at V(2), which is both a volume
+// and a disclosure problem.
+func TestDeviceLocalHostedSetLogVerbosityIsIgnored(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	if err := SetLogVerbosity(LogVerbosityDefault); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+
+	hosted := &DeviceLocal{
+		settings: &DeviceLocalSettings{HostedIncompatible: true},
+		log:      connect.NewNoopLogger(),
+	}
+	hosted.SetLogVerbosity(LogVerbosityDetail)
+
+	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDefault)
+}
+
+// TestDeviceLogVerbosityBridgeReachesTheDeviceProcess is the reason the rpc
+// bridge exists: on ios `connect` runs in the network extension, a separate
+// process with its own glog state, so a level set in the app reaches the logs
+// that matter only if it crosses the rpc.
+//
+// The two devices share this test process, so the remote's own process-local
+// set would be indistinguishable from a delivered one. This drives the rpc
+// method directly, with the process level reset first, so only the crossing
+// can explain the result.
+func TestDeviceLogVerbosityBridgeReachesTheDeviceProcess(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	deviceLocal, deviceRemote := testing_newSyncedDeviceLocalRemote(t, ctx)
+
+	if err := flag.Set("v", strconv.Itoa(LogVerbosityDefault)); err != nil {
+		t.Fatalf("flag.Set: %v", err)
+	}
+
+	deviceRemote.stateLock.Lock()
+	service := deviceRemote.service
+	deviceRemote.stateLock.Unlock()
+	if service == nil {
+		t.Fatal("the remote synced but has no rpc service, so the bridge cannot be exercised")
+	}
+
+	err := rpcCallVoidAllowMissingMethod(
+		service,
+		"DeviceLocalRpc.SetLogVerbosity",
+		LogVerbosityDetail,
+		func() {},
+	)
+	connect.AssertEqual(t, err, nil)
+	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityDetail)
 }

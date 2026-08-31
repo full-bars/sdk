@@ -6555,6 +6555,29 @@ func (self *DeviceLocal) FlushGlog() {
 	FlushGlog()
 }
 
+// SetLogVerbosity sets the glog verbosity of the process this device runs in.
+//
+// On ios that is the network extension: the process that runs the transport
+// and writes the [contract], [multi] and [s] lines a diagnostic bundle is
+// collected for. An app in another process reaches this through
+// DeviceRemote.SetLogVerbosity, which sets both.
+func (self *DeviceLocal) SetLogVerbosity(level int) {
+	if self.hostedIncompatibleGuarded("SetLogVerbosity") {
+		// a hosted device shares one process with unrelated customers'
+		// devices, and the verbosity flag is process-global: it is not one
+		// tenant's to raise
+		return
+	}
+	if err := SetLogVerbosity(level); err != nil {
+		self.log.Infof("[device]set log verbosity %d err = %s\n", level, err)
+	}
+}
+
+// GetLogVerbosity returns the verbosity this device's process is logging at.
+func (self *DeviceLocal) GetLogVerbosity() int {
+	return GetLogVerbosity()
+}
+
 // zipEntryWriter writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.

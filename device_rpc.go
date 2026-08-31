@@ -5646,6 +5646,58 @@ func (self *DeviceRemote) FlushGlog() {
 	rpcCallVoidAllowMissingMethod(self.service, "DeviceLocalRpc.FlushGlog", RpcNoArg(0), self.closeService)
 }
 
+// SetLogVerbosity sets both processes' glog verbosity: this one directly, and
+// the device process over the rpc.
+//
+// Both, for the same reason FlushGlog does both: the app is where the level is
+// chosen and displayed, and the extension is where the logs that justify
+// raising it are produced. Setting only the app's would leave the user looking
+// at a "verbose" switch that changes nothing in the bundle.
+//
+// The rpc tolerates a missing method so a device peer from an older build
+// refuses the call without the session being torn down; the app process is
+// still raised either way.
+func (self *DeviceRemote) SetLogVerbosity(level int) {
+	if err := SetLogVerbosity(level); err != nil {
+		self.log.Infof("[dr]set log verbosity %d err = %s", level, err)
+	}
+
+	if self.hostedIncompatibleGuarded("SetLogVerbosity") {
+		// the device side guards this too -- do not spend an rpc on a call it
+		// is going to ignore
+		return
+	}
+
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	if self.service == nil {
+		// the tunnel is not running. The level is persisted below the device,
+		// so the next one to start comes up at it (see
+		// DeviceLocal.SetLogVerbosity and LocalState.SetLogVerbosity)
+		return
+	}
+
+	rpcCallVoidAllowMissingMethod(
+		self.service,
+		"DeviceLocalRpc.SetLogVerbosity",
+		clampLogVerbosity(level),
+		self.closeService,
+	)
+}
+
+// GetLogVerbosity returns the verbosity THIS process is logging at.
+//
+// Deliberately not an rpc round trip. SetLogVerbosity sets both processes
+// together, so the local answer is the level that was chosen, and it stays
+// answerable while the tunnel is down -- when a UI most needs to show what it
+// will be capturing at. A value call over the rpc would also have to tear the
+// session down against a peer that lacks the method, since only the void call
+// has an allow-missing variant.
+func (self *DeviceRemote) GetLogVerbosity() int {
+	return GetLogVerbosity()
+}
+
 // *important rpc note* gob encoding cannot encode fields that are not exported
 // so our usual gomobile types that have private fields cannot be properly sent via rpc
 // for rpc we redefine these gomobile types so that they can be gob encoded
@@ -10194,6 +10246,11 @@ func (self *DeviceLocalRpc) DiagnosticManifestJson(_ RpcNoArg, manifestJson *str
 
 func (self *DeviceLocalRpc) FlushGlog(_ RpcNoArg, _ RpcVoid) error {
 	self.deviceLocal.FlushGlog()
+	return nil
+}
+
+func (self *DeviceLocalRpc) SetLogVerbosity(level int, _ RpcVoid) error {
+	self.deviceLocal.SetLogVerbosity(level)
 	return nil
 }
 

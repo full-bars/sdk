@@ -735,6 +735,25 @@ type Device interface {
 	// reporting is simply absent from the bundle.
 	FlushGlog()
 
+	// SetLogVerbosity sets the glog verbosity of the device process, which is
+	// where the logs worth raising it for are produced.
+	//
+	// The connect package gates its contract accounting, transport internals
+	// and window diagnostics behind V(1) and V(2), so at the default level
+	// none of them are written and a bundle exported from a live session
+	// contains only rpc chatter. Levels are the sdk-level ones
+	// (LogVerbosityDefault, LogVerbosityTrace, LogVerbosityDetail), clamped,
+	// never an error.
+	//
+	// On ios the device runs in the network extension, a separate process
+	// with its own glog state, so raising the level in the app alone does
+	// nothing for the logs that matter -- the same trap FlushGlog exists for.
+	SetLogVerbosity(level int)
+
+	// GetLogVerbosity returns the verbosity of the process this Device is
+	// read from, so a UI can show the level it is offering to change.
+	GetLogVerbosity() int
+
 	RefreshToken(attempt int) error
 
 	SetPerformanceProfile(performanceProfile *PerformanceProfile)
