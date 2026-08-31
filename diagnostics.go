@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"archive/zip"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -291,4 +292,37 @@ func exportReadme(opts *ExportOptions, result *ExportResult) string {
 		}
 	}
 	return b.String()
+}
+
+// diagnosticManifestInput is the plain-Go input to the manifest. It is not
+// exported to gomobile: the bound surface is DiagnosticManifestJson() string.
+type diagnosticManifestInput struct {
+	SdkVersion      string
+	ClientId        string
+	InstanceId      string
+	NetworkSpace    string
+	ConnectEnabled  bool
+	ProvideEnabled  bool
+	DeviceAvailable bool
+}
+
+func buildDiagnosticManifestJson(input diagnosticManifestInput) string {
+	manifest := map[string]any{
+		"sdk_version":   input.SdkVersion,
+		"client_id":     input.ClientId,
+		"instance_id":   input.InstanceId,
+		"network_space": input.NetworkSpace,
+		// device_available is false when the manifest was built without a live
+		// device -- on ios that means the rpc into the extension was down, so
+		// the fields below are absent rather than genuinely false.
+		"device_available": input.DeviceAvailable,
+		"connect_enabled":  input.ConnectEnabled,
+		"provide_enabled":  input.ProvideEnabled,
+		"log_root":         GetLogRoot(),
+	}
+	encoded, err := json.Marshal(manifest)
+	if err != nil {
+		return "{\"device_available\":false}"
+	}
+	return string(encoded)
 }

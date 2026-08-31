@@ -6522,6 +6522,33 @@ func (self *DeviceLocal) UploadLogs(feedbackId string, callback UploadLogsCallba
 	return nil
 }
 
+// DiagnosticManifestJson returns the device-side half of the exported bundle's
+// manifest. It is kilobytes of json, which is why it crosses the rpc while the
+// log files -- which would not fit the extension's memory target -- do not.
+func (self *DeviceLocal) DiagnosticManifestJson() string {
+	clientId := ""
+	if id := self.GetClientId(); id != nil {
+		clientId = id.String()
+	}
+	instanceId := ""
+	if id := self.GetInstanceId(); id != nil {
+		instanceId = id.String()
+	}
+	networkSpace := ""
+	if space := self.GetNetworkSpace(); space != nil {
+		networkSpace = space.GetHostName()
+	}
+	return buildDiagnosticManifestJson(diagnosticManifestInput{
+		SdkVersion:      Version,
+		ClientId:        clientId,
+		InstanceId:      instanceId,
+		NetworkSpace:    networkSpace,
+		ConnectEnabled:  self.GetConnectEnabled(),
+		ProvideEnabled:  self.GetProvideEnabled(),
+		DeviceAvailable: true,
+	})
+}
+
 // zipEntryWriter writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.

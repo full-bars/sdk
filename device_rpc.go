@@ -5600,6 +5600,29 @@ func (self *DeviceRemote) UploadLogs(feedbackId string, callback UploadLogsCallb
 	return nil
 }
 
+func (self *DeviceRemote) DiagnosticManifestJson() string {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	if self.service == nil {
+		// the tunnel is not running: the app still exports, with the
+		// device-side fields marked absent rather than reported as false
+		return buildDiagnosticManifestJson(diagnosticManifestInput{
+			SdkVersion:      Version,
+			DeviceAvailable: false,
+		})
+	}
+
+	manifestJson, err := rpcCallNoArg[string](self.service, "DeviceLocalRpc.DiagnosticManifestJson", self.closeService)
+	if err != nil {
+		return buildDiagnosticManifestJson(diagnosticManifestInput{
+			SdkVersion:      Version,
+			DeviceAvailable: false,
+		})
+	}
+	return manifestJson
+}
+
 // *important rpc note* gob encoding cannot encode fields that are not exported
 // so our usual gomobile types that have private fields cannot be properly sent via rpc
 // for rpc we redefine these gomobile types so that they can be gob encoded
@@ -10138,6 +10161,11 @@ func (self *DeviceLocalRpc) canShowRatingDialogChanged(canShowRatingDialog bool)
 
 func (self *DeviceLocalRpc) UploadLogs(feedbackId string, _ RpcVoid) error {
 	self.deviceLocal.UploadLogs(feedbackId, nil)
+	return nil
+}
+
+func (self *DeviceLocalRpc) DiagnosticManifestJson(_ RpcNoArg, manifestJson *string) error {
+	*manifestJson = self.deviceLocal.DiagnosticManifestJson()
 	return nil
 }
 

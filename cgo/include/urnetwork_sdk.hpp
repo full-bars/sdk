@@ -370,6 +370,8 @@ struct DeviceSetNameError;
 struct DeviceSetNameResult;
 struct DnsResolverSettings;
 struct Exit;
+struct ExportOptions;
+struct ExportResult;
 struct FeedbackSendNeeds;
 struct FeedbackSendArgs;
 struct FeedbackSendResult;
@@ -413,6 +415,7 @@ struct ListApiKeysResult;
 struct LocationDeviceResult;
 struct LocationGroupResult;
 struct LocationResult;
+struct LogFileInfo;
 struct MemoryStats;
 struct NetExtender;
 struct NetExtenderAutoConfigure;
@@ -572,6 +575,7 @@ using LeaderboardEarnersList = std::vector<LeaderboardEarner>;
 using LocationDeviceResultList = std::vector<LocationDeviceResult>;
 using LocationGroupResultList = std::vector<LocationGroupResult>;
 using LocationResultList = std::vector<LocationResult>;
+using LogFileInfoList = std::vector<LogFileInfo>;
 using NetworkClientConnectionList = std::vector<NetworkClientConnection>;
 using NetworkClientInfoList = std::vector<NetworkClientInfo>;
 using NetworkPeerList = std::vector<NetworkPeer>;
@@ -1244,6 +1248,19 @@ struct Exit {
 	int64_t ProviderDiagnosticsSequence{};
 };
 
+struct ExportOptions {
+	bool Redact{};
+	bool IncludeManifest{};
+	bool IncludePlatformLogs{};
+	std::optional<StringList> SelectedNames;
+};
+
+struct ExportResult {
+	int64_t ByteCount{};
+	int64_t FileCount{};
+	std::optional<StringList> MissingSources;
+};
+
 struct FeedbackSendNeeds {
 	std::string other{};
 };
@@ -1486,6 +1503,15 @@ struct LocationResult {
 	std::optional<int64_t> match_distance;
 	bool stable{};
 	bool strong_privacy{};
+};
+
+struct LogFileInfo {
+	std::string Name{};
+	std::string Path{};
+	std::string Source{};
+	std::string Severity{};
+	int64_t ByteCount{};
+	int64_t ModifiedMillis{};
 };
 
 struct MemoryStats {
@@ -2556,6 +2582,10 @@ inline void to_json(nlohmann::json& j, const DnsResolverSettings& v);
 inline void from_json(const nlohmann::json& j, DnsResolverSettings& v);
 inline void to_json(nlohmann::json& j, const Exit& v);
 inline void from_json(const nlohmann::json& j, Exit& v);
+inline void to_json(nlohmann::json& j, const ExportOptions& v);
+inline void from_json(const nlohmann::json& j, ExportOptions& v);
+inline void to_json(nlohmann::json& j, const ExportResult& v);
+inline void from_json(const nlohmann::json& j, ExportResult& v);
 inline void to_json(nlohmann::json& j, const FeedbackSendNeeds& v);
 inline void from_json(const nlohmann::json& j, FeedbackSendNeeds& v);
 inline void to_json(nlohmann::json& j, const FeedbackSendArgs& v);
@@ -2642,6 +2672,8 @@ inline void to_json(nlohmann::json& j, const LocationGroupResult& v);
 inline void from_json(const nlohmann::json& j, LocationGroupResult& v);
 inline void to_json(nlohmann::json& j, const LocationResult& v);
 inline void from_json(const nlohmann::json& j, LocationResult& v);
+inline void to_json(nlohmann::json& j, const LogFileInfo& v);
+inline void from_json(const nlohmann::json& j, LogFileInfo& v);
 inline void to_json(nlohmann::json& j, const MemoryStats& v);
 inline void from_json(const nlohmann::json& j, MemoryStats& v);
 inline void to_json(nlohmann::json& j, const NetExtender& v);
@@ -5906,6 +5938,60 @@ inline void from_json(const nlohmann::json& j, Exit& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const ExportOptions& v) {
+	j = nlohmann::json::object();
+	j["Redact"] = v.Redact;
+	j["IncludeManifest"] = v.IncludeManifest;
+	j["IncludePlatformLogs"] = v.IncludePlatformLogs;
+	if (v.SelectedNames) {
+		j["SelectedNames"] = *v.SelectedNames;
+	}
+}
+inline void from_json(const nlohmann::json& j, ExportOptions& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Redact"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Redact);
+	}
+	if (auto it = j.find("IncludeManifest"); it != j.end() && !it->is_null()) {
+		it->get_to(v.IncludeManifest);
+	}
+	if (auto it = j.find("IncludePlatformLogs"); it != j.end() && !it->is_null()) {
+		it->get_to(v.IncludePlatformLogs);
+	}
+	if (auto it = j.find("SelectedNames"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.SelectedNames = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ExportResult& v) {
+	j = nlohmann::json::object();
+	j["ByteCount"] = v.ByteCount;
+	j["FileCount"] = v.FileCount;
+	if (v.MissingSources) {
+		j["MissingSources"] = *v.MissingSources;
+	}
+}
+inline void from_json(const nlohmann::json& j, ExportResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("ByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ByteCount);
+	}
+	if (auto it = j.find("FileCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.FileCount);
+	}
+	if (auto it = j.find("MissingSources"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.MissingSources = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const FeedbackSendNeeds& v) {
 	j = nlohmann::json::object();
 	j["other"] = v.other;
@@ -7034,6 +7120,39 @@ inline void from_json(const nlohmann::json& j, LocationResult& v) {
 	}
 	if (auto it = j.find("strong_privacy"); it != j.end() && !it->is_null()) {
 		it->get_to(v.strong_privacy);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const LogFileInfo& v) {
+	j = nlohmann::json::object();
+	j["Name"] = v.Name;
+	j["Path"] = v.Path;
+	j["Source"] = v.Source;
+	j["Severity"] = v.Severity;
+	j["ByteCount"] = v.ByteCount;
+	j["ModifiedMillis"] = v.ModifiedMillis;
+}
+inline void from_json(const nlohmann::json& j, LogFileInfo& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Name"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Name);
+	}
+	if (auto it = j.find("Path"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Path);
+	}
+	if (auto it = j.find("Source"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Source);
+	}
+	if (auto it = j.find("Severity"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Severity);
+	}
+	if (auto it = j.find("ByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ByteCount);
+	}
+	if (auto it = j.find("ModifiedMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ModifiedMillis);
 	}
 }
 
@@ -11069,6 +11188,7 @@ public:
 	Sub addWindowStatusChangeListener(WindowStatusChangeListener listener) const;
 	void cancel() const;
 	void close() const;
+	std::string diagnosticManifestJson() const;
 	bool getAllowForeground() const;
 	Api getApi() const;
 	std::optional<BlockActionOverrideList> getBlockActionOverrides() const;
@@ -16894,6 +17014,10 @@ inline void Device::cancel() const {
 inline void Device::close() const {
 	urnet_device_close(handle());
 }
+inline std::string Device::diagnosticManifestJson() const {
+	char* r_c = urnet_device_diagnostic_manifest_json(handle());
+	return detail::takeString(r_c);
+}
 inline bool Device::getAllowForeground() const {
 	bool r = urnet_device_get_allow_foreground(handle());
 	return r;
@@ -20690,6 +20814,24 @@ inline std::string encryptData(const uint8_t* data, int32_t data_len, const std:
 	}
 	return detail::takeString(r_c);
 }
+inline std::optional<ExportResult> exportDiagnosticBundle(const std::string& dest_path, const std::optional<ExportOptions>& opts) {
+	std::string opts_json;
+	const char* opts_c = nullptr;
+	if (opts) {
+		opts_json = nlohmann::json(*opts).dump();
+		opts_c = opts_json.c_str();
+	}
+	char* err_c = nullptr;
+	char* r_c = urnet_export_diagnostic_bundle(dest_path.c_str(), opts_c, &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExportResult>(r_s->c_str());
+}
 inline void flushGlog() {
 	urnet_flush_glog();
 }
@@ -20770,6 +20912,10 @@ inline std::string getLogDir() {
 	char* r_c = urnet_get_log_dir();
 	return detail::takeString(r_c);
 }
+inline std::string getLogRoot() {
+	char* r_c = urnet_get_log_root();
+	return detail::takeString(r_c);
+}
 inline std::optional<MemoryStats> getMemoryStats() {
 	char* r_c = urnet_get_memory_stats();
 	auto r_s = detail::takeStringOpt(r_c);
@@ -20825,6 +20971,14 @@ inline bool isPurchaseReportTerminal(const std::string& status) {
 inline bool isValidPaymentReference(const std::string& s) {
 	bool r = urnet_is_valid_payment_reference(s.c_str());
 	return r;
+}
+inline std::optional<LogFileInfoList> logInventory() {
+	char* r_c = urnet_log_inventory();
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<LogFileInfoList>(r_s->c_str());
 }
 inline double nanoCentsToUsd(int64_t nano_cents) {
 	double r = urnet_nano_cents_to_usd(nano_cents);
@@ -20887,6 +21041,14 @@ inline DeviceRemote newDeviceRemoteWithDefaults(const NetworkSpace& network_spac
 		detail::throwError(err_c);
 	}
 	return r;
+}
+inline std::optional<ExportOptions> newExportOptions() {
+	char* r_c = urnet_new_export_options();
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExportOptions>(r_s->c_str());
 }
 inline std::string newId() {
 	char* r_c = urnet_new_id();
@@ -21049,6 +21211,16 @@ inline void setLogDir(const std::string& log_dir) {
 	}
 	if (!ok) {
 		throw Error("urnet: urnet_set_log_dir failed");
+	}
+}
+inline void setLogDirForProcess(const std::string& root, const std::string& process_name) {
+	char* err_c = nullptr;
+	bool ok = urnet_set_log_dir_for_process(root.c_str(), process_name.c_str(), &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	if (!ok) {
+		throw Error("urnet: urnet_set_log_dir_for_process failed");
 	}
 }
 inline void setMemoryLimit(int64_t limit) {

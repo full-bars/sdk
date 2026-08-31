@@ -723,6 +723,8 @@ type Device interface {
 
 	UploadLogs(feedbackId string, callback UploadLogsCallback) error
 
+	DiagnosticManifestJson() string
+
 	RefreshToken(attempt int) error
 
 	SetPerformanceProfile(performanceProfile *PerformanceProfile)
