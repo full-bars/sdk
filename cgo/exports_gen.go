@@ -5977,6 +5977,16 @@ func urnet_device_diagnostic_manifest_json(self C.uint64_t) *C.char {
 	return cString(string(r0))
 }
 
+//export urnet_device_flush_glog
+func urnet_device_flush_glog(self C.uint64_t) {
+	defer cgoGuard("urnet_device_flush_glog")
+	self_, ok := resolveHandle[sdk.Device](uint64(self), "urnet_device_flush_glog")
+	if !ok {
+		return
+	}
+	self_.FlushGlog()
+}
+
 //export urnet_device_get_allow_foreground
 func urnet_device_get_allow_foreground(self C.uint64_t) C.bool {
 	defer cgoGuard("urnet_device_get_allow_foreground")

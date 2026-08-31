@@ -5623,6 +5623,29 @@ func (self *DeviceRemote) DiagnosticManifestJson() string {
 	return manifestJson
 }
 
+// FlushGlog flushes both processes' glog: this one directly, and the device
+// process over the rpc.
+//
+// The exporting process is the app, and the log files it is about to zip up
+// are written by the extension, which is where the interesting lines are. A
+// failure here is deliberately not reported: a bundle missing its last few
+// seconds is still worth exporting, and losing the rpc must not fail the
+// export.
+func (self *DeviceRemote) FlushGlog() {
+	FlushGlog()
+
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	if self.service == nil {
+		// the tunnel is not running, so the extension has nothing buffered
+		// that this export could be missing
+		return
+	}
+
+	rpcCallVoidAllowMissingMethod(self.service, "DeviceLocalRpc.FlushGlog", RpcNoArg(0), self.closeService)
+}
+
 // *important rpc note* gob encoding cannot encode fields that are not exported
 // so our usual gomobile types that have private fields cannot be properly sent via rpc
 // for rpc we redefine these gomobile types so that they can be gob encoded
@@ -10166,6 +10189,11 @@ func (self *DeviceLocalRpc) UploadLogs(feedbackId string, _ RpcVoid) error {
 
 func (self *DeviceLocalRpc) DiagnosticManifestJson(_ RpcNoArg, manifestJson *string) error {
 	*manifestJson = self.deviceLocal.DiagnosticManifestJson()
+	return nil
+}
+
+func (self *DeviceLocalRpc) FlushGlog(_ RpcNoArg, _ RpcVoid) error {
+	self.deviceLocal.FlushGlog()
 	return nil
 }
 

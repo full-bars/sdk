@@ -725,6 +725,16 @@ type Device interface {
 
 	DiagnosticManifestJson() string
 
+	// FlushGlog flushes the device process's buffered glog output to disk.
+	//
+	// The exporter can only flush its own process. On ios the device runs in
+	// the network extension and the zip is assembled in the app, so without
+	// this the extension's last buffered output -- up to 256 KiB, and up to
+	// the 30 second flush interval -- is still in the extension's memory when
+	// the app reads the files, and the tail describing the failure the user is
+	// reporting is simply absent from the bundle.
+	FlushGlog()
+
 	RefreshToken(attempt int) error
 
 	SetPerformanceProfile(performanceProfile *PerformanceProfile)

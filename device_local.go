@@ -6549,6 +6549,12 @@ func (self *DeviceLocal) DiagnosticManifestJson() string {
 	})
 }
 
+// FlushGlog flushes this process's buffered glog output to disk, so a
+// diagnostic bundle assembled in another process sees the most recent lines.
+func (self *DeviceLocal) FlushGlog() {
+	FlushGlog()
+}
+
 // zipEntryWriter writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.

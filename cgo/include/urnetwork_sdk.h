@@ -711,6 +711,7 @@ uint64_t urnet_device_add_window_status_change_listener(uint64_t self, urnet_win
 void urnet_device_cancel(uint64_t self);
 void urnet_device_close(uint64_t self);
 char* urnet_device_diagnostic_manifest_json(uint64_t self);
+void urnet_device_flush_glog(uint64_t self);
 bool urnet_device_get_allow_foreground(uint64_t self);
 uint64_t urnet_device_get_api(uint64_t self);
 char* urnet_device_get_block_action_overrides(uint64_t self);

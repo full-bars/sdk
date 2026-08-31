@@ -231,6 +231,7 @@ EXPORTS
 	urnet_device_cancel
 	urnet_device_close
 	urnet_device_diagnostic_manifest_json
+	urnet_device_flush_glog
 	urnet_device_get_allow_foreground
 	urnet_device_get_api
 	urnet_device_get_block_action_overrides

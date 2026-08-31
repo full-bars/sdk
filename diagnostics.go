@@ -240,6 +240,11 @@ type ExportResult struct {
 // README, never fatal: an ios build whose provisioning profile predates the
 // app group must still export the logs it can reach. Only an unwritable
 // destination is an error.
+//
+// This flushes THIS process's glog. When another process writes some of the
+// logs -- on ios the extension writes logs/extension -- the caller must call
+// Device.FlushGlog() first, or the newest lines of that process's output are
+// still in its memory and are missing from the bundle.
 func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult, error) {
 	if opts == nil {
 		opts = NewExportOptions()

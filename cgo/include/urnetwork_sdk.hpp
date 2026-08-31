@@ -11189,6 +11189,7 @@ public:
 	void cancel() const;
 	void close() const;
 	std::string diagnosticManifestJson() const;
+	void flushGlog() const;
 	bool getAllowForeground() const;
 	Api getApi() const;
 	std::optional<BlockActionOverrideList> getBlockActionOverrides() const;
@@ -17017,6 +17018,9 @@ inline void Device::close() const {
 inline std::string Device::diagnosticManifestJson() const {
 	char* r_c = urnet_device_diagnostic_manifest_json(handle());
 	return detail::takeString(r_c);
+}
+inline void Device::flushGlog() const {
+	urnet_device_flush_glog(handle());
 }
 inline bool Device::getAllowForeground() const {
 	bool r = urnet_device_get_allow_foreground(handle());
