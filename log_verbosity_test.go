@@ -2,10 +2,9 @@ package sdk
 
 import (
 	"context"
-	"flag"
 	"os"
 	"path/filepath"
-	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func restoreTestingLogVerbosity(t *testing.T) {
 	t.Helper()
 	level := GetLogVerbosity()
 	t.Cleanup(func() {
-		flag.Set("v", strconv.Itoa(level))
+		setLogVerbosityFlag(level)
 	})
 }
 
@@ -129,42 +128,295 @@ func TestDeviceLocalHostedSetLogVerbosityIsIgnored(t *testing.T) {
 	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDefault)
 }
 
-// TestDeviceLogVerbosityBridgeReachesTheDeviceProcess is the reason the rpc
-// bridge exists: on ios `connect` runs in the network extension, a separate
-// process with its own glog state, so a level set in the app reaches the logs
-// that matter only if it crosses the rpc.
+// testing_newSyncedDeviceLocalRemoteSeparateSpaces is
+// testing_newSyncedDeviceLocalRemote with one difference that the log
+// verbosity tests depend on: the local and the remote get their OWN network
+// space, and therefore their own local storage directory.
 //
-// The two devices share this test process, so the remote's own process-local
-// set would be indistinguishable from a delivered one. This drives the rpc
-// method directly, with the process level reset first, so only the crossing
-// can explain the result.
-func TestDeviceLogVerbosityBridgeReachesTheDeviceProcess(t *testing.T) {
+// That is what the two processes actually look like on ios -- the app writes
+// <Application/uuid>/.by and the extension writes <PluginKitPlugin/uuid>/.by,
+// distinct containers -- and it is what makes a crossing observable in one
+// test process. With a shared space (the default helper) both devices persist
+// to the same file, so a level found there proves nothing about which of them
+// wrote it. With separate spaces, only DeviceLocal.SetLogVerbosity can put a
+// level in the DEVICE's file, so finding one there means the rpc carried it.
+//
+// The remote is returned already synced. Both are closed via t.Cleanup.
+func testing_newSyncedDeviceLocalRemoteSeparateSpaces(
+	t *testing.T,
+	ctx context.Context,
+) (deviceLocal *DeviceLocal, deviceRemote *DeviceRemote, localSpaceState *LocalState, remoteSpaceState *LocalState) {
+	t.Helper()
+
+	localSpace, localByJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteSpace, remoteByJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if localSpace.GetAsyncLocalState().GetLocalState().localStorageDir ==
+		remoteSpace.GetAsyncLocalState().GetLocalState().localStorageDir {
+		t.Fatal("the two spaces share a storage dir, so a crossing would be unobservable")
+	}
+
+	clientId := connect.NewId()
+	instanceId := NewId()
+	settings := defaultDeviceRpcSettings()
+
+	deviceLocal, err = newDeviceLocalWithOverrides(
+		localSpace, localByJwt, "", "", "", instanceId, testDeviceLocalSettingsRpc(), clientId,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	deviceRemote, err = newDeviceRemoteWithOverrides(
+		remoteSpace, remoteByJwt, instanceId, settings, clientId, testing_deviceRpcDialer(settings),
+	)
+	if err != nil {
+		deviceLocal.Close()
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		deviceRemote.Close()
+		deviceLocal.Close()
+	})
+
+	deviceRemote.Sync()
+	if !deviceRemote.waitForSync(15 * time.Second) {
+		t.Fatal("device remote did not sync")
+	}
+
+	return deviceLocal, deviceRemote,
+		localSpace.GetAsyncLocalState().GetLocalState(),
+		remoteSpace.GetAsyncLocalState().GetLocalState()
+}
+
+// testing_awaitPersistedLogVerbosity waits for a level to land in one local
+// state. The device persists asynchronously (serialAsync), so the write
+// trails the call that caused it.
+func testing_awaitPersistedLogVerbosity(t *testing.T, localState *LocalState, want int) bool {
+	t.Helper()
+	for i := 0; i < 500; i += 1 {
+		if localState.GetLogVerbosity() == want {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+// TestDeviceRemoteSetLogVerbosityCrossesToTheDeviceProcess is the reason the
+// rpc bridge exists: on ios `connect` runs in the network extension, a
+// separate process with its own glog state, so a level set in the app reaches
+// the logs that matter only if it crosses the rpc.
+//
+// This drives DeviceRemote.SetLogVerbosity -- the call the app actually makes
+// -- rather than the rpc method under it, so the dispatch is what is pinned.
+// The two devices share this test process, so the process-global level proves
+// nothing; the two devices do NOT share a network space, so the level landing
+// in the DEVICE's local state can only have come across the rpc.
+//
+// It also pins that the crossing happened NOW, over the live connection, and
+// was not merely queued for some later sync: nothing in the sdk triggers a
+// resync on a queued write, so a level that is still queued here is a level
+// the extension would not be logging at while the user reproduces their bug.
+func TestDeviceRemoteSetLogVerbosityCrossesToTheDeviceProcess(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	deviceLocal, deviceRemote := testing_newSyncedDeviceLocalRemote(t, ctx)
+	deviceLocal, deviceRemote, localSpaceState, _ := testing_newSyncedDeviceLocalRemoteSeparateSpaces(t, ctx)
 
-	if err := flag.Set("v", strconv.Itoa(LogVerbosityDefault)); err != nil {
-		t.Fatalf("flag.Set: %v", err)
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
 	}
+	connect.AssertEqual(t, localSpaceState.GetLogVerbosity(), LogVerbosityDefault)
+
+	deviceRemote.SetLogVerbosity(LogVerbosityDetail)
+
+	// delivered over the live rpc, not left for a later sync
+	deviceRemote.stateLock.Lock()
+	pending := deviceRemote.state.LogVerbosity.IsSet
+	deviceRemote.stateLock.Unlock()
+	if pending {
+		t.Fatal("the level is queued for a later sync, so the connected device never received it")
+	}
+
+	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityDetail)
+	// the device recorded it in ITS OWN storage, which only the device side
+	// writes -- the crossing, observed from the far end
+	if !testing_awaitPersistedLogVerbosity(t, localSpaceState, LogVerbosityDetail) {
+		t.Fatal("the device process never recorded the level, so nothing crossed the rpc")
+	}
+}
+
+// TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect is the user's
+// real order of operations: raise the level while disconnected, then connect
+// and reproduce.
+//
+// Persisting in the app cannot cover this. On ios the app and the extension
+// each read their own Documents container -- only the app group is shared, and
+// this repo uses it for logs alone -- so the level the app wrote is a file the
+// extension never opens, and the tunnel comes up at 0 and captures none of the
+// V(1) contract and transport lines the export exists for. The queued sync
+// state is what carries it, so this test starts the device AFTER the set and
+// checks the DEVICE's own storage.
+func TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	localSpace, localByJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+	remoteSpace, remoteByJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+	localSpaceState := localSpace.GetAsyncLocalState().GetLocalState()
+
+	clientId := connect.NewId()
+	instanceId := NewId()
+	settings := defaultDeviceRpcSettings()
+
+	// the tunnel is down: nothing is listening on the rpc address yet
+	deviceRemote, err := newDeviceRemoteWithOverrides(
+		remoteSpace, remoteByJwt, instanceId, settings, clientId, testing_deviceRpcDialer(settings),
+	)
+	if err != nil {
+		t.Fatalf("device remote: %v", err)
+	}
+	defer deviceRemote.Close()
+	connect.AssertEqual(t, deviceRemote.GetRemoteConnected(), false)
+
+	deviceRemote.SetLogVerbosity(LogVerbosityTrace)
+
+	// with no service to take the call the level is queued, which is the only
+	// thing that will reach the device process
+	deviceRemote.stateLock.Lock()
+	queued := deviceRemote.state.LogVerbosity
+	deviceRemote.stateLock.Unlock()
+	connect.AssertEqual(t, queued.IsSet, true)
+	connect.AssertEqual(t, queued.Value, LogVerbosityTrace)
+
+	// stand in for the tunnel process starting: a fresh device, whose own
+	// storage has never held a level, in a process reset to 0
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
+	}
+	deviceLocal, err := newDeviceLocalWithOverrides(
+		localSpace, localByJwt, "", "", "", instanceId, testDeviceLocalSettingsRpc(), clientId,
+	)
+	if err != nil {
+		t.Fatalf("device local: %v", err)
+	}
+	defer deviceLocal.Close()
+	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityDefault)
+
+	deviceRemote.Sync()
+	if !deviceRemote.waitForSync(15 * time.Second) {
+		t.Fatal("device remote did not sync after the device came up")
+	}
+
+	if !testing_awaitPersistedLogVerbosity(t, localSpaceState, LogVerbosityTrace) {
+		t.Fatal("the tunnel came up at the default level, so the session being reproduced captures nothing")
+	}
+	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityTrace)
+}
+
+// A level the app restored from its own storage is re-queued for the device
+// process at construction. The app's copy and the extension's are separate
+// files in separate containers on ios, so a reinstall, a cleared extension
+// container, or simply a level chosen against one tunnel and carried across an
+// app relaunch would otherwise leave the extension at 0 while the app reports
+// -- and the exported manifest claims -- the level the user chose.
+func TestDeviceRemoteRestoredLogVerbosityIsQueuedForTheDevice(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	networkSpace, byJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+
+	// the level a previous app session chose
+	if err := networkSpace.GetAsyncLocalState().GetLocalState().SetLogVerbosity(LogVerbosityDetail); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
+	}
+
+	settings := defaultDeviceRpcSettings()
+	settings.Address = requireRemoteAddress(testing_freeHostPort())
+	deviceRemote, err := newDeviceRemoteWithOverrides(
+		networkSpace,
+		byJwt,
+		NewId(),
+		settings,
+		connect.NewId(),
+		NewWebsocketDeviceRpcDialer(settings.Address, "", "", settings),
+	)
+	if err != nil {
+		t.Fatalf("device remote: %v", err)
+	}
+	defer deviceRemote.Close()
+
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityDetail)
 
 	deviceRemote.stateLock.Lock()
-	service := deviceRemote.service
+	queued := deviceRemote.state.LogVerbosity
 	deviceRemote.stateLock.Unlock()
-	if service == nil {
-		t.Fatal("the remote synced but has no rpc service, so the bridge cannot be exercised")
-	}
+	connect.AssertEqual(t, queued.IsSet, true)
+	connect.AssertEqual(t, queued.Value, LogVerbosityDetail)
+}
 
-	err := rpcCallVoidAllowMissingMethod(
-		service,
-		"DeviceLocalRpc.SetLogVerbosity",
-		LogVerbosityDetail,
-		func() {},
-	)
-	connect.AssertEqual(t, err, nil)
-	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityDetail)
+// SetLogVerbosity is exported to gomobile and to the C ABI, and inside the sdk
+// it is reached from DeviceRemote.SetLogVerbosity outside stateLock and from
+// whatever goroutine constructs a device. Nothing serializes those callers, so
+// the setter has to.
+//
+// The write it performs lands in flag.CommandLine.actual, an unsynchronized
+// map: concurrent writes are not only a race the suite would flag under
+// -race, they can be an unrecoverable concurrent-map-write fatal error that no
+// recover can catch.
+func TestSetLogVerbosityIsSafeForConcurrentUse(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	levels := []int{LogVerbosityDefault, LogVerbosityTrace, LogVerbosityDetail}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i += 1 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < 500; j += 1 {
+				if err := SetLogVerbosity(levels[(i+j)%len(levels)]); err != nil {
+					t.Errorf("SetLogVerbosity: %v", err)
+					return
+				}
+				// a concurrent reader, since the read path is deliberately
+				// unlocked: it must stay a read of immutable or atomic state
+				GetLogVerbosity()
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	// still a coherent level, and still the one last written
+	if err := SetLogVerbosity(LogVerbosityTrace); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityTrace)
 }
 
 // TestLocalStateLogVerbosityRoundTrip: the level survives the process, which
@@ -233,8 +485,8 @@ func TestDeviceLocalLogVerbosityPersistRestore(t *testing.T) {
 
 	// stand in for the tunnel restart: a new process runs initGlog, which sets
 	// the level back to 0 before any device exists
-	if err := flag.Set("v", strconv.Itoa(LogVerbosityDefault)); err != nil {
-		t.Fatalf("flag.Set: %v", err)
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
 	}
 
 	restored := testing_newBlockDeviceWithNetworkSpace(t, networkSpace, byJwt, false)
@@ -242,11 +494,16 @@ func TestDeviceLocalLogVerbosityPersistRestore(t *testing.T) {
 	connect.AssertEqual(t, restored.GetLogVerbosity(), LogVerbosityDetail)
 }
 
-// TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown covers the state
-// the user is actually in when they raise the level: disconnected, about to
-// connect and reproduce. There is no device process to take the call, so if
-// the app does not record it the tunnel it is about to start comes up at 0 and
-// captures nothing.
+// TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown covers what the APP
+// process keeps for itself while the tunnel is down: the level it restores at
+// its own next launch, and the one it reports and stamps into the exported
+// manifest in the meantime.
+//
+// It is deliberately not the crossing. This local state is the app's own
+// container on ios, and the extension never reads it -- what puts the level in
+// the tunnel process is the queued sync state, covered by
+// TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect. Both devices
+// share one network space here, so this test could not tell the two apart.
 func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
@@ -264,8 +521,8 @@ func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 	if err := localState.SetLogVerbosity(LogVerbosityDetail); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
-	if err := flag.Set("v", strconv.Itoa(LogVerbosityDefault)); err != nil {
-		t.Fatalf("flag.Set: %v", err)
+	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
+		t.Fatalf("setLogVerbosityFlag: %v", err)
 	}
 
 	// nothing is listening on this address, so the remote never has a service:

@@ -307,8 +307,36 @@ const (
 // This reaches only the calling process. On ios the transport runs in the
 // network extension, which has its own glog state -- use
 // Device.SetLogVerbosity, which sets both.
+//
+// Safe to call from any thread. It is exported to gomobile and to the C ABI,
+// and inside the sdk both DeviceRemote.SetLogVerbosity and the restore a
+// device runs at construction reach it off whatever goroutine the caller is
+// on, so concurrent callers are ordinary rather than exotic.
 func SetLogVerbosity(level int) error {
-	return flag.Set("v", strconv.Itoa(clampLogVerbosity(level)))
+	return setLogVerbosityFlag(clampLogVerbosity(level))
+}
+
+// logVerbosityMu serializes writes to the -v flag, a sibling of
+// currentLogDirMu and for the same reason: the flag package is not the
+// concurrency-safe store it looks like.
+//
+// flag.Set records the value in flag.CommandLine.actual, an unsynchronized
+// map, so two goroutines setting the level race on a map write -- which the go
+// runtime can report as an unrecoverable fatal error rather than a data race
+// it merely survives. Reads need no lock: GetLogVerbosity goes through glog's
+// Level.String, an atomic load, and flag.Lookup only reads the formal map that
+// registration froze.
+var logVerbosityMu sync.Mutex
+
+// setLogVerbosityFlag is the one write path for the -v flag, taking the level
+// exactly as given. Callers that must honor the sdk's range clamp first -- see
+// SetLogVerbosity. Restoring a level captured from GetLogVerbosity goes
+// through here unclamped, so a -v an embedder set above LogVerbosityDetail on
+// the command line comes back as what it was.
+func setLogVerbosityFlag(level int) error {
+	logVerbosityMu.Lock()
+	defer logVerbosityMu.Unlock()
+	return flag.Set("v", strconv.Itoa(level))
 }
 
 // GetLogVerbosity returns the verbosity THIS process is logging at.
@@ -337,17 +365,23 @@ func GetLogVerbosity() int {
 // level ever written, leaves the process at whatever it is already logging at
 // -- restoring is for a level the user chose, and must not clear one an
 // embedder set another way.
-func applyPersistedLogVerbosity(localState *LocalState, log connect.Logger) {
+//
+// It reports the restored level and whether one was written at all. The app
+// side needs the difference: this local state is the app process's own, and a
+// level found in it still has to be replayed to the device process, which
+// keeps a separate one. See DeviceRemote.SetLogVerbosity.
+func applyPersistedLogVerbosity(localState *LocalState, log connect.Logger) (int, bool) {
 	if localState == nil {
-		return
+		return LogVerbosityDefault, false
 	}
 	level, ok := localState.logVerbosityIfSet()
 	if !ok {
-		return
+		return LogVerbosityDefault, false
 	}
 	if err := SetLogVerbosity(level); err != nil && log != nil {
 		log.Infof("[device]restore log verbosity %d err = %s\n", level, err)
 	}
+	return level, true
 }
 
 func clampLogVerbosity(level int) int {

@@ -364,8 +364,15 @@ func (self *LocalState) GetRouteLocal() bool {
 // 0 -- silently dropping the session being captured back to writing none of
 // the V(1) contract and transport lines.
 //
-// It is stored under the network space's local storage, which on ios is the
-// shared app group container, so the app writes it and the extension reads it.
+// This is PER PROCESS, and is not a channel between processes. It is stored
+// under the network space's local storage, which is the storage path the
+// embedder passed, and on ios each process passes its own Documents
+// container: the app gets Application/<uuid> and the network extension gets
+// PluginKitPlugin/<uuid>. Only the app group container is shared, and this
+// repo uses that solely for the exported logs. So the app writes its own copy
+// and reads its own copy back, and the extension does the same with its own --
+// what carries a newly chosen level ACROSS is the device rpc, not this file.
+// See DeviceRemote.SetLogVerbosity.
 func (self *LocalState) SetLogVerbosity(level int) error {
 	path := filepath.Join(self.localStorageDir, ".log_verbosity")
 	levelBytes := []byte(fmt.Sprintf("%d", clampLogVerbosity(level)))

@@ -499,13 +499,24 @@ func newDeviceRemoteWithOverrides(
 		providerIngressContractDetailsChangeListeners: map[connect.Id]ContractDetailsChangeListener{},
 	}
 
-	// restore the persisted verbosity into THIS process as well as the device
-	// one, which applies it at its own construction. Both, so that after an
-	// app restart the level the app reports is the level the extension is
-	// actually logging at, and the app's own lines match the bundle's.
+	// restore the persisted verbosity into THIS process, and queue it for the
+	// device process.
+	//
+	// Both, because the two persisted copies are separate files in separate
+	// containers on ios and only one of them is this one. Restoring keeps the
+	// app reporting the level the user chose across an app relaunch, rather
+	// than the 0 initGlog reset it to; queuing is what puts that level in the
+	// extension, whose own copy this process cannot write and may not exist at
+	// all (a reinstalled or cleared extension container). The first sync
+	// carries it, and the device persists its own copy from there.
+	//
+	// Safe to touch state directly: the sync loop below has not started yet.
 	if !settings.DisableHostedIncompatible {
 		if asyncLocalState := networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
-			applyPersistedLogVerbosity(asyncLocalState.GetLocalState(), deviceRemote.log)
+			level, ok := applyPersistedLogVerbosity(asyncLocalState.GetLocalState(), deviceRemote.log)
+			if ok {
+				deviceRemote.state.LogVerbosity.Set(level)
+			}
 		}
 	}
 
@@ -5657,12 +5668,30 @@ func (self *DeviceRemote) FlushGlog() {
 }
 
 // SetLogVerbosity sets both processes' glog verbosity: this one directly, and
-// the device process over the rpc.
+// the device process over the rpc -- or, when the rpc cannot carry it now, on
+// the next sync.
 //
 // Both, for the same reason FlushGlog does both: the app is where the level is
 // chosen and displayed, and the extension is where the logs that justify
 // raising it are produced. Setting only the app's would leave the user looking
 // at a "verbose" switch that changes nothing in the bundle.
+//
+// Persisting is NOT how the level reaches the device process. On ios the two
+// processes keep separate local states -- each one's storage path is its own
+// Documents container (see LocalState.SetLogVerbosity) -- so a level written
+// here is only ever read back here. The queued state is the crossing: the
+// user's normal order is to raise the level while disconnected and then
+// connect, which is exactly the case where there is no service to call, so
+// SetLogVerbosity follows SetRouteLocal and leaves the value in
+// DeviceRemoteState for the next sync request to carry. Without that, the
+// tunnel the user is about to start comes up at 0 and captures none of the
+// session they raised the level for.
+//
+// The level is also persisted on every call, in this process's own local
+// state, so an app relaunch reports the level the user chose rather than the 0
+// initGlog reset it to -- and the constructor re-queues it, because the
+// extension's copy is a separate file that a fresh install or a cleared
+// extension container may not have.
 //
 // The rpc tolerates a missing method so a device peer from an older build
 // refuses the call without the session being torn down; the app process is
@@ -5678,34 +5707,44 @@ func (self *DeviceRemote) SetLogVerbosity(level int) {
 		return
 	}
 
+	// this process's own record, for its own restart
+	self.persistLogVerbosity(level)
+
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
-	if self.service == nil {
-		// the tunnel is not running, so nothing on the device side can record
-		// this. Persist it here instead: the user's next act is to connect and
-		// reproduce, and a tunnel that started at 0 would capture none of it
-		self.persistLogVerbosity(level)
-		return
-	}
+	clamped := clampLogVerbosity(level)
 
-	if err := rpcCallVoidAllowMissingMethod(
-		self.service,
-		"DeviceLocalRpc.SetLogVerbosity",
-		clampLogVerbosity(level),
-		self.closeService,
-	); err != nil {
-		// the device did not take the call (an older peer without the method,
-		// or a dead rpc), so it did not persist it either -- exactly one
-		// process records the level per call
-		self.persistLogVerbosity(level)
+	success := func() bool {
+		if self.service == nil {
+			// the tunnel is not running
+			return false
+		}
+		return rpcCallVoidAllowMissingMethod(
+			self.service,
+			"DeviceLocalRpc.SetLogVerbosity",
+			clamped,
+			self.closeService,
+		) == nil
+	}()
+	if success {
+		// nothing is left to replay, and an older queued level must not
+		// outlive the newer one the device just took
+		self.state.LogVerbosity.Unset()
+	} else {
+		// the device did not take the call (the tunnel is down, an older peer
+		// without the method, or a dead rpc). Queue it: the next sync request
+		// carries it, and the device applies and persists it in ITS process
+		self.state.LogVerbosity.Set(clamped)
 	}
 }
 
-// persistLogVerbosity records the level from the app side, for the calls the
-// device process could not take. On ios both processes share the app group
-// container this is written to, so the next tunnel to start reads it back the
-// same way (see `applyPersistedLogVerbosity`).
+// persistLogVerbosity records the level in THIS process's local state, so an
+// app relaunch comes back up at it (see `applyPersistedLogVerbosity`).
+//
+// This is not a handoff to the device process. On ios that process reads a
+// different file in a different container, and gets the level over the rpc --
+// see SetLogVerbosity.
 func (self *DeviceRemote) persistLogVerbosity(level int) {
 	if asyncLocalState := self.networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
 		asyncLocalState.serialAsync(func() error {
@@ -5852,12 +5891,17 @@ type DevicePerformanceProfile struct {
 type DeviceRemoteState struct {
 	// thick state + last known state
 
-	CanShowRatingDialog      deviceRemoteValue[bool]
-	CanPromptIntroFunnel     deviceRemoteValue[bool]
-	ProvideControlMode       deviceRemoteValue[ProvideControlMode]
-	CanRefer                 deviceRemoteValue[bool]
-	AllowForeground          deviceRemoteValue[bool]
-	RouteLocal               deviceRemoteValue[bool]
+	CanShowRatingDialog  deviceRemoteValue[bool]
+	CanPromptIntroFunnel deviceRemoteValue[bool]
+	ProvideControlMode   deviceRemoteValue[ProvideControlMode]
+	CanRefer             deviceRemoteValue[bool]
+	AllowForeground      deviceRemoteValue[bool]
+	RouteLocal           deviceRemoteValue[bool]
+	// the glog verbosity, queued for the device process. On ios that is the
+	// network extension, whose glog state and whose persisted copy of the
+	// level are both its own, so this queued value is the only thing that
+	// carries a newly chosen level across. See `DeviceRemote.SetLogVerbosity`.
+	LogVerbosity             deviceRemoteValue[int]
 	BlockerEnabled           deviceRemoteValue[bool]
 	InitProvideSecretKeys    deviceRemoteValue[bool]
 	LoadProvideSecretKeys    deviceRemoteValue[[]*ProvideSecretKey]
@@ -5931,6 +5975,7 @@ func (self *DeviceRemoteState) Merge(update *DeviceRemoteState) {
 	self.CanRefer.Merge(update.CanRefer)
 	self.AllowForeground.Merge(update.AllowForeground)
 	self.RouteLocal.Merge(update.RouteLocal)
+	self.LogVerbosity.Merge(update.LogVerbosity)
 	self.BlockerEnabled.Merge(update.BlockerEnabled)
 	self.InitProvideSecretKeys.Merge(update.InitProvideSecretKeys)
 	self.LoadProvideSecretKeys.Merge(update.LoadProvideSecretKeys)
@@ -5973,6 +6018,7 @@ func (self *DeviceRemoteState) hasPendingSyncState() bool {
 		self.CanRefer.IsSet ||
 		self.AllowForeground.IsSet ||
 		self.RouteLocal.IsSet ||
+		self.LogVerbosity.IsSet ||
 		self.BlockerEnabled.IsSet ||
 		self.InitProvideSecretKeys.IsSet ||
 		self.LoadProvideSecretKeys.IsSet ||
@@ -8496,6 +8542,13 @@ func (self *DeviceLocalRpc) Sync(
 	}
 	if state.RouteLocal.IsSet && !hostedIncompatible {
 		self.deviceLocal.SetRouteLocal(state.RouteLocal.Value)
+	}
+	// the level the app chose, applied in the process that writes the logs
+	// worth raising it for -- on ios the network extension. The device
+	// persists it in its OWN local state from here, so the next tunnel this
+	// process starts comes back up at it without another sync.
+	if state.LogVerbosity.IsSet && !hostedIncompatible {
+		self.deviceLocal.SetLogVerbosity(state.LogVerbosity.Value)
 	}
 	if state.BlockerEnabled.IsSet {
 		self.deviceLocal.SetBlockerEnabled(state.BlockerEnabled.Value)
