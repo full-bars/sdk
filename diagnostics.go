@@ -136,12 +136,39 @@ type ExportOptions struct {
 }
 
 func NewExportOptions() *ExportOptions {
-	return &ExportOptions{
-		SelectedNames: NewStringList(),
-		platformLogs:  NewStringList(),
-		platformNames: NewStringList(),
-		missingNames:  NewStringList(),
-		missingWhy:    NewStringList(),
+	options := &ExportOptions{}
+	options.initLists()
+	return options
+}
+
+// initLists fills in any list field left nil, and is called by every method
+// that reads or writes one, plus by the exporter itself.
+//
+// ExportOptions reaches the exporter as a zero value on paths that never run
+// NewExportOptions: the c abi json-unmarshals into a bare
+// &sdk.ExportOptions{} (cgo/exports_gen.go, urnet_export_diagnostic_bundle)
+// and leaves every unexported list nil, and a language binding that emits a
+// zero-value constructor alongside the NewExportOptions one does the same.
+// The lists are embedded-struct pointers, so reading Len() off a nil one is a
+// nil dereference, not a zero result -- on the c abi that panic was recovered
+// into a NULL return with no error set, and through a gomobile seq bridge it
+// is an app crash. A zero-value ExportOptions must behave exactly like a
+// fresh one.
+func (self *ExportOptions) initLists() {
+	if self.SelectedNames == nil {
+		self.SelectedNames = NewStringList()
+	}
+	if self.platformLogs == nil {
+		self.platformLogs = NewStringList()
+	}
+	if self.platformNames == nil {
+		self.platformNames = NewStringList()
+	}
+	if self.missingNames == nil {
+		self.missingNames = NewStringList()
+	}
+	if self.missingWhy == nil {
+		self.missingWhy = NewStringList()
 	}
 }
 
@@ -154,6 +181,7 @@ func (self *ExportOptions) SetManifestJson(manifestJson string) {
 // AddPlatformLog adds one platform log entry, written to platform/<name>.
 // Android passes its logcat dump here.
 func (self *ExportOptions) AddPlatformLog(name string, content string) {
+	self.initLists()
 	self.platformNames.Add(name)
 	self.platformLogs.Add(content)
 }
@@ -161,6 +189,7 @@ func (self *ExportOptions) AddPlatformLog(name string, content string) {
 // MissingSourceReason records a source that could not be read, so the bundle
 // says so instead of silently omitting it.
 func (self *ExportOptions) MissingSourceReason(source string, reason string) {
+	self.initLists()
 	self.missingNames.Add(source)
 	self.missingWhy.Add(reason)
 }
@@ -183,6 +212,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	if opts == nil {
 		opts = NewExportOptions()
 	}
+	opts.initLists()
 
 	// A redacted bundle that cannot back its per-export salt with real
 	// randomness must not be produced at all -- so this is checked, and can

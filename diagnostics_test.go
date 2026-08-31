@@ -322,3 +322,46 @@ func TestExportDiagnosticBundleManifestFallbackUsesDeviceAvailableKey(t *testing
 		t.Fatalf("device_available = %v, want false", available)
 	}
 }
+
+// TestExportDiagnosticBundleAcceptsZeroValueOptions pins that an ExportOptions
+// that never went through NewExportOptions still exports. The c abi builds
+// exactly that: urnet_export_diagnostic_bundle json-unmarshals into a bare
+// &sdk.ExportOptions{}, so every unexported list, and SelectedNames when the
+// json omits it, arrives nil. Reading Len() off one of those nil embedded
+// lists is a nil dereference, which the c abi turned into a silent NULL return
+// with no error set (cgoGuard recovers it) and which a gomobile seq bridge
+// would turn into an app crash.
+func TestExportDiagnosticBundleAcceptsZeroValueOptions(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeTestingLogFile(t, appDir, "urnetwork.host.user.log.INFO.20260830-101112.4242")
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "zero-value-options.zip")
+
+	// exactly what the c abi hands the exporter, and what a zero-value
+	// constructor in a language binding would hand it
+	opts := &ExportOptions{IncludeManifest: true, IncludePlatformLogs: true}
+
+	result, err := ExportDiagnosticBundle(destPath, opts)
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil", err)
+	}
+	if result.FileCount <= 0 {
+		t.Fatalf("FileCount = %d, want > 0", result.FileCount)
+	}
+
+	// the setters must survive a zero value too -- they write into the same
+	// lists
+	opts.MissingSourceReason("extension", "app group container unavailable")
+	opts.AddPlatformLog("logcat.txt", "platform line\n")
+	if opts.missingNames.Len() != 1 || opts.platformNames.Len() != 1 {
+		t.Fatalf("setters on a zero-value ExportOptions did not record: missing=%d platform=%d",
+			opts.missingNames.Len(), opts.platformNames.Len())
+	}
+}
