@@ -450,3 +450,65 @@ func readZipEntry(t *testing.T, zipPath string, name string) string {
 	t.Fatalf("bundle %q missing entry %q", zipPath, name)
 	return ""
 }
+
+// TestExportDiagnosticBundleReportsAnUnreadableSourceDirectory pins the
+// degradation promise for the case the inventory used to swallow: os.ReadDir
+// failing on a per-process directory (a sandbox or permissions change, an
+// App Group container present but its Logs subdirectory unreadable). That
+// error used to be discarded, so a whole process's logs went missing with an
+// empty NOT INCLUDED block and an ExportResult claiming zero missing sources.
+func TestExportDiagnosticBundleReportsAnUnreadableSourceDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode 0000 does not deny access")
+	}
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	extensionDir := filepath.Join(root, "extension")
+	for _, dir := range []string{appDir, extensionDir} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatalf("MkdirAll(%q): %v", dir, err)
+		}
+	}
+	writeTestingLogFile(t, appDir, "urnetwork.host.user.log.INFO.20260830-101112.4242")
+	writeTestingLogFile(t, extensionDir, "urnetwork.host.user.log.INFO.20260830-101112.4243")
+
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	// the extension's directory becomes unreadable after it was written
+	if err := os.Chmod(extensionDir, 0000); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(extensionDir, 0700) })
+
+	destPath := filepath.Join(t.TempDir(), "unreadable-source.zip")
+	result, err := ExportDiagnosticBundle(destPath, NewExportOptions())
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil -- an unreadable source degrades, never fails", err)
+	}
+
+	reported := false
+	for i := 0; i < result.MissingSources.Len(); i += 1 {
+		if strings.HasPrefix(result.MissingSources.Get(i), "extension: ") {
+			reported = true
+		}
+	}
+	if !reported {
+		t.Fatalf("MissingSources does not mention the unreadable extension directory; has %v",
+			stringListValues(result.MissingSources))
+	}
+
+	readme := readZipEntry(t, destPath, "README.txt")
+	if !strings.Contains(readme, "extension: ") {
+		t.Fatalf("README.txt does not name the unreadable source:\n%s", readme)
+	}
+}
+
+func stringListValues(list *StringList) []string {
+	values := []string{}
+	for i := 0; i < list.Len(); i += 1 {
+		values = append(values, list.Get(i))
+	}
+	return values
+}

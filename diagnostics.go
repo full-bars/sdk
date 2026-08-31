@@ -60,34 +60,59 @@ func logSeverityOf(name string) string {
 // Symlinks are skipped: glog maintains a <program>.<SEVERITY> symlink beside
 // each real file, and following it would list the same bytes twice.
 func LogInventory() *LogFileInfoList {
+	inventory, _ := logInventory()
+	return inventory
+}
+
+// logRootSourceName labels a failure to read the log root itself, which is not
+// attributable to any one process directory.
+const logRootSourceName = "log root"
+
+// logInventory is LogInventory plus the directories it could not read, as
+// "<source>: <reason>" entries.
+//
+// The exported LogInventory drops them because its bound signature has nowhere
+// to put them, but ExportDiagnosticBundle must not: an unreadable log root or
+// per-process directory used to be omitted from the bundle with nothing
+// recorded as missing, so a user whose Logs/extension directory had become
+// unreadable got a zip with an empty NOT INCLUDED block and an ExportResult
+// reporting zero missing sources, while a whole process's logs were absent.
+// The spec's degradation promise is that a source that cannot be read is
+// recorded as missing, never silently dropped.
+func logInventory() (*LogFileInfoList, []string) {
 	inventory := NewLogFileInfoList()
+	unreadable := []string{}
 
 	root := GetLogRoot()
 	if root == "" {
 		// legacy single-directory configuration: report it as one source
 		if dir := GetLogDir(); dir != "" {
-			appendLogFilesIn(inventory, dir, "app")
+			if err := appendLogFilesIn(inventory, dir, "app"); err != nil {
+				unreadable = append(unreadable, "app: "+err.Error())
+			}
 		}
-		return inventory
+		return inventory, unreadable
 	}
 
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return inventory
+		return inventory, append(unreadable, logRootSourceName+": "+err.Error())
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		appendLogFilesIn(inventory, filepath.Join(root, entry.Name()), entry.Name())
+		if err := appendLogFilesIn(inventory, filepath.Join(root, entry.Name()), entry.Name()); err != nil {
+			unreadable = append(unreadable, entry.Name()+": "+err.Error())
+		}
 	}
-	return inventory
+	return inventory, unreadable
 }
 
-func appendLogFilesIn(inventory *LogFileInfoList, dir string, source string) {
+func appendLogFilesIn(inventory *LogFileInfoList, dir string, source string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return
+		return err
 	}
 	for _, entry := range entries {
 		// Type()&ModeSymlink catches glog's severity symlinks without a stat
@@ -111,6 +136,7 @@ func appendLogFilesIn(inventory *LogFileInfoList, dir string, source string) {
 			ModifiedMillis: info.ModTime().UnixMilli(),
 		})
 	}
+	return nil
 }
 
 // ExportOptions selects what an exported bundle contains.
@@ -242,7 +268,10 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 
 	zipWriter := zip.NewWriter(zipFile)
 
-	inventory := LogInventory()
+	inventory, unreadable := logInventory()
+	for _, entry := range unreadable {
+		result.MissingSources.Add(entry)
+	}
 	for i := 0; i < inventory.Len(); i += 1 {
 		info := inventory.Get(i)
 		if 0 < opts.SelectedNames.Len() && !opts.SelectedNames.Contains(info.Name) {
