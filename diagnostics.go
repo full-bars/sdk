@@ -3,6 +3,7 @@ package sdk
 import (
 	"archive/zip"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -183,6 +184,19 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		opts = NewExportOptions()
 	}
 
+	// A redacted bundle that cannot back its per-export salt with real
+	// randomness must not be produced at all -- so this is checked, and can
+	// fail, before anything is written to destPath. A RAW export never
+	// reaches this branch and is unaffected.
+	var transform func(string) string
+	if opts.Redact {
+		redactor, err := newLogRedactor()
+		if err != nil {
+			return nil, fmt.Errorf("redacted export not produced: a secure random salt was unavailable: %w", err)
+		}
+		transform = redactor.redactLine
+	}
+
 	FlushGlog()
 
 	result := &ExportResult{MissingSources: NewStringList()}
@@ -197,12 +211,6 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	defer zipFile.Close()
 
 	zipWriter := zip.NewWriter(zipFile)
-
-	var transform func(string) string
-	if opts.Redact {
-		redactor := newLogRedactor()
-		transform = redactor.redactLine
-	}
 
 	inventory := LogInventory()
 	for i := 0; i < inventory.Len(); i += 1 {

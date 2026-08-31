@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"regexp"
 )
 
@@ -33,18 +34,19 @@ type logRedactor struct {
 	salt []byte
 }
 
-func newLogRedactor() *logRedactor {
+// newLogRedactor creates a redactor with a fresh, random per-export salt. It
+// fails closed: when crypto/rand cannot supply real randomness, it returns an
+// error instead of substituting anything derived from process-constant state
+// (like the log paths). A path-derived salt would be the same for every
+// bundle this install ever exports, letting tokens be correlated across
+// bundles -- exactly the property redaction exists to prevent -- so there is
+// no safe fallback here, only success or an error.
+func newLogRedactor() (*logRedactor, error) {
 	salt := make([]byte, 32)
-	// rand.Read from crypto/rand never returns a short read without an error,
-	// and an error here is unrecoverable -- a zero salt would be a false
-	// promise of redaction, so fail closed by keeping the random bytes we have
-	// only when the read succeeded.
 	if _, err := rand.Read(salt); err != nil {
-		// fall back to a still-unpredictable-per-process value rather than zeros
-		h := sha256.Sum256([]byte(GetLogDir() + GetLogRoot()))
-		salt = h[:]
+		return nil, fmt.Errorf("generating redaction salt: %w", err)
 	}
-	return &logRedactor{salt: salt}
+	return &logRedactor{salt: salt}, nil
 }
 
 func (self *logRedactor) token(prefix string, value string) string {

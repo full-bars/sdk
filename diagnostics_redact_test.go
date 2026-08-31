@@ -6,7 +6,10 @@ import (
 )
 
 func TestRedactorMasksAddressesAndIdsButLeavesStructureIntact(t *testing.T) {
-	redactor := newLogRedactor()
+	redactor, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
 
 	cases := []struct {
 		name     string
@@ -61,16 +64,61 @@ func TestRedactorMasksAddressesAndIdsButLeavesStructureIntact(t *testing.T) {
 func TestRedactorIsStableWithinAnExportAndDistinctAcross(t *testing.T) {
 	line := "peer 203.0.113.7:443 selected"
 
-	first := newLogRedactor()
+	first, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
 	a := first.redactLine(line)
 	b := first.redactLine(line)
 	if a != b {
 		t.Fatalf("same redactor produced %q then %q; tokens must be stable within an export", a, b)
 	}
 
-	second := newLogRedactor()
+	second, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
 	c := second.redactLine(line)
 	if a == c {
 		t.Fatalf("two redactors both produced %q; tokens must not be correlatable across exports", a)
+	}
+}
+
+// TestRedactorSaltDoesNotFallBackToPathDerivedValue pins the fix for a past
+// defect: newLogRedactor used to fall back, on a crypto/rand failure, to a
+// salt derived only from GetLogDir()+GetLogRoot() -- both constant for the
+// life of an install. That fallback made every bundle exported by one
+// install share a salt, so the same address would map to the same token
+// across DIFFERENT bundles, contradicting the bundle's own README ("...and
+// differently in any other bundle").
+//
+// What this test covers: crypto/rand succeeding in the normal case, which is
+// the only case exercised here, still produces a fresh salt every call --
+// two redactors built back to back, in the same process, with the same
+// GetLogDir()/GetLogRoot(), must not agree on a token for the same input.
+// The old path-derived fallback would have failed this, since it depended on
+// nothing but those two constant paths.
+//
+// What this test does NOT cover: it cannot force crypto/rand.Read to fail,
+// so it does not exercise the newLogRedactor error return or the "no
+// fallback exists" guarantee directly -- that guarantee is enforced by
+// newLogRedactor no longer containing a fallback branch at all (see its
+// source), not by a test that can trigger the failure path.
+func TestRedactorSaltDoesNotFallBackToPathDerivedValue(t *testing.T) {
+	line := "peer 203.0.113.7:443 selected"
+
+	first, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
+	second, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
+
+	a := first.redactLine(line)
+	b := second.redactLine(line)
+	if a == b {
+		t.Fatalf("two redactors in the same process, same GetLogDir()/GetLogRoot(), produced the same token %q; salt must not be path-derived", a)
 	}
 }
