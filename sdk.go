@@ -13,6 +13,7 @@ import (
 
 	// "math/big"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -191,6 +192,65 @@ func SetLogDir(logDir string) error {
 	clearOldLogs(logDir)
 
 	return nil
+}
+
+// currentLogRoot is the parent of the per-process log directories, recorded so
+// the exporter can enumerate every process's logs rather than only this
+// process's. Empty when only the legacy SetLogDir was used.
+var currentLogRoot string
+
+// SetLogDirForProcess points glog at <root>/<processName> and records root.
+//
+// Each process gets its own subdirectory because clearOldLogs keeps the 4
+// newest files in whatever directory it is given: processes sharing one
+// directory delete each other's history. The subdirectory name is also the
+// source label the exported bundle reports, which is more reliable than
+// parsing glog's <program>.<host>.<user>.log.<SEVERITY>.<time>.<pid> names.
+//
+// When root cannot be used it falls back to a process-local directory and
+// returns nil -- logging must never be what breaks a launch. It returns a
+// non-nil error only when neither can be opened, in which case glog keeps its
+// previous destination. The directory actually in use is always readable via
+// GetLogDir, and the recorded root via GetLogRoot.
+func SetLogDirForProcess(root string, processName string) error {
+	if processName == "" {
+		return fmt.Errorf("log process name cannot be empty")
+	}
+
+	dir := filepath.Join(root, processName)
+	if root != "" {
+		if err := os.MkdirAll(dir, LocalStorageDirectoryPermissions); err == nil {
+			if err := SetLogDir(dir); err == nil {
+				currentLogDirMu.Lock()
+				currentLogRoot = root
+				currentLogDirMu.Unlock()
+				return nil
+			}
+		}
+	}
+
+	// fall back to a process-local directory under the os temp dir, and record
+	// its parent as the root so an export still finds this process's files
+	fallbackRoot := filepath.Join(os.TempDir(), "urnetwork-logs")
+	fallbackDir := filepath.Join(fallbackRoot, processName)
+	if err := os.MkdirAll(fallbackDir, LocalStorageDirectoryPermissions); err != nil {
+		return err
+	}
+	if err := SetLogDir(fallbackDir); err != nil {
+		return err
+	}
+	currentLogDirMu.Lock()
+	currentLogRoot = fallbackRoot
+	currentLogDirMu.Unlock()
+	return nil
+}
+
+// GetLogRoot returns the parent of the per-process log directories, or "" when
+// only the legacy SetLogDir was used.
+func GetLogRoot() string {
+	currentLogDirMu.Lock()
+	defer currentLogDirMu.Unlock()
+	return currentLogRoot
 }
 
 // memory target ratio: how SetMemoryLimit divides the process budget into
