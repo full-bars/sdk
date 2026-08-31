@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -700,4 +701,90 @@ func TestExportDiagnosticBundleReportsAnUnparseableSuppliedManifest(t *testing.T
 	if manifest["export_mode"] != "raw" {
 		t.Fatalf("export_mode = %v, want raw even on the fallback manifest", manifest["export_mode"])
 	}
+}
+
+// TestExportDiagnosticBundleExportsOnlyTheSelectedNames is the only guard on a
+// dangerous documented semantic: SelectedNames empty means EVERY file, so the
+// difference between "export these two files" and "export everything, raw" is
+// one unchecked list. It is one of the three shipped export modes and had no
+// test on either side of the bind; a consumer has already fallen into it
+// (Android wired "Export selected" straight to the selection with no empty
+// guard).
+//
+// The source-qualified form is pinned alongside the bare one: Name alone is
+// not guaranteed unique across per-process directories, and the qualified form
+// is the entry's zip path.
+func TestExportDiagnosticBundleExportsOnlyTheSelectedNames(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	extensionDir := filepath.Join(root, "extension")
+	for _, dir := range []string{appDir, extensionDir} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatalf("MkdirAll(%q): %v", dir, err)
+		}
+	}
+	wanted := "urnetwork.host.user.log.INFO.20260830-101112.4242"
+	unwanted := "urnetwork.host.user.log.ERROR.20260830-101112.4243"
+	shared := "urnetwork.host.user.log.WARNING.20260830-101112.4244"
+	writeTestingLogFile(t, appDir, wanted)
+	writeTestingLogFile(t, appDir, unwanted)
+	// the same file name under two sources, which Name alone cannot separate
+	writeTestingLogFile(t, appDir, shared)
+	writeTestingLogFile(t, extensionDir, shared)
+
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	// one bare name, one source-qualified name
+	destPath := filepath.Join(t.TempDir(), "selected.zip")
+	opts := NewExportOptions()
+	opts.SelectedNames.Add(wanted)
+	opts.SelectedNames.Add("extension/" + shared)
+
+	result, err := ExportDiagnosticBundle(destPath, opts)
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v", err)
+	}
+	if result.FileCount != 2 {
+		t.Fatalf("FileCount = %d, want 2 -- the selection was not applied", result.FileCount)
+	}
+
+	logEntries := zipLogEntryNames(t, destPath)
+	want := []string{"logs/app/" + wanted, "logs/extension/" + shared}
+	if len(logEntries) != len(want) {
+		t.Fatalf("bundle log entries = %v, want %v", logEntries, want)
+	}
+	for _, name := range want {
+		if !slices.Contains(logEntries, name) {
+			t.Fatalf("bundle log entries = %v, missing %q", logEntries, name)
+		}
+	}
+
+	// and the semantic the picker depends on: empty means every file
+	allPath := filepath.Join(t.TempDir(), "all.zip")
+	all, err := ExportDiagnosticBundle(allPath, NewExportOptions())
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v", err)
+	}
+	if all.FileCount <= result.FileCount {
+		t.Fatalf("an empty selection exported %d files, a two-name selection %d; empty must mean every file",
+			all.FileCount, result.FileCount)
+	}
+}
+
+func zipLogEntryNames(t *testing.T, zipPath string) []string {
+	t.Helper()
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+	names := []string{}
+	for _, f := range reader.File {
+		if strings.HasPrefix(f.Name, "logs/") {
+			names = append(names, f.Name)
+		}
+	}
+	return names
 }

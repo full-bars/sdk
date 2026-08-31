@@ -19,7 +19,10 @@ var logSeverities = []string{"INFO", "WARNING", "ERROR", "FATAL"}
 // gomobile does not support struct composition, so this is flat, and every
 // field is a bindable scalar.
 type LogFileInfo struct {
-	// Name is the glog file name, unique within the export.
+	// Name is the glog file name. glog embeds the host and pid, so in
+	// practice it is unique across the whole export, but nothing enforces
+	// that across per-process directories -- Source plus Name is what is
+	// guaranteed unique, and it is the zip path an entry is written to.
 	Name string
 	// Path is the absolute path on disk.
 	Path string
@@ -156,8 +159,14 @@ type ExportOptions struct {
 	// IncludePlatformLogs writes platform log files (platform/NAME.txt) from
 	// SetPlatformLog entries.
 	IncludePlatformLogs bool
-	// SelectedNames limits the export to these LogFileInfo.Name values. Empty
-	// means every file.
+	// SelectedNames limits the export to these files. Empty means every file
+	// -- so a picker offering "export the selected files" must refuse to run
+	// on an empty selection rather than pass it through, or it exports
+	// everything.
+	//
+	// An entry matches a LogFileInfo either by bare Name or by the
+	// source-qualified form, Source, a slash and Name, which is what the
+	// entry is called inside the zip.
 	SelectedNames *StringList
 
 	manifestJson  string
@@ -224,6 +233,22 @@ func (self *ExportOptions) MissingSourceReason(source string, reason string) {
 	self.initLists()
 	self.missingNames.Add(source)
 	self.missingWhy.Add(reason)
+}
+
+// selects reports whether one inventory entry is included in the export.
+//
+// An empty selection means every file. A selected entry matches either the
+// bare Name or the source-qualified form: Name alone is not guaranteed unique
+// across per-process directories, while the qualified form is the zip path,
+// so a picker that qualifies its keys can address exactly one file rather
+// than every file that happens to share a name.
+func (self *ExportOptions) selects(info *LogFileInfo) bool {
+	self.initLists()
+	if self.SelectedNames.Len() == 0 {
+		return true
+	}
+	return self.SelectedNames.Contains(info.Name) ||
+		self.SelectedNames.Contains(info.Source+"/"+info.Name)
 }
 
 // ExportResult reports what was written.
@@ -300,7 +325,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	}
 	for i := 0; i < inventory.Len(); i += 1 {
 		info := inventory.Get(i)
-		if 0 < opts.SelectedNames.Len() && !opts.SelectedNames.Contains(info.Name) {
+		if !opts.selects(info) {
 			continue
 		}
 		f, err := os.Open(info.Path)
@@ -402,6 +427,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 }
 
 func exportReadme(opts *ExportOptions, result *ExportResult) string {
+	opts.initLists()
 	var b strings.Builder
 	b.WriteString("URnetwork diagnostic bundle\n\n")
 	if opts.Redact {
@@ -413,9 +439,18 @@ func exportReadme(opts *ExportOptions, result *ExportResult) string {
 		b.WriteString("Mode: RAW. Nothing is masked. At raised log verbosity this can include\n")
 		b.WriteString("the destination addresses and ports of your traffic, and your client id.\n\n")
 	}
+	// only what this bundle actually contains: manifest.json is written only
+	// when IncludeManifest is set, and no ios bundle has ever had a platform
+	// directory, since iOS has no platform log source. A README promising
+	// files that are not there sends the reader looking for them.
 	b.WriteString("logs/<process>/  glog files, one directory per writing process\n")
-	b.WriteString("manifest.json    device, build and connection state\n")
-	b.WriteString("platform/        platform-side logs, where available\n\n")
+	if opts.IncludeManifest {
+		b.WriteString("manifest.json    device and connection state, the export mode, and what each source contributed\n")
+	}
+	if opts.IncludePlatformLogs && 0 < opts.platformNames.Len() {
+		b.WriteString("platform/        platform-side logs\n")
+	}
+	b.WriteString("\n")
 	if 0 < result.MissingSources.Len() {
 		b.WriteString("NOT INCLUDED:\n")
 		for i := 0; i < result.MissingSources.Len(); i += 1 {
