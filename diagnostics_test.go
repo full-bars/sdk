@@ -30,6 +30,16 @@ func TestLogInventoryFindsEveryProcessAndSkipsSymlinks(t *testing.T) {
 		t.Fatalf("Symlink: %v", err)
 	}
 
+	// A symlink whose name ALSO matches the ".log."+SEVERITY filename filter,
+	// unlike glog's real "urnetwork.INFO" symlink above. This is what makes
+	// the type check (entry.Type()&os.ModeSymlink) load-bearing: the filename
+	// filter alone would let this one through, so if the type check were
+	// dropped or broken, it would be double-counted as a real log file.
+	spoofedName := "urnetwork.host.user.log.INFO.20260830-101112.9999"
+	if err := os.Symlink(filepath.Join(appDir, realName), filepath.Join(appDir, spoofedName)); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
 	if err := SetLogDirForProcess(root, "app"); err != nil {
 		t.Fatalf("SetLogDirForProcess: %v", err)
 	}
@@ -39,8 +49,8 @@ func TestLogInventoryFindsEveryProcessAndSkipsSymlinks(t *testing.T) {
 	bySource := map[string]*LogFileInfo{}
 	for i := 0; i < inventory.Len(); i += 1 {
 		info := inventory.Get(i)
-		if info.Name == "urnetwork.INFO" {
-			t.Fatal("inventory included the glog symlink; it must list real files only")
+		if info.Name == "urnetwork.INFO" || info.Name == spoofedName {
+			t.Fatalf("inventory included a symlink (%s); it must list real files only", info.Name)
 		}
 		bySource[info.Source] = info
 	}
