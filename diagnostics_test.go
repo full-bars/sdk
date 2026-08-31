@@ -365,3 +365,88 @@ func TestExportDiagnosticBundleAcceptsZeroValueOptions(t *testing.T) {
 			opts.missingNames.Len(), opts.platformNames.Len())
 	}
 }
+
+// TestExportDiagnosticBundleRedactsTheReadmeNotIncludedBlock pins the one
+// entry that used to be written with a nil transform. README.txt quotes the
+// os.Open error of every file that could not be read, and that error string
+// carries the file's absolute path -- on ios, a path containing the app group
+// container uuid, which manifest.json masks. A redacted bundle that leaks in
+// its README the identifier it masks in its manifest is worse than no
+// redaction, because the README claims uuid-shaped ids are replaced.
+//
+// The unreadable file here is real (mode 0000), so this exercises the actual
+// leak channel, not just the platform-declared MissingSourceReason text.
+func TestExportDiagnosticBundleRedactsTheReadmeNotIncludedBlock(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode 0000 does not deny access")
+	}
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// the uuid rides into the error string via the file's own path
+	secretId := "11111111-2222-3333-4444-555555555555"
+	unreadable := "urnetwork." + secretId + ".log.INFO.20260830-101112.4242"
+	writeTestingLogFile(t, appDir, unreadable)
+	unreadablePath := filepath.Join(appDir, unreadable)
+	if err := os.Chmod(unreadablePath, 0000); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(unreadablePath, 0600) })
+
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "readme-redaction.zip")
+	opts := NewExportOptions()
+	opts.Redact = true
+	// the platform-declared channel into the same block
+	opts.MissingSourceReason("extension", "container 66666666-7777-8888-9999-aaaaaaaaaaaa unavailable")
+
+	result, err := ExportDiagnosticBundle(destPath, opts)
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil", err)
+	}
+	if result.MissingSources.Len() < 2 {
+		t.Fatalf("MissingSources.Len() = %d, want the unreadable file and the declared source", result.MissingSources.Len())
+	}
+
+	readme := readZipEntry(t, destPath, "README.txt")
+	if !strings.Contains(readme, "NOT INCLUDED") {
+		t.Fatalf("README.txt has no NOT INCLUDED block, so this test proves nothing:\n%s", readme)
+	}
+	for _, leaked := range []string{secretId, "66666666-7777-8888-9999-aaaaaaaaaaaa"} {
+		if strings.Contains(readme, leaked) {
+			t.Fatalf("README.txt in a redacted bundle still contains %q:\n%s", leaked, readme)
+		}
+	}
+}
+
+func readZipEntry(t *testing.T, zipPath string, name string) string {
+	t.Helper()
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+	for _, f := range reader.File {
+		if f.Name != name {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %q: %v", name, err)
+		}
+		defer rc.Close()
+		content, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("read %q: %v", name, err)
+		}
+		return string(content)
+	}
+	t.Fatalf("bundle %q missing entry %q", zipPath, name)
+	return ""
+}

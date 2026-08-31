@@ -304,7 +304,16 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		}
 	}
 
-	if err := zipWriteEntry(zipWriter, "README.txt", strings.NewReader(exportReadme(opts, result)), nil, nil); err != nil {
+	// README.txt goes through transform like every other entry. Its NOT
+	// INCLUDED block quotes os.Open/os.Stat error strings, which carry the
+	// absolute path of the file that could not be read -- on ios that path
+	// contains the app group container uuid, the very identifier manifest.json
+	// masks two entries earlier. An unredacted README would have made a
+	// redacted bundle both mask and leak the same value, under a README
+	// asserting that uuid-shaped ids are replaced. Platform-supplied
+	// MissingSourceReason text lands here too and is equally unfiltered at
+	// source.
+	if err := zipWriteEntry(zipWriter, "README.txt", strings.NewReader(exportReadme(opts, result)), nil, transform); err != nil {
 		zipWriter.Close()
 		return nil, err
 	}
