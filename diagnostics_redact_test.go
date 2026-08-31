@@ -122,3 +122,66 @@ func TestRedactorSaltDoesNotFallBackToPathDerivedValue(t *testing.T) {
 		t.Fatalf("two redactors in the same process, same GetLogDir()/GetLogRoot(), produced the same token %q; salt must not be path-derived", a)
 	}
 }
+
+// TestRedactorMasksCompressedIPv6AndLeavesLookalikesAlone pins both halves of
+// the address pattern's job.
+//
+// Under-redaction was the live defect: the pattern required at least three
+// colon groups, so every compressed literal netip.Addr.String() prints with
+// exactly two -- 2001::1, fd00::1234, fe80::1, ::1 -- passed through a
+// REDACTED bundle verbatim, on the one mode whose entire purpose is not to
+// leak addresses.
+//
+// Over-redaction is the other half: a glog HH:MM:SS timestamp and a bracketed
+// counter are shaped like the address forms, and the spec requires both to
+// survive verbatim.
+func TestRedactorMasksCompressedIPv6AndLeavesLookalikesAlone(t *testing.T) {
+	redactor, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
+
+	mustMask := []string{
+		"2001::1",
+		"fd00::1234",
+		"fe80::1",
+		"::1",
+		"2001:db8::",
+		"2001:db8::1",
+		"2606:4700:4700::1111",
+		"2a00:1450:4001:82f::200e",
+		"[fe80::1]:443",
+		"[2001:db8::1]",
+		"::ffff:192.0.2.128",
+		"203.0.113.7",
+		"203.0.113.7:443",
+	}
+	for _, address := range mustMask {
+		line := "peer " + address + " selected"
+		got := redactor.redactLine(line)
+		if strings.Contains(got, address) {
+			t.Errorf("redactLine(%q) = %q, still contains the address", line, got)
+		}
+		if !strings.Contains(got, "<addr:") {
+			t.Errorf("redactLine(%q) = %q, no address token", line, got)
+		}
+	}
+
+	mustSurvive := []string{
+		// glog's own header timestamp, the reason the old pattern refused
+		// two-colon runs at all
+		"I0830 10:11:12.131415    4242 x.go:5864] started",
+		// bracketed counters: connect/transfer_control.go, message_pool.go
+		"retry [10] of [42]",
+		"pool[16] weight [dead] entry",
+		"[control][12] window",
+		// a component tag and a file:line, neither an address
+		"[multi]drop packet ipv4 p6 -> peer",
+		"window.go:12] [window]evaluating 4 candidates, target 8",
+	}
+	for _, line := range mustSurvive {
+		if got := redactor.redactLine(line); got != line {
+			t.Errorf("redactLine(%q) = %q, want it unchanged", line, got)
+		}
+	}
+}
