@@ -455,10 +455,19 @@ func exportReadme(opts *ExportOptions, result *ExportResult) string {
 	var b strings.Builder
 	b.WriteString("URnetwork diagnostic bundle\n\n")
 	if opts.Redact {
+		// No literal address may appear in this prose: README.txt is written
+		// through the same transform as every log file, so an example address
+		// here would come back out as a token and read as nonsense.
 		b.WriteString("Mode: REDACTED. ip addresses and uuid-shaped ids are replaced by\n")
-		b.WriteString("per-export tokens. The same value reads as the same token throughout\n")
-		b.WriteString("this bundle, and differently in any other bundle. The mapping is not\n")
-		b.WriteString("reversible and the salt is not included.\n\n")
+		b.WriteString("per-export tokens, in every form the logs write them: dotted quad,\n")
+		b.WriteString("ipv6 literal, and the bracketed list of decimal bytes that a go %v of\n")
+		b.WriteString("an address prints. One address reads as one token throughout this\n")
+		b.WriteString("bundle whichever form each line wrote it in, and differently in any\n")
+		b.WriteString("other bundle. The mapping is not reversible and the salt is not\n")
+		b.WriteString("included. One exception: the unspecified address, the all-zero\n")
+		b.WriteString("placeholder a log writes where it has no address to report, is left\n")
+		b.WriteString("as written. It names no host, and masking it would hide the\n")
+		b.WriteString("difference between no address and one.\n\n")
 	} else {
 		b.WriteString("Mode: RAW. Nothing is masked. At raised log verbosity this can include\n")
 		b.WriteString("the destination addresses and ports of your traffic, and your client id.\n\n")

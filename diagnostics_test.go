@@ -933,3 +933,58 @@ func TestExportDiagnosticBundleRedactsPlatformLogs(t *testing.T) {
 		t.Fatalf("README.txt does not mention the platform directory this bundle has:\n%s", readme)
 	}
 }
+
+// TestExportDiagnosticBundleRedactsByteSliceAddresses carries the byte-slice
+// leak through the whole export path, not just redactLine.
+//
+// Both lines here are the real shapes a device writes for one destination:
+// ip_remote_multi_client.go:15474 prints an Ip4Path with %v, whose [4]byte
+// fields fmt renders as a list of decimal bytes, and :5864 prints the same
+// address as a dotted quad. A REDACTED bundle exported from a real iPhone
+// masked the second and shipped the first in the clear.
+//
+// The whole entry is asserted, so a partial mask fails here too, and the two
+// tokens are compared, because masking one destination to two tokens leaves a
+// reader unable to tell that the two lines are about one flow.
+func TestExportDiagnosticBundleRedactsByteSliceAddresses(t *testing.T) {
+	restoreTestingLogDir(t)
+
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	name := "urnetwork.host.user.log.INFO.20260830-101112.4242"
+	body := "I0831 22:47:58.387826 51714 ip_remote_multi_client.go:15474] [multi]max source count 3 = {tcp [0 0 0 0] 0 [17 23 18 34] 443 }\n" +
+		"I0831 22:47:58.387830 51714 ip_remote_multi_client.go:5864] [multi]drop packet ipv4 p6 -> 17.23.18.34:443\n"
+	if err := os.WriteFile(filepath.Join(appDir, name), []byte(body), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "redacted.zip")
+	opts := NewExportOptions()
+	opts.Redact = true
+	if _, err := ExportDiagnosticBundle(destPath, opts); err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v", err)
+	}
+
+	entry := readZipEntry(t, destPath, "logs/app/"+name)
+
+	tokens := redactTokenPattern.FindAllString(entry, -1)
+	if len(tokens) != 2 {
+		t.Fatalf("want one address token on each of the two lines, got %v:\n%s", tokens, entry)
+	}
+	if tokens[0] != tokens[1] {
+		t.Errorf("the byte-slice and dotted-quad renderings of one destination became %q and %q; one address must read as one token:\n%s",
+			tokens[0], tokens[1], entry)
+	}
+
+	want := "I0831 22:47:58.387826 51714 ip_remote_multi_client.go:15474] [multi]max source count 3 = {tcp [0 0 0 0] 0 <addr> 443 }\n" +
+		"I0831 22:47:58.387830 51714 ip_remote_multi_client.go:5864] [multi]drop packet ipv4 p6 -> <addr>\n"
+	if got := normalizeRedactionTokens(entry); got != want {
+		t.Errorf("redacted entry\n got %q\nwant %q", got, want)
+	}
+}

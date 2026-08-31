@@ -346,6 +346,13 @@ func TestRedactorTerminatesAndIsIdempotentOnItsOwnOutput(t *testing.T) {
 		"",
 		strings.Repeat("2001:db8::1 ", 64),
 		"I0830 10:11:12.131415    4242 x.go:5864] [multi]retry [10] of [42] via [fe80::1%en0]:443",
+		// the byte-slice renderings, including the degenerate bracket nests
+		// and lengths the pattern is generous enough to offer the parser
+		"[multi]max source count 3 = {tcp [0 0 0 0] 0 [17 23 18 34] 443 }",
+		"[[[[17 23 18 34]]]]",
+		"[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18]",
+		"[0 0 0 0 0 0 0 0 0 0 255 255 17 23 18 34]",
+		strings.Repeat("[9 9 9 9] ", 64),
 	}
 	for _, line := range lines {
 		once := redactor.redactLine(line)
@@ -353,5 +360,225 @@ func TestRedactorTerminatesAndIsIdempotentOnItsOwnOutput(t *testing.T) {
 		if once != twice {
 			t.Errorf("redactLine is not idempotent on %q:\n once %q\ntwice %q", line, once, twice)
 		}
+	}
+}
+
+// TestRedactorMasksByteSliceAddressRenderings pins the defect a REDACTED
+// bundle exported from a real iPhone was found to have: 25 distinct real
+// destination addresses were in it, in the clear.
+//
+// fmt prints an address as a bracketed list of decimal BYTES whenever it
+// cannot reach a String method -- a [4]byte or [16]byte field, a []byte, a
+// net.IP in an unexported field. connect.Ip4Path and connect.Ip6Path hold
+// their source and destination in exactly those, and
+//
+//	log.Infof("[multi]max source count %d = %v\n", maxSourceCount, ip4Path)
+//
+// prints one. The rendering carries neither a dot nor a colon, so neither the
+// dotted-quad nor the ipv6 pattern could see it: the same address was masked
+// where a line spelled it 17.23.18.34 and passed through where a line spelled
+// it [17 23 18 34], in a mode whose README asserts addresses are replaced by
+// per-export tokens.
+//
+// Every case here is a real shape, and every case states the WHOLE redacted
+// line. Asserting only that the literal is absent is what let this ship: it
+// passes on a partial mask like "[17 23 <addr>]", which still names the host.
+// The old cases were all dotted-quad, which is exactly why none of them
+// caught this.
+func TestRedactorMasksByteSliceAddressRenderings(t *testing.T) {
+	redactor, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		line string
+		want string
+	}{
+		// the leaking line itself, verbatim from the bundle
+		{
+			name: "the real leaking line, verbatim",
+			line: "[multi]max source count 3 = {tcp [0 0 0 0] 0 [17 23 18 34] 443 }",
+			want: "[multi]max source count 3 = {tcp [0 0 0 0] 0 <addr> 443 }",
+		},
+		{
+			name: "the real leaking line with its glog header, verbatim",
+			line: "I0831 22:47:58.387826 51714 ip_remote_multi_client.go:15474] [multi]max source count 3 = {tcp [0 0 0 0] 0 [17 23 18 34] 443 }",
+			want: "I0831 22:47:58.387826 51714 ip_remote_multi_client.go:15474] [multi]max source count 3 = {tcp [0 0 0 0] 0 <addr> 443 }",
+		},
+
+		// other destinations the same bundle leaked
+		{
+			name: "another leaked destination",
+			line: "[multi]max source count 1 = {tcp [0 0 0 0] 0 [17 248 174 76] 443 }",
+			want: "[multi]max source count 1 = {tcp [0 0 0 0] 0 <addr> 443 }",
+		},
+		{
+			name: "leaked resolver, quad one",
+			line: "[multi]max source count 2 = {udp [0 0 0 0] 0 [1 1 1 1] 53 }",
+			want: "[multi]max source count 2 = {udp [0 0 0 0] 0 <addr> 53 }",
+		},
+		{
+			name: "leaked resolver, quad nine",
+			line: "[multi]max source count 2 = {udp [0 0 0 0] 0 [9 9 9 9] 53 }",
+			want: "[multi]max source count 2 = {udp [0 0 0 0] 0 <addr> 53 }",
+		},
+		{
+			name: "a source that is a real address, not the placeholder",
+			line: "[multi]path {tcp [137 184 103 12] 51714 [137 184 135 31] 443 }",
+			want: "[multi]path {tcp <addr> 51714 <addr> 443 }",
+		},
+
+		// the %+v rendering of the same struct
+		{
+			name: "%+v of Ip4Path names the fields and still prints byte lists",
+			line: "{Protocol:tcp SourceIp:[0 0 0 0] SourcePort:0 DestinationIp:[17 23 18 34] DestinationPort:443 ServerName:}",
+			want: "{Protocol:tcp SourceIp:[0 0 0 0] SourcePort:0 DestinationIp:<addr> DestinationPort:443 ServerName:}",
+		},
+
+		// ipv6: net.IP and [16]byte hold one BYTE per element, so %v of one
+		// is SIXTEEN groups, not eight
+		{
+			name: "sixteen groups, the ipv6 rendering",
+			line: "[multi]max source count 3 = {tcp [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] 0 [32 1 13 184 0 0 0 0 0 0 0 0 0 0 0 1] 443 }",
+			want: "[multi]max source count 3 = {tcp [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] 0 <addr> 443 }",
+		},
+		{
+			name: "sixteen groups holding an ipv4-mapped address, what an unexported net.IP prints for ipv4",
+			line: "peer {[0 0 0 0 0 0 0 0 0 0 255 255 17 23 18 34] 443} selected",
+			want: "peer {<addr> 443} selected",
+		},
+
+		// not addresses. Everything here must come out byte for byte.
+		{
+			name: "the all-zero placeholder alone is left as written",
+			line: "src [0 0 0 0] port 0",
+			want: "src [0 0 0 0] port 0",
+		},
+		{
+			name: "the sixteen-group all-zero placeholder is left as written",
+			line: "src [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] port 0",
+			want: "src [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] port 0",
+		},
+		{
+			name: "bracketed counters are too short to be a byte list",
+			line: "retry [10] of [42]",
+			want: "retry [10] of [42]",
+		},
+		{
+			name: "a three-element list is not an address",
+			line: "shape [1 2 3] ok",
+			want: "shape [1 2 3] ok",
+		},
+		{
+			name: "a five-element list is offered to the parser and handed back",
+			line: "counts [1 2 3 4 5] ok",
+			want: "counts [1 2 3 4 5] ok",
+		},
+		{
+			name: "an eighteen-byte dns pt header is left alone",
+			line: "[pt]decode one: 42, [1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18] (1/2)",
+			want: "[pt]decode one: 42, [1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18] (1/2)",
+		},
+		{
+			name: "a group over 255 is not a byte",
+			line: "values [300 1 2 3] ok",
+			want: "values [300 1 2 3] ok",
+		},
+		{
+			name: "a leading zero is not something fmt prints for a byte",
+			line: "values [017 23 18 34] ok",
+			want: "values [017 23 18 34] ok",
+		},
+		{
+			name: "the glog header block still survives",
+			line: "Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg",
+			want: "Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg",
+		},
+		{
+			name: "a glog timestamp beside a byte list",
+			line: "I0831 22:47:58.387826 51714 x.go:15474] [multi][12] {tcp [0 0 0 0] 0 [9 9 9 9] 53 }",
+			want: "I0831 22:47:58.387826 51714 x.go:15474] [multi][12] {tcp [0 0 0 0] 0 <addr> 53 }",
+		},
+		{
+			// a []netip.Addr prints its elements through String, so this is a
+			// bracketed run of dotted quads and not a byte list at all. Both
+			// are addresses and both must be masked, and the byte-slice
+			// pattern must not take the whole span and swallow them.
+			name: "a printed slice of addresses, what %v of a []netip.Addr gives",
+			line: "[tun]query doh (example.test) found [17.23.18.34 1.1.1.1]",
+			want: "[tun]query doh (example.test) found [<addr> <addr>]",
+		},
+	}
+
+	for _, c := range cases {
+		got := normalizeRedactionTokens(redactor.redactLine(c.line))
+		if got != c.want {
+			t.Errorf("%s: redactLine(%q)\n got %q\nwant %q", c.name, c.line, got, c.want)
+		}
+	}
+}
+
+// TestRedactorGivesOneAddressOneTokenAcrossRenderings pins the half of the
+// byte-slice fix that a "the literal is gone" assertion cannot see.
+//
+// A bundle holds both renderings of the same flow -- one file prints
+// ip4Path with %v, another prints ipPath.DestinationIp with %s -- so masking
+// them to two different tokens leaves a reader unable to tell that they are
+// one destination, which is the whole reason tokens are stable within an
+// export. The token used to be hmac'd over the matched TEXT, so it would
+// have been. It is now hmac'd over the parsed address.
+//
+// This also covers the v4-mapped forms: net.ParseIP returns the 16-byte
+// representation for an ipv4 address, so one address genuinely reaches the
+// log as a dotted quad, as a four-group list, AND as a sixteen-group list.
+func TestRedactorGivesOneAddressOneTokenAcrossRenderings(t *testing.T) {
+	redactor, err := newLogRedactor()
+	if err != nil {
+		t.Fatalf("newLogRedactor: %v", err)
+	}
+
+	groups := []struct {
+		name       string
+		renderings []string
+	}{
+		{
+			name: "the address the real bundle leaked 531 times",
+			renderings: []string{
+				"17.23.18.34",
+				"17.23.18.34:443",
+				"[17 23 18 34]",
+				"[0 0 0 0 0 0 0 0 0 0 255 255 17 23 18 34]",
+				"::ffff:17.23.18.34",
+			},
+		},
+		{
+			name: "an ipv6 destination",
+			renderings: []string{
+				"2001:db8::1",
+				"[2001:db8::1]:443",
+				"[32 1 13 184 0 0 0 0 0 0 0 0 0 0 0 1]",
+			},
+		},
+	}
+
+	tokens := map[string]string{}
+	for _, group := range groups {
+		want := redactor.redactLine(group.renderings[0])
+		if !strings.HasPrefix(want, "<addr:") {
+			t.Fatalf("%s: %q redacted to %q, which is not a token at all", group.name, group.renderings[0], want)
+		}
+		for _, rendering := range group.renderings {
+			got := redactor.redactLine(rendering)
+			if got != want {
+				t.Errorf("%s: %q -> %q but %q -> %q; one address must read as one token however a line spelled it",
+					group.name, rendering, got, group.renderings[0], want)
+			}
+		}
+		if other, ok := tokens[want]; ok {
+			t.Errorf("%s and %s both redact to %q; different addresses must not share a token", other, group.name, want)
+		}
+		tokens[want] = group.name
 	}
 }
