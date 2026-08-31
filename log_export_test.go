@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/urnetwork/glog"
 )
 
 // TestGetLogDirReturnsTheDirectoryGlogWritesTo pins the readback contract.
@@ -13,6 +15,8 @@ import (
 // GetLogDir returned "" in every process -- silently breaking UploadLogs and
 // both platforms' export buttons, all of which os.ReadDir(GetLogDir()).
 func TestGetLogDirReturnsTheDirectoryGlogWritesTo(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	dir := t.TempDir()
 
 	if err := SetLogDir(dir); err != nil {
@@ -38,6 +42,8 @@ func TestGetLogDirReturnsTheDirectoryGlogWritesTo(t *testing.T) {
 // directory it is handed, so two processes sharing one directory delete each
 // other's history. Under a root, each process prunes only its own.
 func TestSetLogDirForProcessScopesRetentionPerProcess(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 
 	if err := SetLogDirForProcess(root, "extension"); err != nil {
@@ -103,4 +109,69 @@ func countTestingLogFiles(t *testing.T, dir string) int {
 		}
 	}
 	return n
+}
+
+// TestSetLogDirClearsTheRecordedRoot pins that GetLogRoot never names a root
+// that does not contain the directory glog is writing to.
+//
+// A plain SetLogDir after a SetLogDirForProcess used to leave the previous
+// root recorded, and LogInventory enumerates that root: the export would list
+// files from per-process directories this process had abandoned and miss the
+// one it was actually writing.
+func TestSetLogDirClearsTheRecordedRoot(t *testing.T) {
+	restoreTestingLogDir(t)
+
+	root := t.TempDir()
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+	if got := GetLogRoot(); got != root {
+		t.Fatalf("GetLogRoot() = %q, want %q", got, root)
+	}
+
+	legacy := t.TempDir()
+	if err := SetLogDir(legacy); err != nil {
+		t.Fatalf("SetLogDir: %v", err)
+	}
+
+	if got := GetLogDir(); got != legacy {
+		t.Fatalf("GetLogDir() = %q, want %q", got, legacy)
+	}
+	if got := GetLogRoot(); got != "" {
+		t.Fatalf("GetLogRoot() = %q after a legacy SetLogDir, want \"\" -- it no longer contains GetLogDir()", got)
+	}
+
+	// the inventory must follow glog, not the abandoned root
+	writeTestingLogFile(t, legacy, "urnetwork.host.user.log.INFO.20260830-101112.4242")
+	inventory := LogInventory()
+	found := false
+	for i := 0; i < inventory.Len(); i += 1 {
+		if filepath.Dir(inventory.Get(i).Path) == legacy {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("LogInventory did not list the directory glog is writing to")
+	}
+}
+
+// restoreTestingLogDir puts glog's destination back when the test ends.
+//
+// SetLogDir and SetLogDirForProcess mutate process-global glog state, and
+// every test here points them at a t.TempDir that is deleted on exit -- so
+// without this the last such test leaves every later test in the package
+// logging into a directory that no longer exists.
+func restoreTestingLogDir(t *testing.T) {
+	t.Helper()
+	dir := GetLogDir()
+	root := GetLogRoot()
+	t.Cleanup(func() {
+		currentLogDirMu.Lock()
+		defer currentLogDirMu.Unlock()
+		currentLogDir = dir
+		currentLogRoot = root
+		if dir != "" {
+			glog.SetLogDir(dir)
+		}
+	})
 }

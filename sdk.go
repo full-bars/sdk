@@ -178,7 +178,19 @@ func FlushGlog() {
 }
 
 func SetLogDir(logDir string) error {
+	// the legacy single-directory configuration: after this call there is no
+	// per-process root, so the recorded one is cleared rather than left
+	// pointing somewhere glog is no longer writing. LogInventory reads the
+	// root, so a stale one would have it enumerate a directory this process
+	// abandoned and miss the one it is actually using.
+	return setLogDirWithRoot(logDir, "")
+}
 
+// setLogDirWithRoot points glog at logDir and records logDir and root
+// together, under one lock. They describe the same decision -- GetLogRoot must
+// always name the parent of the directory GetLogDir names -- so nothing may
+// update one without the other.
+func setLogDirWithRoot(logDir string, root string) error {
 	glog.SetMaxLogSize(1024 * 1024 * 16)
 	err := glog.SetLogDir(logDir)
 	if err != nil {
@@ -187,6 +199,7 @@ func SetLogDir(logDir string) error {
 	}
 	currentLogDirMu.Lock()
 	currentLogDir = logDir
+	currentLogRoot = root
 	currentLogDirMu.Unlock()
 	glog.Infof("New glog initialized")
 	clearOldLogs(logDir)
@@ -196,7 +209,8 @@ func SetLogDir(logDir string) error {
 
 // currentLogRoot is the parent of the per-process log directories, recorded so
 // the exporter can enumerate every process's logs rather than only this
-// process's. Empty when only the legacy SetLogDir was used.
+// process's. Empty when only the legacy SetLogDir was used. Guarded by
+// currentLogDirMu, and always written together with currentLogDir.
 var currentLogRoot string
 
 // SetLogDirForProcess points glog at <root>/<processName> and records root.
@@ -220,10 +234,7 @@ func SetLogDirForProcess(root string, processName string) error {
 	dir := filepath.Join(root, processName)
 	if root != "" {
 		if err := os.MkdirAll(dir, LocalStorageDirectoryPermissions); err == nil {
-			if err := SetLogDir(dir); err == nil {
-				currentLogDirMu.Lock()
-				currentLogRoot = root
-				currentLogDirMu.Unlock()
+			if err := setLogDirWithRoot(dir, root); err == nil {
 				return nil
 			}
 		}
@@ -236,12 +247,12 @@ func SetLogDirForProcess(root string, processName string) error {
 	if err := os.MkdirAll(fallbackDir, LocalStorageDirectoryPermissions); err != nil {
 		return err
 	}
-	if err := SetLogDir(fallbackDir); err != nil {
+	// Neither destination could be opened. glog keeps its previous
+	// destination, and the recorded dir and root keep describing it, because
+	// nothing below the failed calls has touched them.
+	if err := setLogDirWithRoot(fallbackDir, fallbackRoot); err != nil {
 		return err
 	}
-	currentLogDirMu.Lock()
-	currentLogRoot = fallbackRoot
-	currentLogDirMu.Unlock()
 	return nil
 }
 

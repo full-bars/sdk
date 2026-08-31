@@ -18,6 +18,8 @@ import (
 // process, and glog puts a <program>.<SEVERITY> SYMLINK beside every real file
 // (glog/glog_file.go:124-140), which would otherwise be counted twice.
 func TestLogInventoryFindsEveryProcessAndSkipsSymlinks(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 
 	appDir := filepath.Join(root, "app")
@@ -87,6 +89,8 @@ func TestLogInventoryFindsEveryProcessAndSkipsSymlinks(t *testing.T) {
 // whose provisioning profile lacks the app group must still export its own
 // logs.
 func TestExportDiagnosticBundleWritesEverySelectedSource(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -146,6 +150,8 @@ func TestExportDiagnosticBundleWritesEverySelectedSource(t *testing.T) {
 
 // A redacted export must not carry the raw value anywhere in the archive.
 func TestExportDiagnosticBundleRedactsWhenAsked(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -199,6 +205,8 @@ func TestExportDiagnosticBundleRedactsWhenAsked(t *testing.T) {
 // discarding the per-rotation timestamps that make a diagnostic bundle
 // readable.
 func TestExportDiagnosticBundlePreservesLogFileModTimes(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -265,6 +273,8 @@ func TestExportDiagnosticBundlePreservesLogFileModTimes(t *testing.T) {
 // buildDiagnosticManifestJson uses everywhere else, not a hand-written
 // "available" key that a manifest.json reader would never look for.
 func TestExportDiagnosticBundleManifestFallbackUsesDeviceAvailableKey(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -334,6 +344,8 @@ func TestExportDiagnosticBundleManifestFallbackUsesDeviceAvailableKey(t *testing
 // with no error set (cgoGuard recovers it) and which a gomobile seq bridge
 // would turn into an app crash.
 func TestExportDiagnosticBundleAcceptsZeroValueOptions(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -379,6 +391,8 @@ func TestExportDiagnosticBundleAcceptsZeroValueOptions(t *testing.T) {
 // The unreadable file here is real (mode 0000), so this exercises the actual
 // leak channel, not just the platform-declared MissingSourceReason text.
 func TestExportDiagnosticBundleRedactsTheReadmeNotIncludedBlock(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	if os.Geteuid() == 0 {
 		t.Skip("running as root: mode 0000 does not deny access")
 	}
@@ -460,6 +474,8 @@ func readZipEntry(t *testing.T, zipPath string, name string) string {
 // error used to be discarded, so a whole process's logs went missing with an
 // empty NOT INCLUDED block and an ExportResult claiming zero missing sources.
 func TestExportDiagnosticBundleReportsAnUnreadableSourceDirectory(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	if os.Geteuid() == 0 {
 		t.Skip("running as root: mode 0000 does not deny access")
 	}
@@ -526,6 +542,8 @@ func stringListValues(list *StringList) []string {
 // logs and leaving a truncated zip on disk at a path the platform had already
 // been told to share.
 func TestExportDiagnosticBundleDoesNotAbortOnAnUnreadableEntry(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -584,6 +602,8 @@ func TestExportDiagnosticBundleDoesNotAbortOnAnUnreadableEntry(t *testing.T) {
 // support engineer or any tooling reading manifest.json could not tell a
 // redacted bundle from a raw one, nor an unreachable source from an empty one.
 func TestExportDiagnosticBundleManifestCarriesModeAndSourceAvailability(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0700); err != nil {
@@ -665,6 +685,8 @@ func TestExportDiagnosticBundleManifestCarriesModeAndSourceAvailability(t *testi
 // cost the bundle its export metadata, and must be reported rather than
 // written through as-is.
 func TestExportDiagnosticBundleReportsAnUnparseableSuppliedManifest(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "app"), 0700); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
@@ -715,6 +737,8 @@ func TestExportDiagnosticBundleReportsAnUnparseableSuppliedManifest(t *testing.T
 // not guaranteed unique across per-process directories, and the qualified form
 // is the entry's zip path.
 func TestExportDiagnosticBundleExportsOnlyTheSelectedNames(t *testing.T) {
+	restoreTestingLogDir(t)
+
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	extensionDir := filepath.Join(root, "extension")
