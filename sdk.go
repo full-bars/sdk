@@ -268,9 +268,10 @@ func GetLogRoot() string {
 // The glog verbosity levels this sdk exposes, named for what each one buys.
 //
 // The `connect` package gates its diagnostics at V(1) and V(2) only (see its
-// log.go logging convention), so this is the whole meaningful range: 289 of
-// the 652 log statements in that package are behind one of the two, and at
-// level 0 none of them are written.
+// log.go logging convention), so this is the whole meaningful range -- and it
+// is most of what that package has to say: close to half its log statements
+// (roughly 290 of some 700) sit behind one of the two, and at level 0 none of
+// them are written.
 const (
 	// LogVerbosityDefault is the level every process starts at: Info,
 	// Warning and Error only -- abnormal behavior, backpressure and
