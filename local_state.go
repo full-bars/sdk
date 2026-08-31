@@ -355,6 +355,38 @@ func (self *LocalState) GetRouteLocal() bool {
 	return true
 }
 
+// SetLogVerbosity persists the glog verbosity the user chose, so a tunnel
+// restart comes back up at it.
+//
+// Without this the workflow the setting exists for does not survive itself:
+// raising the level, reproducing the bug and exporting normally means
+// reconnecting, and a restarted tunnel process re-runs initGlog and resets to
+// 0 -- silently dropping the session being captured back to writing none of
+// the V(1) contract and transport lines.
+//
+// It is stored under the network space's local storage, which on ios is the
+// shared app group container, so the app writes it and the extension reads it.
+func (self *LocalState) SetLogVerbosity(level int) error {
+	path := filepath.Join(self.localStorageDir, ".log_verbosity")
+	levelBytes := []byte(fmt.Sprintf("%d", clampLogVerbosity(level)))
+	return os.WriteFile(path, levelBytes, LocalStorageFilePermissions)
+}
+
+// GetLogVerbosity reads back the persisted level. Unset or unreadable (fresh
+// install, corrupt file) both read as LogVerbosityDefault, which is the level
+// a process starts at anyway -- restoring must never be what raises logging
+// nobody asked for.
+func (self *LocalState) GetLogVerbosity() int {
+	path := filepath.Join(self.localStorageDir, ".log_verbosity")
+	if levelBytes, err := os.ReadFile(path); err == nil {
+		var level int
+		if _, err := fmt.Sscanf(string(levelBytes), "%d", &level); err == nil {
+			return clampLogVerbosity(level)
+		}
+	}
+	return LogVerbosityDefault
+}
+
 func (self *LocalState) SetBlockerEnabled(blockerEnabled bool) error {
 	path := filepath.Join(self.localStorageDir, ".blocker_enabled")
 	blockerEnabledBytes := []byte(fmt.Sprintf("%t", blockerEnabled))

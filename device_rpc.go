@@ -499,6 +499,16 @@ func newDeviceRemoteWithOverrides(
 		providerIngressContractDetailsChangeListeners: map[connect.Id]ContractDetailsChangeListener{},
 	}
 
+	// restore the persisted verbosity into THIS process as well as the device
+	// one, which applies it at its own construction. Both, so that after an
+	// app restart the level the app reports is the level the extension is
+	// actually logging at, and the app's own lines match the bundle's.
+	if !settings.DisableHostedIncompatible {
+		if asyncLocalState := networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
+			applyPersistedLogVerbosity(asyncLocalState.GetLocalState(), deviceRemote.log)
+		}
+	}
+
 	deviceRemote.viewControllerManager = *newViewControllerManager(ctx, deviceRemote)
 
 	var logout func() error
@@ -5672,18 +5682,36 @@ func (self *DeviceRemote) SetLogVerbosity(level int) {
 	defer self.stateLock.Unlock()
 
 	if self.service == nil {
-		// the tunnel is not running. The level is persisted below the device,
-		// so the next one to start comes up at it (see
-		// DeviceLocal.SetLogVerbosity and LocalState.SetLogVerbosity)
+		// the tunnel is not running, so nothing on the device side can record
+		// this. Persist it here instead: the user's next act is to connect and
+		// reproduce, and a tunnel that started at 0 would capture none of it
+		self.persistLogVerbosity(level)
 		return
 	}
 
-	rpcCallVoidAllowMissingMethod(
+	if err := rpcCallVoidAllowMissingMethod(
 		self.service,
 		"DeviceLocalRpc.SetLogVerbosity",
 		clampLogVerbosity(level),
 		self.closeService,
-	)
+	); err != nil {
+		// the device did not take the call (an older peer without the method,
+		// or a dead rpc), so it did not persist it either -- exactly one
+		// process records the level per call
+		self.persistLogVerbosity(level)
+	}
+}
+
+// persistLogVerbosity records the level from the app side, for the calls the
+// device process could not take. On ios both processes share the app group
+// container this is written to, so the next tunnel to start reads it back the
+// same way (see `applyPersistedLogVerbosity`).
+func (self *DeviceRemote) persistLogVerbosity(level int) {
+	if asyncLocalState := self.networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
+		asyncLocalState.serialAsync(func() error {
+			return asyncLocalState.GetLocalState().SetLogVerbosity(level)
+		})
+	}
 }
 
 // GetLogVerbosity returns the verbosity THIS process is logging at.

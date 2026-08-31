@@ -3,8 +3,11 @@ package sdk
 import (
 	"context"
 	"flag"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/urnetwork/connect"
 	"github.com/urnetwork/glog"
@@ -162,4 +165,145 @@ func TestDeviceLogVerbosityBridgeReachesTheDeviceProcess(t *testing.T) {
 	)
 	connect.AssertEqual(t, err, nil)
 	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityDetail)
+}
+
+// TestLocalStateLogVerbosityRoundTrip: the level survives the process, which
+// is the whole point of persisting it -- the bug the user is capturing is
+// normally reproduced by reconnecting, and the tunnel process re-runs
+// initGlog on the way up.
+func TestLocalStateLogVerbosityRoundTrip(t *testing.T) {
+	localState := newLocalState(context.Background(), t.TempDir())
+
+	// unset reads as the level a process starts at anyway
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDefault)
+
+	if err := localState.SetLogVerbosity(LogVerbosityDetail); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDetail)
+
+	// a level from a future build with a wider range must not read back as a
+	// level this build does not honor
+	if err := localState.SetLogVerbosity(9); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDetail)
+
+	// a corrupt file is not a reason to start a process logging at an unknown
+	// level
+	path := filepath.Join(localState.localStorageDir, ".log_verbosity")
+	if err := os.WriteFile(path, []byte("loud"), LocalStorageFilePermissions); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDefault)
+}
+
+// TestDeviceLocalLogVerbosityPersistRestore is the user's actual workflow:
+// raise the level, reproduce the bug -- which means reconnecting -- then
+// export. The reconnect starts a new tunnel process whose initGlog resets the
+// level to 0, so without the restore the session being captured is the one
+// session that is not captured.
+func TestDeviceLocalLogVerbosityPersistRestore(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	networkSpace, byJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+	localState := networkSpace.GetAsyncLocalState().GetLocalState()
+
+	device := testing_newBlockDeviceWithNetworkSpace(t, networkSpace, byJwt, false)
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDefault)
+
+	// the set persists asynchronously to local state
+	device.SetLogVerbosity(LogVerbosityDetail)
+	persisted := false
+	for i := 0; i < 100; i += 1 {
+		if localState.GetLogVerbosity() == LogVerbosityDetail {
+			persisted = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	connect.AssertEqual(t, persisted, true)
+	device.Close()
+
+	// stand in for the tunnel restart: a new process runs initGlog, which sets
+	// the level back to 0 before any device exists
+	if err := flag.Set("v", strconv.Itoa(LogVerbosityDefault)); err != nil {
+		t.Fatalf("flag.Set: %v", err)
+	}
+
+	restored := testing_newBlockDeviceWithNetworkSpace(t, networkSpace, byJwt, false)
+	defer restored.Close()
+	connect.AssertEqual(t, restored.GetLogVerbosity(), LogVerbosityDetail)
+}
+
+// TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown covers the state
+// the user is actually in when they raise the level: disconnected, about to
+// connect and reproduce. There is no device process to take the call, so if
+// the app does not record it the tunnel it is about to start comes up at 0 and
+// captures nothing.
+func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	networkSpace, byJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+	localState := networkSpace.GetAsyncLocalState().GetLocalState()
+
+	// a level chosen in an earlier session, and an app process that has just
+	// restarted: initGlog has reset this process to 0
+	if err := localState.SetLogVerbosity(LogVerbosityDetail); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+	if err := flag.Set("v", strconv.Itoa(LogVerbosityDefault)); err != nil {
+		t.Fatalf("flag.Set: %v", err)
+	}
+
+	// nothing is listening on this address, so the remote never has a service:
+	// the tunnel is down
+	settings := defaultDeviceRpcSettings()
+	settings.Address = requireRemoteAddress(testing_freeHostPort())
+	deviceRemote, err := newDeviceRemoteWithOverrides(
+		networkSpace,
+		byJwt,
+		NewId(),
+		settings,
+		connect.NewId(),
+		NewWebsocketDeviceRpcDialer(settings.Address, "", "", settings),
+	)
+	if err != nil {
+		t.Fatalf("device remote: %v", err)
+	}
+	defer deviceRemote.Close()
+	connect.AssertEqual(t, deviceRemote.GetRemoteConnected(), false)
+
+	// the remote restores the persisted level into the app process too, so
+	// what the app reports is what the extension it is about to start will be
+	// logging at, rather than the 0 this process was reset to
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityDetail)
+
+	deviceRemote.SetLogVerbosity(LogVerbosityTrace)
+
+	// the app process is raised immediately, so its own lines match the level
+	// the bundle will report
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityTrace)
+
+	persisted := false
+	for i := 0; i < 100; i += 1 {
+		if localState.GetLogVerbosity() == LogVerbosityTrace {
+			persisted = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	connect.AssertEqual(t, persisted, true)
 }

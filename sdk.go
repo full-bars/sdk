@@ -327,6 +327,23 @@ func GetLogVerbosity() int {
 	return level
 }
 
+// applyPersistedLogVerbosity restores the level the user last chose into THIS
+// process, and is what makes the setting survive the reconnect that the bug
+// being captured usually needs. Every process that starts a device runs
+// initGlog first, which resets the level to 0.
+//
+// A nil localState (a network space with no local storage) leaves the process
+// at whatever it is already logging at.
+func applyPersistedLogVerbosity(localState *LocalState, log connect.Logger) {
+	if localState == nil {
+		return
+	}
+	level := localState.GetLogVerbosity()
+	if err := SetLogVerbosity(level); err != nil && log != nil {
+		log.Infof("[device]restore log verbosity %d err = %s\n", level, err)
+	}
+}
+
 func clampLogVerbosity(level int) int {
 	if level < LogVerbosityDefault {
 		return LogVerbosityDefault

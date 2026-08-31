@@ -1343,6 +1343,15 @@ func newDeviceLocalWithOverrides(
 		// PRIOR process survive into the very first window this process
 		// builds, before SetRoutingTier is ever called again
 		deviceLocal.routingTier = localState.GetRoutingTier()
+		// the log verbosity persists on set (see SetLogVerbosity) and is
+		// applied here rather than only on the next set, because the reason
+		// it is persisted is that reproducing a bug means restarting this
+		// process: a tunnel that came back up at 0 would drop exactly the
+		// session the user raised the level to capture. A hosted device never
+		// touches the shared host process's verbosity.
+		if !settings.HostedIncompatible {
+			applyPersistedLogVerbosity(localState, log)
+		}
 		// seed the DoH fan-out order from the last session's per-server scores,
 		// so the first lookups after launch pick the known-fastest server
 		deviceLocal.dohServerScoresSeed = localState.getDohServerScores()
@@ -6570,6 +6579,19 @@ func (self *DeviceLocal) SetLogVerbosity(level int) {
 	}
 	if err := SetLogVerbosity(level); err != nil {
 		self.log.Infof("[device]set log verbosity %d err = %s\n", level, err)
+		return
+	}
+	self.persistLogVerbosity(level)
+}
+
+// persistLogVerbosity records the level so the next process to start a device
+// comes up at it (see `applyPersistedLogVerbosity`). The write is serialized
+// with the rest of the local state and does not block the setter.
+func (self *DeviceLocal) persistLogVerbosity(level int) {
+	if asyncLocalState := self.networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
+		asyncLocalState.serialAsync(func() error {
+			return asyncLocalState.GetLocalState().SetLogVerbosity(level)
+		})
 	}
 }
 
