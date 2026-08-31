@@ -196,6 +196,87 @@ func TestExportDiagnosticBundleRedactsWhenAsked(t *testing.T) {
 	}
 }
 
+// TestExportDiagnosticBundleRedactsIPv6AndLeavesARawExportVerbatim covers the
+// two modes end to end on the address shapes a Go network log actually prints:
+// a net.Dial error and a %+v of a struct, where the address has a ':' or a '{'
+// hard up against it. Those went out of a REDACTED bundle in the clear once,
+// and the unit table did not catch it because it only ever put an address
+// between spaces -- so the check is repeated here on a real archive.
+//
+// The raw half is the control: with Redact off no transform is installed at
+// all, so the log entry must come back byte for byte, redaction fix or not.
+func TestExportDiagnosticBundleRedactsIPv6AndLeavesARawExportVerbatim(t *testing.T) {
+	restoreTestingLogDir(t)
+
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	name := "urnetwork.host.user.log.INFO.20260830-101112.4242"
+	body := strings.Join([]string{
+		"I0830 10:11:12.131415 1 c.go:1] dial tcp 2001:db8::1:443: connect: connection refused",
+		"I0830 10:11:12.131416 1 c.go:2] client {Ip:2001:db8::1 Port:443}",
+		"I0830 10:11:12.131417 1 c.go:3] peer fe80::1: timeout",
+		"I0830 10:11:12.131418 1 c.go:4] route src:2001:db8:1:2:3:4:5:6",
+		"I0830 10:11:12.131419 1 c.go:5] peer 203.0.113.7:443 retry [10] of [42]",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(appDir, name), []byte(body), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	leaks := []string{"2001:db8::1", "fe80::1", "2001:db8:1:2:3:4:5:6", "203.0.113.7"}
+
+	redactedPath := filepath.Join(t.TempDir(), "redacted.zip")
+	redacted := NewExportOptions()
+	redacted.Redact = true
+	if _, err := ExportDiagnosticBundle(redactedPath, redacted); err != nil {
+		t.Fatalf("ExportDiagnosticBundle(redacted) = %v", err)
+	}
+	reader, err := zip.OpenReader(redactedPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+	for _, f := range reader.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %q: %v", f.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatalf("read %q: %v", f.Name, err)
+		}
+		for _, leak := range leaks {
+			if strings.Contains(string(content), leak) {
+				t.Errorf("entry %q in a REDACTED bundle still contains %q:\n%s", f.Name, leak, content)
+			}
+		}
+	}
+	// the structure the spec promises survives redaction
+	entry := readZipEntry(t, redactedPath, "logs/app/"+name)
+	for _, want := range []string{"I0830 10:11:12.131415", "c.go:1]", "retry [10] of [42]", "Port:443}"} {
+		if !strings.Contains(entry, want) {
+			t.Errorf("redacted log entry lost %q:\n%s", want, entry)
+		}
+	}
+
+	rawPath := filepath.Join(t.TempDir(), "raw.zip")
+	raw := NewExportOptions()
+	raw.Redact = false
+	if _, err := ExportDiagnosticBundle(rawPath, raw); err != nil {
+		t.Fatalf("ExportDiagnosticBundle(raw) = %v", err)
+	}
+	if got := readZipEntry(t, rawPath, "logs/app/"+name); got != body {
+		t.Errorf("a raw export rewrote the log:\n got %q\nwant %q", got, body)
+	}
+}
+
 // TestExportDiagnosticBundlePreservesLogFileModTimes pins that a log entry's
 // zip header carries the source file's real Modified time (and, via
 // zip.FileInfoHeader, its mode bits), not a header built from scratch. A
