@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -262,6 +263,78 @@ func GetLogRoot() string {
 	currentLogDirMu.Lock()
 	defer currentLogDirMu.Unlock()
 	return currentLogRoot
+}
+
+// The glog verbosity levels this sdk exposes, named for what each one buys.
+//
+// The `connect` package gates its diagnostics at V(1) and V(2) only (see its
+// log.go logging convention), so this is the whole meaningful range: 289 of
+// the 652 log statements in that package are behind one of the two, and at
+// level 0 none of them are written.
+const (
+	// LogVerbosityDefault is the level every process starts at: Info,
+	// Warning and Error only -- abnormal behavior, backpressure and
+	// connectivity timeouts, recoverable exits.
+	LogVerbosityDefault = 0
+	// LogVerbosityTrace adds the V(1) key events, which is what a contract or
+	// connection report needs: contract accounting ([contract] add, close,
+	// expire, provide ping), send/receive and stream lifecycle ([s], [r],
+	// [sm], [cr]), transport dial and handshake ([tls], [p2p], [peerconn],
+	// [pt]), and multi-client window formation ([multi]).
+	LogVerbosityTrace = 1
+	// LogVerbosityDetail adds the V(2) per-use-case detail on top: per-message
+	// transfer and routing ([tr], [mrr], [mrw], [f%d], [r%d]), network and
+	// control traffic ([net], [control]), and rtt samples ([rtt]). High volume
+	// on a busy connection -- it is for reproducing one bug, not for running
+	// on.
+	LogVerbosityDetail = 2
+)
+
+// SetLogVerbosity sets THIS process's glog verbosity, and takes effect on the
+// next log statement -- no restart.
+//
+// glog registers the -v flag as a flag.Value (glog_flags.go, flag.Var over
+// Level), and V() re-reads the value on every call, so setting the flag at
+// runtime is the supported way to change the level in a process that never
+// parses a command line. TestLogVerbosityTakesEffectAtRuntime pins that.
+//
+// The level is clamped to LogVerbosityDefault..LogVerbosityDetail rather than
+// rejected: `connect` only ever asks for V(1) and V(2), so a higher number is
+// volume with nothing to show for it and a negative one is meaningless. The
+// clamped value is what GetLogVerbosity then reports.
+//
+// This reaches only the calling process. On ios the transport runs in the
+// network extension, which has its own glog state -- use
+// Device.SetLogVerbosity, which sets both.
+func SetLogVerbosity(level int) error {
+	return flag.Set("v", strconv.Itoa(clampLogVerbosity(level)))
+}
+
+// GetLogVerbosity returns the verbosity THIS process is logging at.
+//
+// It reads the flag rather than a shadow copy, so it also reports a level an
+// embedder set some other way, including a -v on the command line above
+// LogVerbosityDetail -- what is reported is what V() will honor.
+func GetLogVerbosity() int {
+	f := flag.Lookup("v")
+	if f == nil {
+		return LogVerbosityDefault
+	}
+	level, err := strconv.Atoi(f.Value.String())
+	if err != nil {
+		return LogVerbosityDefault
+	}
+	return level
+}
+
+func clampLogVerbosity(level int) int {
+	if level < LogVerbosityDefault {
+		return LogVerbosityDefault
+	}
+	if LogVerbosityDetail < level {
+		return LogVerbosityDetail
+	}
+	return level
 }
 
 // memory target ratio: how SetMemoryLimit divides the process budget into
