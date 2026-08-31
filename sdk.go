@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	// "strings"
@@ -148,7 +149,23 @@ func clearOldLogs(logDir string) {
 
 }
 
+// currentLogDir is the directory glog was last pointed at.
+//
+// glog.SetLogDir mutates only glog's internal logDirs/dirSet, never the
+// `log_dir` flag, so the flag is not a readback path. Tracking it here is what
+// makes GetLogDir answerable at all; reading the flag returned "" in every
+// process, including the one that had just called SetLogDir.
+var currentLogDirMu sync.Mutex
+var currentLogDir string
+
 func GetLogDir() string {
+	currentLogDirMu.Lock()
+	dir := currentLogDir
+	currentLogDirMu.Unlock()
+	if dir != "" {
+		return dir
+	}
+	// honor an explicit --log_dir for embedders that never call SetLogDir
 	if f := flag.Lookup("log_dir"); f != nil {
 		return f.Value.String()
 	}
@@ -165,11 +182,15 @@ func SetLogDir(logDir string) error {
 	err := glog.SetLogDir(logDir)
 	if err != nil {
 		glog.Infof("SetLogDir to %q failed: %v", logDir, err)
+		return err
 	}
+	currentLogDirMu.Lock()
+	currentLogDir = logDir
+	currentLogDirMu.Unlock()
 	glog.Infof("New glog initialized")
 	clearOldLogs(logDir)
 
-	return err
+	return nil
 }
 
 // memory target ratio: how SetMemoryLimit divides the process budget into
