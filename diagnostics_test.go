@@ -812,3 +812,43 @@ func zipLogEntryNames(t *testing.T, zipPath string) []string {
 	}
 	return names
 }
+
+// TestExportDiagnosticBundleRedactsPlatformLogs covers the Android-only
+// platform log path, which had no test: the logcat dump is caller-supplied
+// text, it is written under platform/, and on the redacted path it must be
+// filtered like any log file -- logcat carries the same addresses and ids the
+// glog files do.
+func TestExportDiagnosticBundleRedactsPlatformLogs(t *testing.T) {
+	restoreTestingLogDir(t)
+
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "app"), 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "platform.zip")
+	opts := NewExportOptions()
+	opts.Redact = true
+	opts.IncludePlatformLogs = true
+	opts.AddPlatformLog("logcat.txt", "08-30 10:11:12.131 1 2 I ur: connected to 203.0.113.7:443\n")
+
+	if _, err := ExportDiagnosticBundle(destPath, opts); err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v", err)
+	}
+
+	content := readZipEntry(t, destPath, "platform/logcat.txt")
+	if strings.Contains(content, "203.0.113.7") {
+		t.Fatalf("platform/logcat.txt in a redacted bundle still contains the raw address: %q", content)
+	}
+	if !strings.Contains(content, "connected to ") {
+		t.Fatalf("platform/logcat.txt lost its structure: %q", content)
+	}
+
+	// and the README advertises the directory only because it is there
+	if readme := readZipEntry(t, destPath, "README.txt"); !strings.Contains(readme, "platform/") {
+		t.Fatalf("README.txt does not mention the platform directory this bundle has:\n%s", readme)
+	}
+}
