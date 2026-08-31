@@ -139,8 +139,7 @@ func NewSimProvider(ctx context.Context, config *SimProviderConfig) *SimProvider
 		protocol.ProvideMode_Public:  true,
 	})
 
-	platformTransportSettings := connect.DefaultPlatformTransportSettings()
-	platformTransportSettings.Log = log
+	platformTransportSettings := newSimProviderPlatformTransportSettings(log)
 
 	provider := &SimProvider{
 		ctx:            cancelCtx,
@@ -167,6 +166,14 @@ func (self *SimProvider) Client() *connect.Client {
 
 func (self *SimProvider) LocalUserNat() *connect.LocalUserNat {
 	return self.localUserNat
+}
+
+// Returns a concurrent snapshot of packets relayed for remote clients. The
+// simulator uses the provider's remote-egress byte counter as an independent
+// return-path accounting source; callers cannot mutate the provider counters
+// through the returned value.
+func (self *SimProvider) PacketStats() *connect.PacketStats {
+	return self.remoteUserNat.PacketStats()
 }
 
 // IsConnected reports whether the platform transport exists and has routes
@@ -238,7 +245,11 @@ type SimClientConfig struct {
 	DisableSecurityPolicy bool
 	// nil uses `connect.DefaultTunSettings()`
 	TunSettings *connect.TunSettings
-	Log         connect.Logger
+	// nil uses `connect.DefaultMultiClientSettings()`. A non-nil value is
+	// cloned before use so a simulator can give every warm client the same
+	// frozen window policy without introducing shared mutable state.
+	MultiClientSettings *connect.MultiClientSettings
+	Log                 connect.Logger
 }
 
 // SimClient is a headless client: a `RemoteUserNatMultiClient` over
@@ -296,7 +307,7 @@ func NewSimClient(ctx context.Context, config *SimClientConfig) (*SimClient, err
 		config.AppVersion,
 		&config.ClientId,
 		connect.DefaultClientSettings,
-		connect.DefaultApiMultiClientGeneratorSettings(),
+		newSimClientGeneratorSettings(),
 	)
 
 	tunSettings := config.TunSettings
@@ -310,7 +321,7 @@ func NewSimClient(ctx context.Context, config *SimClientConfig) (*SimClient, err
 		return nil, err
 	}
 
-	multiClientSettings := connect.DefaultMultiClientSettings()
+	multiClientSettings := cloneSimMultiClientSettings(config.MultiClientSettings)
 	multiClientSettings.Log = log
 	if config.DisableSecurityPolicy {
 		multiClientSettings.SecurityPolicyGenerator = connect.DisableSecurityPolicyWithStats
@@ -343,8 +354,8 @@ func NewSimClient(ctx context.Context, config *SimClientConfig) (*SimClient, err
 	// only on failure, so the bridge returns it exactly when the send fails —
 	// mirroring DeviceLocal.SendPacket. Returning unconditionally double-frees
 	// the pooled buffer on every successful send, corrupting the stream. A
-	// blocking send (-1) keeps the source lossless, and unblocks when the tun
-	// closes.
+	// blocking send (-1) keeps the source lossless, and unblocks when the
+	// simulation context is canceled.
 	source := connect.SourceId(config.ClientId)
 	simClient.bridgeWg.Add(1)
 	go connect.HandleError(func() {
@@ -366,6 +377,56 @@ func NewSimClient(ctx context.Context, config *SimClientConfig) (*SimClient, err
 	return simClient, nil
 }
 
+// Builds the window-client policy for the synthetic exchange. Its advertised
+// endpoints are local WebSockets, so production Auto probes to UDP ports 443
+// and 53 are outside both the exchange shards and the simulated impairment.
+func newSimClientGeneratorSettings() *connect.ApiMultiClientGeneratorSettings {
+	settings := connect.DefaultApiMultiClientGeneratorSettings()
+	settings.PlatformTransportMode = connect.TransportModeH1
+	// One headless client represents one independent device. Preserve the
+	// production budget within its window set without making every simulated
+	// device in this process compete for the same global transport slots.
+	if platformBudget := newSimPlatformTransportBudget(); platformBudget != nil {
+		settings.PlatformTransportSettingsGenerator = func() *connect.PlatformTransportSettings {
+			platformSettings := connect.DefaultPlatformTransportSettings()
+			platformSettings.PlatformTransportBudget = platformBudget
+			return platformSettings
+		}
+	}
+	return settings
+}
+
+func newSimProviderPlatformTransportSettings(log connect.Logger) *connect.PlatformTransportSettings {
+	settings := connect.DefaultPlatformTransportSettings()
+	settings.Log = log
+	settings.PlatformTransportBudget = newSimPlatformTransportBudget()
+	return settings
+}
+
+func newSimPlatformTransportBudget() *connect.PlatformTransportBudget {
+	defaultBudget := connect.DefaultPlatformTransportBudget()
+	if defaultBudget == nil {
+		return nil
+	}
+	budgetStats := defaultBudget.Stats()
+	return connect.NewPlatformTransportBudget(
+		budgetStats.TotalByteCount,
+		budgetStats.MaxTransportCount,
+	)
+}
+
+func cloneSimMultiClientSettings(settings *connect.MultiClientSettings) *connect.MultiClientSettings {
+	if settings == nil {
+		return connect.DefaultMultiClientSettings()
+	}
+	cloned := *settings
+	cloned.WindowSizes = make(map[connect.WindowType]connect.WindowSizeSettings, len(settings.WindowSizes))
+	for windowType, windowSize := range settings.WindowSizes {
+		cloned.WindowSizes[windowType] = windowSize
+	}
+	return &cloned
+}
+
 // DialContext dials through the tunnel: the connection's bytes traverse
 // client -> platform -> provider egress to the destination
 func (self *SimClient) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
@@ -377,8 +438,21 @@ func (self *SimClient) MultiClient() *connect.RemoteUserNatMultiClient {
 }
 
 func (self *SimClient) Close() {
-	self.tun.Close() // unblocks ReadBatch -> bridge goroutine exits
-	self.bridgeWg.Wait()
+	closeSimClientBridge(
+		func() {
+			self.tun.Close()
+		},
+		self.cancel,
+		self.bridgeWg.Wait,
+	)
 	self.multiClient.Close()
-	self.cancel()
+}
+
+// closeSimClientBridge stops both places where the tunnel bridge can block
+// before joining it. Closing the tun releases ReadBatch, while canceling the
+// shared context releases an in-flight blocking multi-client SendPacket.
+func closeSimClientBridge(closeTun func(), cancel context.CancelFunc, waitBridge func()) {
+	closeTun()
+	cancel()
+	waitBridge()
 }

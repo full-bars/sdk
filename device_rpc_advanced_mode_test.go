@@ -473,6 +473,16 @@ func TestDeviceRemoteAdvancedModeActionsAreNeverQueued(t *testing.T) {
 	connect.AssertEqual(t, actionLogger.count("stall_exit"), 0)
 	connect.AssertEqual(t, actionLogger.count("migrate_exit"), 0)
 	connect.AssertEqual(t, actionLogger.count("shuffle"), 0)
+
+	// ShuffleExits is the one that shares a connect call with the QUEUED
+	// Shuffle, so it gets its own live pass: it must reach the local exactly
+	// once -- the press below, and not a replay of the Shuffle pressed
+	// against the dead service earlier in this test.
+	deviceRemote.ShuffleExits()
+	testingReliabilityWaitFor(t, "shuffle_exits reached the local", func() bool {
+		return actionLogger.contains("shuffle")
+	})
+	connect.AssertEqual(t, actionLogger.count("shuffle"), 1)
 }
 
 // TestDeviceRemoteProbeSuiteBridge runs the probe suite as a suite across the
@@ -530,12 +540,26 @@ func TestDeviceRemoteProbeSuiteBridge(t *testing.T) {
 	connect.AssertEqual(t, err, nil)
 	connect.AssertEqual(t, string(encoded), "[]")
 
-	// no jobs, no network: the run exists to move the flag
+	// The run needs WORK, not just a flag flip. This config used to enable no
+	// probes at all -- "the run exists to move the flag" -- and that made the
+	// test a race it lost about one run in three in the full suite (it passes
+	// alone, where the process is idle and the poll lands inside the window).
+	// With no jobs, the run goroutine reaches its `running = false` defer as
+	// soon as `newProbeHarness` returns, and the harness normally SUCCEEDS, so
+	// it appends no result either: the flag is down within milliseconds and
+	// the results list stays empty, leaving nothing for the wait below to ever
+	// observe again.
+	//
+	// Three dns jobs give the run an outcome that outlives it. The tun the
+	// harness builds has no egress -- the device's stub multi client drops
+	// every packet and nothing leaves the machine, so this is still a
+	// no-network test -- so each probe fails at TimeoutMillis and records a
+	// result, and the suite keeps its results until the next start.
 	config := &ProbeSuiteConfig{
 		Concurrency:     1,
 		TimeoutMillis:   1000,
 		RepeatCount:     1,
-		IncludeDns:      false,
+		IncludeDns:      true,
 		IncludeHttp:     false,
 		IncludeDownload: false,
 	}
@@ -543,10 +567,17 @@ func TestDeviceRemoteProbeSuiteBridge(t *testing.T) {
 	// TRUE across the bridge -- the assertion no fallback can satisfy
 	connect.AssertEqual(t, deviceRemote.StartProbeSuite(config), true)
 
-	// the start reached the DeviceLocal side: only the local owns the suite
-	// state, so the local observing a run is proof the handler ran there
-	testingReliabilityWaitFor(t, "the suite started on the local", func() bool {
-		return deviceLocal.ProbeSuiteRunning() || 0 < deviceLocal.GetProbeResults().Len()
+	// The start reached the DeviceLocal side: only the local owns the suite
+	// state, so a result recorded THERE is proof the handler ran there.
+	//
+	// Wait on the results, not on `ProbeSuiteRunning`. The running flag is a
+	// pulse, not a level: it is up only between `StartProbeSuite` and the run
+	// goroutine's `running = false` defer, and a poll that misses that window
+	// can never see it again. Results are the monotonic signal -- the suite
+	// keeps them until the next start -- so this wait cannot be lost to
+	// scheduling.
+	testingReliabilityWaitFor(t, "the suite recorded a result on the local", func() bool {
+		return 0 < deviceLocal.GetProbeResults().Len()
 	})
 
 	// stop, and both ends settle on not-running
@@ -558,12 +589,18 @@ func TestDeviceRemoteProbeSuiteBridge(t *testing.T) {
 		return !deviceRemote.ProbeSuiteRunning()
 	})
 
-	// results after a run cross the bridge as the same list the local holds,
-	// whatever the harness made of a zero-job run
+	// results after a run cross the bridge as the same list the local holds
 	localResults := deviceLocal.GetProbeResults()
 	remoteResults := deviceRemote.GetProbeResults()
 	connect.AssertNotEqual(t, remoteResults, nil)
 	connect.AssertEqual(t, remoteResults.Len(), localResults.Len())
+	// and the run left something behind. This guards the config above: turn
+	// every probe back off and the wait for a recorded result stops being
+	// satisfiable by the run itself, which is exactly how this test became a
+	// race the first time.
+	if localResults.Len() == 0 {
+		t.Fatal("the run recorded no results -- the probe config produces no work, so the wait above has nothing monotonic to observe")
+	}
 	for i := range localResults.Len() {
 		connect.AssertEqual(t, remoteResults.Get(i), localResults.Get(i))
 	}

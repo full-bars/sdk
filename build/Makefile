@@ -1,4 +1,12 @@
 
+# Mobile release libraries disable Go heap-profile sampling before runtime
+# initialization. Set MOBILE_MEMORY_PROFILE_RATE to a positive rate only for a
+# private diagnostic artifact. Preserve any compatibility defaults selected by
+# the module's Go version when adding the mobile-specific setting.
+MOBILE_MEMORY_PROFILE_RATE ?= 0
+MOBILE_RUNTIME_GODEBUG := $(shell mobile_default_godebug="$$(go list -f '{{.DefaultGODEBUG}}' .)"; if [ -n "$$mobile_default_godebug" ]; then printf '%s,memprofilerate=%s' "$$mobile_default_godebug" "$(MOBILE_MEMORY_PROFILE_RATE)"; else printf 'memprofilerate=%s' "$(MOBILE_MEMORY_PROFILE_RATE)"; fi)
+MOBILE_RUNTIME_LDFLAG := -X=runtime.godebugDefault=$(MOBILE_RUNTIME_GODEBUG)
+
 # build_windows is not in `all`: the shipped Windows SDK (amd64+arm64) builds
 # inside the Windows VM (build/all/build-windows.sh), which provisions Go +
 # llvm-mingw and copies URnetworkSdkWindows.zip back to ../cgo/build. The
@@ -20,8 +28,10 @@ clean:
 build_android:
 	# *important* gradle does not handle symbolic links consistently
 	# the build dir swap is non-atomic
-	# note android/amd64 is needed for chromebook devices
 	# FIXME remove this GODEBUG setting per https://github.com/golang/go/issues/71827; see https://pkg.go.dev/go/types#Alias
+	# (still needed as of x/mobile 2026-08-19: bind gengo typeString prints alias names unqualified;
+	# gomobile/gobind must be built with go <= 1.26 -- the go 1.27 runtime fatals when this GODEBUG is set)
+	# note android/amd64 is needed for chromebook devices
 	# FIXME edit the built aar to remove platform-specific comments, for reproducibility across platforms
 	# validate that all types could be exported
 	# note the device_rpc types (DeviceLocalRpc, DeviceRemote*, DeviceRpcDialer/Listener, their
@@ -51,7 +61,7 @@ build_android:
 		-javapkg com.bringyour \
 		-trimpath \
 		-gcflags "-dwarf=false" \
-		-ldflags "-s -w -X github.com/urnetwork/sdk.Version=$${WARP_VERSION} -compressdwarf=false -buildid= -checklinkname=0" \
+		-ldflags "-s -w -X github.com/urnetwork/sdk.Version=$${WARP_VERSION} $(MOBILE_RUNTIME_LDFLAG) -compressdwarf=false -buildid= -checklinkname=0" \
 		-o "$$BUILD_DIR/URnetworkSdk.aar" \
 		"github.com/urnetwork/sdk"; \
 	test -s "$$BUILD_DIR/URnetworkSdk.aar"; \
@@ -82,7 +92,7 @@ build_android:
 			allow_skipped='DeviceLocalRpc'; \
 			allow_skipped="$$allow_skipped|DeviceRemote[A-Z]|DeviceRpcDialer|DeviceRpcListener|[A-Za-z]Rpc"; \
 			allow_skipped="$$allow_skipped|NewPlatformDeviceLocal|NewPlatformNetworkSpace|Proxy"; \
-			allow_skipped="$$allow_skipped|DeviceLocal\.AddReceivePacketCallback|DeviceLocal\.Ctx"; \
+			allow_skipped="$$allow_skipped|DeviceLocal\.AddReceivePacket(sCallback|Callback)|DeviceLocal\.SendPacketsNoCopy|DeviceLocal\.Ctx"; \
 			allow_skipped="$$allow_skipped|DeviceLocal\.Set[A-Za-z]*SecurityPolicyGenerator"; \
 			allow_skipped="$$allow_skipped|SetUpgradeMuxSettings|DeviceLocalSettings"; \
 			allow_skipped="$$allow_skipped|Testing_NewNetworkSpaceWithUrls|Sim[A-Z]|CollapseHostNames"; \
@@ -106,10 +116,13 @@ build_apple:
 	# *important* Xcode does not handle symbolic links consistently
 	# the build dir swap is non-atomic
 	# FIXME remove this GODEBUG setting per https://github.com/golang/go/issues/71827; see https://pkg.go.dev/go/types#Alias
+	# (still needed as of x/mobile 2026-08-19: bind gengo typeString prints alias names unqualified;
+	# gomobile/gobind must be built with go <= 1.26 -- the go 1.27 runtime fatals when this GODEBUG is set)
 	set -e; \
 	export PATH="$$PATH:/usr/local/go/bin:$$HOME/go/bin"; \
 	export GODEBUG=gotypesalias=0; \
 	export GOEXPERIMENT=greenteagc; \
+	export GOFIPS140=off; \
 	export MACOSX_DEPLOYMENT_TARGET=13.5; \
 	BUILD_DIR=apple.`date +%s`; \
 	test ! -e "$$BUILD_DIR"; \
@@ -119,16 +132,43 @@ build_apple:
 		-bundleid network.ur \
 		-trimpath \
 		-gcflags "-dwarf=false" \
-		-ldflags "-s -w -X github.com/urnetwork/sdk.Version=$${WARP_VERSION} -compressdwarf=false -buildid=" \
+		-ldflags "-s -w -X github.com/urnetwork/sdk.Version=$${WARP_VERSION} $(MOBILE_RUNTIME_LDFLAG) -compressdwarf=false -buildid=" \
 		-o "$$BUILD_DIR/URnetworkSdk.xcframework" \
 		"github.com/urnetwork/sdk"; \
 	test -d "$$BUILD_DIR/URnetworkSdk.xcframework"; \
+	gomobile bind \
+		-target ios/arm64,iossimulator/arm64,macos/arm64,macos/amd64 -iosversion 16.0 \
+		-bundleid network.ur \
+		-tags ios_extension \
+		-trimpath \
+		-gcflags "-dwarf=false" \
+		-ldflags "-s -w -X github.com/urnetwork/sdk.Version=$${WARP_VERSION} $(MOBILE_RUNTIME_LDFLAG) -compressdwarf=false -buildid=" \
+		-o "$$BUILD_DIR/URnetworkExtensionSdk.xcframework" \
+		"github.com/urnetwork/sdk"; \
+	test -d "$$BUILD_DIR/URnetworkExtensionSdk.xcframework"; \
+	./check_apple_size.sh \
+		--sdk "$$BUILD_DIR/URnetworkSdk.xcframework" \
+		--extension-sdk "$$BUILD_DIR/URnetworkExtensionSdk.xcframework"; \
 	(cd "$$BUILD_DIR" && zip -r URnetworkSdk.xcframework.zip URnetworkSdk.xcframework); \
 	test -s "$$BUILD_DIR/URnetworkSdk.xcframework.zip"; \
 	if [ -e "ios" ]; then mv ios ios.old.`date +%s`; fi; \
 	cp -r "$$BUILD_DIR" ios; \
 	if [ -e "apple" ]; then mv apple apple.old.`date +%s`; fi; \
 	mv "$$BUILD_DIR" apple;
+
+.PHONY: check_mobile_runtime_policy
+check_mobile_runtime_policy:
+	SDK_EXPECT_MEMORY_PROFILE_RATE="$(MOBILE_MEMORY_PROFILE_RATE)" \
+	go test \
+		-ldflags "$(MOBILE_RUNTIME_LDFLAG)" \
+		-run '^TestMobileBuildMemoryProfileRate$$' \
+		..
+
+.PHONY: check_apple_size
+check_apple_size:
+	./check_apple_size.sh \
+		--sdk apple/URnetworkSdk.xcframework \
+		--extension-sdk apple/URnetworkExtensionSdk.xcframework
 
 # Build the JavaScript/WASM version of the SDK in the js dir
 build_js:
@@ -143,7 +183,7 @@ build_linux:
 	$(MAKE) -C ../cgo build_linux
 
 
-GOMOBILE_VERSION ?= v0.0.0-20260611195102-4dd8f1dbf5d2
+GOMOBILE_VERSION ?= v0.0.0-20260820023541-8e8303b9da6c
 CHECKSEC_VERSION ?= v3.1.0
 
 # Install only the pinned build tools. Platform setup scripts use this target

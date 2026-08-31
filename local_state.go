@@ -11,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 
 	gojwt "github.com/golang-jwt/jwt/v5"
 
@@ -19,7 +20,8 @@ import (
 
 const AsyncQueueSize = 32
 
-const LocalStorageFilePermissions = 0700
+const LocalStorageDirectoryPermissions = 0700
+const LocalStorageFilePermissions = 0600
 
 type ByJwt struct {
 	UserId      *Id
@@ -34,6 +36,7 @@ type LocalState struct {
 	cancel context.CancelFunc
 
 	localStorageDir string
+	authStateLock   sync.Mutex
 
 	// providerPriorsRetention is stamped into every saved provider-priors
 	// envelope (see persistedProviderPriors.Retention) and defaults to
@@ -42,30 +45,61 @@ type LocalState struct {
 	providerPriorsRetention time.Duration
 }
 
+// setRefreshedByJwt persists a token rotation without changing the device
+// instance that is already paired with a running local/remote device. Some
+// hosted processes intentionally seed only by_jwt + instance_id, so deriving a
+// new instance through SetByClientJwt would recreate the original reconnect
+// bug. The caller supplies the immutable instance of the live Device instead.
+// New login/device identity still goes through SetByJwt + SetByClientJwt, and
+// logout still clears the instance.
+func (self *LocalState) setRefreshedByJwt(byJwt string, instanceId *Id) error {
+	return self.updateAuthState(func(state *persistedLocalAuthState) (bool, error) {
+		if instanceId == nil {
+			return false, errors.New("cannot persist refreshed JWT without a device instance")
+		}
+		instanceIdString := instanceId.String()
+		if state.ByJwt == byJwt && state.ByClientJwt == byJwt &&
+			state.InstanceId == instanceIdString {
+			return false, nil
+		}
+		state.ByJwt = byJwt
+		state.ByClientJwt = byJwt
+		state.InstanceId = instanceIdString
+		return true, nil
+	})
+}
+
 func newLocalState(ctx context.Context, localStorageHome string) *LocalState {
 	// FIXME local storage dir is always a sub dir of the passed dir
 	// localStorageHome/.by
 	localStorageDir := filepath.Join(localStorageHome, ".by")
-	err := os.MkdirAll(localStorageDir, LocalStorageFilePermissions)
+	err := os.MkdirAll(localStorageDir, LocalStorageDirectoryPermissions)
 	if err != nil {
 		panic(err)
 	}
 	cancelCtx, cancel := context.WithCancel(ctx)
 
-	return &LocalState{
+	localState := &LocalState{
 		ctx:                     cancelCtx,
 		cancel:                  cancel,
 		localStorageDir:         localStorageDir,
 		providerPriorsRetention: providerPriorsStaleAfter,
 	}
+	// Best-effort eager migration. Reads remain compatible with legacy state if
+	// the first write cannot complete (for example, a temporarily read-only
+	// filesystem), and the next authenticated mutation retries the migration.
+	localState.authStateLock.Lock()
+	_, _ = localState.loadAuthStateLocked()
+	localState.authStateLock.Unlock()
+	return localState
 }
 
 func (self *LocalState) GetByJwt() string {
-	path := filepath.Join(self.localStorageDir, ".by_jwt")
-	if byJwtBytes, err := os.ReadFile(path); err == nil {
-		return string(byJwtBytes)
+	state, err := self.loadAuthState()
+	if err != nil {
+		return ""
 	}
-	return ""
+	return state.ByJwt
 }
 
 func (self *LocalState) ParseByJwt() (*ByJwt, error) {
@@ -185,93 +219,87 @@ func sameJwtIdentity(a string, b string) bool {
 
 // clears `byClientJwt` and `instanceId` when the jwt names a different identity
 func (self *LocalState) SetByJwt(byJwt string) error {
-	path := filepath.Join(self.localStorageDir, ".by_jwt")
-
-	existingByJwt := ""
-	if existingByJwtBytes, err := os.ReadFile(path); err == nil {
-		existingByJwt = string(existingByJwtBytes)
-		if existingByJwt == byJwt {
-			// already set, no need to clear state
-			return nil
+	return self.updateAuthState(func(state *persistedLocalAuthState) (bool, error) {
+		if state.ByJwt == byJwt {
+			return false, nil
 		}
-	}
-
-	// Only a genuine identity change invalidates the derived state. This used to
-	// clear unconditionally, which meant every token REFRESH wiped the client jwt
-	// and the instance id -- and the caller immediately re-set them, minting a
-	// brand new instance id each time. The app pairs to the service by instance
-	// id over the device rpc, so that rotation is what produced "device instance
-	// mismatch": one observed session rotated the device's identity 294 times.
-	if !sameJwtIdentity(existingByJwt, byJwt) {
-		self.SetByClientJwt("")
-	}
-
-	if byJwt == "" {
-		os.Remove(path)
-		return nil
-	} else {
-		return os.WriteFile(path, []byte(byJwt), LocalStorageFilePermissions)
-	}
+		// Only a genuine identity change invalidates the derived state. This used
+		// to clear unconditionally, which meant every token REFRESH wiped the
+		// client jwt and the instance id -- and the caller immediately re-set them,
+		// minting a brand new instance id each time. The app pairs to the service
+		// by instance id over the device rpc, so that rotation is what produced
+		// "device instance mismatch": one observed session rotated the device's
+		// identity 294 times.
+		if !sameJwtIdentity(state.ByJwt, byJwt) {
+			state.ByClientJwt = ""
+			state.InstanceId = ""
+		}
+		state.ByJwt = byJwt
+		return true, nil
+	})
 }
 
 func (self *LocalState) GetByClientJwt() string {
-	path := filepath.Join(self.localStorageDir, ".by_client_jwt")
-	if byClientJwtBytes, err := os.ReadFile(path); err == nil {
-		return string(byClientJwtBytes)
+	state, err := self.loadAuthState()
+	if err != nil {
+		return ""
 	}
-	return ""
+	return state.ByClientJwt
 }
 
 // if `byClientJwt` is set, ensures an `instanceId` exists, minting a new one only
 // when the jwt names a different identity; otherwise, clears `instanceId`
 func (self *LocalState) SetByClientJwt(byClientJwt string) error {
-	path := filepath.Join(self.localStorageDir, ".by_client_jwt")
-
-	existingByClientJwt := ""
-	if existingByClientJwtBytes, err := os.ReadFile(path); err == nil {
-		existingByClientJwt = string(existingByClientJwtBytes)
-		if existingByClientJwt == byClientJwt {
-			// already set, no need to clear state
-			return nil
+	return self.updateAuthState(func(state *persistedLocalAuthState) (bool, error) {
+		// Equality is a no-op only when the paired instance is coherent too. An
+		// interrupted/legacy installation can retain the client JWT while losing
+		// its instance; treating that as unchanged recreates the reconnect bug on
+		// every launch instead of repairing it once.
+		if state.ByClientJwt == byClientJwt &&
+			((byClientJwt == "" && state.InstanceId == "") ||
+				(byClientJwt != "" && state.InstanceId != "")) {
+			return false, nil
 		}
-	}
-
-	if byClientJwt == "" {
-		self.SetInstanceId(nil)
-		os.Remove(path)
-		return nil
-	} else {
-		// The instance id is this device's identity on the network and the key
-		// the app pairs to the running service by. It must be stable across a
-		// refresh, which re-signs the SAME client and therefore always changes
-		// the jwt string. Rotate only when the identity genuinely changed, or
-		// when there is no id to keep.
-		if self.GetInstanceId() == nil || !sameJwtIdentity(existingByClientJwt, byClientJwt) {
-			instanceId := connect.NewId()
-			self.SetInstanceId(newId(instanceId))
+		previousByClientJwt := state.ByClientJwt
+		state.ByClientJwt = byClientJwt
+		if byClientJwt == "" {
+			state.InstanceId = ""
+		} else if state.InstanceId == "" || !sameJwtIdentity(previousByClientJwt, byClientJwt) {
+			// The instance id is this device's identity on the network and the key
+			// the app pairs to the running service by. It must be stable across a
+			// refresh, which re-signs the SAME client and therefore always changes
+			// the jwt string. Rotate only when the identity genuinely changed, or
+			// when there is no id to keep.
+			state.InstanceId = newId(connect.NewId()).String()
 		}
-		return os.WriteFile(path, []byte(byClientJwt), LocalStorageFilePermissions)
-	}
+		return true, nil
+	})
 }
 
 func (self *LocalState) GetInstanceId() *Id {
-	path := filepath.Join(self.localStorageDir, ".instance_id")
-	if instanceIdBytes, err := os.ReadFile(path); err == nil {
-		if instanceId, err := connect.IdFromBytes(instanceIdBytes); err == nil {
-			return newId(instanceId)
-		}
+	state, err := self.loadAuthState()
+	if err != nil || state.InstanceId == "" {
+		return nil
 	}
-	return nil
+	instanceId, err := ParseId(state.InstanceId)
+	if err != nil {
+		return nil
+	}
+	return instanceId
 }
 
 func (self *LocalState) SetInstanceId(instanceId *Id) error {
-	path := filepath.Join(self.localStorageDir, ".instance_id")
-	if instanceId == nil {
-		os.Remove(path)
-		return nil
-	} else {
-		return os.WriteFile(path, instanceId.Bytes(), LocalStorageFilePermissions)
-	}
+	return self.updateAuthState(func(state *persistedLocalAuthState) (bool, error) {
+		instanceIdString := ""
+		if instanceId != nil {
+			instanceIdString = instanceId.String()
+		}
+		if state.InstanceId == instanceIdString {
+			return false, nil
+		}
+		state.InstanceId = instanceIdString
+		return true, nil
+	})
 }
 
 // auto, always, never
@@ -406,6 +434,54 @@ func (self *LocalState) SetDnsResolverSettings(dnsResolverSettings *DnsResolverS
 		}
 		return os.WriteFile(path, dnsResolverSettingsBytes, LocalStorageFilePermissions)
 	}
+}
+
+func (self *LocalState) setTransportSettings(filename string, settings *TransportSettings, provider bool) error {
+	path := filepath.Join(self.localStorageDir, filename)
+	if settings == nil {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	settingsBytes, err := json.Marshal(normalizeTransportSettings(settings, provider))
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, settingsBytes, LocalStorageFilePermissions)
+}
+
+func (self *LocalState) getTransportSettings(filename string, provider bool) *TransportSettings {
+	settingsBytes, err := os.ReadFile(filepath.Join(self.localStorageDir, filename))
+	if err != nil {
+		return nil
+	}
+	var settings TransportSettings
+	if err := json.Unmarshal(settingsBytes, &settings); err != nil {
+		return nil
+	}
+	return normalizeTransportSettings(&settings, provider)
+}
+
+// SetTransportSettings persists the client carrier policy for the next process.
+func (self *LocalState) SetTransportSettings(settings *TransportSettings) error {
+	return self.setTransportSettings(".transport_settings", settings, false)
+}
+
+// GetTransportSettings returns nil when no valid client policy is stored.
+func (self *LocalState) GetTransportSettings() *TransportSettings {
+	return self.getTransportSettings(".transport_settings", false)
+}
+
+// SetProviderTransportSettings persists the provider carrier policy separately
+// so changing one direction never silently changes the other.
+func (self *LocalState) SetProviderTransportSettings(settings *TransportSettings) error {
+	return self.setTransportSettings(".provider_transport_settings", settings, true)
+}
+
+// GetProviderTransportSettings returns nil when no valid provider policy is stored.
+func (self *LocalState) GetProviderTransportSettings() *TransportSettings {
+	return self.getTransportSettings(".provider_transport_settings", true)
 }
 
 // dohServerScoresStaleAfter discards a persisted DoH server score snapshot older than this:
@@ -874,9 +950,11 @@ func (self *LocalState) GetAllowForeground() bool {
 // below), so a logout drops the persisted routing memory along with
 // everything else per-space -- no separate deletion needed here.
 func (self *LocalState) Logout() error {
+	self.authStateLock.Lock()
+	defer self.authStateLock.Unlock()
 	return errors.Join(
 		os.RemoveAll(self.localStorageDir),
-		os.MkdirAll(self.localStorageDir, LocalStorageFilePermissions),
+		os.MkdirAll(self.localStorageDir, LocalStorageDirectoryPermissions),
 	)
 }
 

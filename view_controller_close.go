@@ -1,3 +1,5 @@
+//go:build !ios_extension
+
 package sdk
 
 // The concrete close entry points keep foreign-language bindings type-safe.
@@ -32,6 +34,12 @@ func (self *viewControllerManager) CloseBlockActionViewController(vc *BlockActio
 }
 
 func (self *viewControllerManager) CloseLocationsViewController(vc *LocationsViewController) {
+	if vc != nil {
+		self.CloseViewController(vc)
+	}
+}
+
+func (self *viewControllerManager) CloseProviderLocationsViewController(vc *ProviderLocationsViewController) {
 	if vc != nil {
 		self.CloseViewController(vc)
 	}

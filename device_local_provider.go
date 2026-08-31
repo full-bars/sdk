@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,9 @@ type deviceLocalProvider struct {
 	clientStrategy            *connect.ClientStrategy
 	platformUrl               string
 	platformTransportSettings *connect.PlatformTransportSettings
+	targetMode                connect.TransportMode
+	modePreferences           map[connect.TransportMode]int
+	transportPolicyVersion    uint64
 
 	// a migrate frame spawns at most one in-flight migration
 	migrating atomic.Bool
@@ -51,7 +55,11 @@ type deviceLocalProvider struct {
 	migrateMaxScheduleDelay time.Duration
 	// injectable for deterministic migration tests; nil uses the production
 	// PlatformTransport constructor.
-	newPlatformTransport func(auth *connect.ClientAuth) migratablePlatformTransport
+	newPlatformTransport func(
+		auth *connect.ClientAuth,
+		targetMode connect.TransportMode,
+		settings *connect.PlatformTransportSettings,
+	) migratablePlatformTransport
 
 	stateLock         sync.Mutex
 	auth              *connect.ClientAuth
@@ -80,7 +88,11 @@ func newDeviceLocalProviderWithOverrides(
 	instanceId connect.Id,
 	settings *connect.ClientSettings,
 	clientId connect.Id,
-	memoryTargetByteCount ByteCount,
+	providerMemoryTargetByteCount ByteCount,
+	deviceMemoryTargetByteCount ByteCount,
+	platformTransportBudget *connect.PlatformTransportBudget,
+	targetMode connect.TransportMode,
+	modePreferences map[connect.TransportMode]int,
 ) *deviceLocalProvider {
 	apiUrl := networkSpace.apiUrl
 	clientStrategy := networkSpace.clientStrategy
@@ -88,6 +100,16 @@ func newDeviceLocalProviderWithOverrides(
 	clientOob := connect.NewApiOutOfBandControl(ctx, clientStrategy, byJwt, apiUrl)
 
 	clientSettings := newDeviceClientSettings(settings, apiUrl, clientStrategy)
+	// A controlled mobile provider pinned to explicit H1 must select the same
+	// negotiated flow lanes as its client peer; otherwise only request/TCP-ACK
+	// traffic is isolated and every download still shares provider lane zero.
+	// Auto and H3 remain unchanged until the provider-side physical A/B proves a
+	// safe default across carrier fallback.
+	applyMobileH1PerformanceClientSettings(
+		clientSettings,
+		deviceMemoryTargetByteCount,
+		targetMode == connect.TransportModeH1,
+	)
 	// the provider always enables the e2e encryption sessions: the responder
 	// serves plain and e2e peers seamlessly (a session only forms when an
 	// initiator starts a handshake), and every enabled provider grows the
@@ -104,7 +126,7 @@ func newDeviceLocalProviderWithOverrides(
 
 	resendQueueBudget, receiveQueueBudget := configureDeviceLocalProviderMemory(
 		clientSettings,
-		memoryTargetByteCount,
+		providerMemoryTargetByteCount,
 	)
 
 	client := connect.NewClient(
@@ -119,14 +141,25 @@ func newDeviceLocalProviderWithOverrides(
 		InstanceId: instanceId,
 		AppVersion: appVersion,
 	}
-	platformTransportSettings := connect.DefaultPlatformTransportSettings()
+	platformTransportSettings := newDeviceLocalPlatformTransportSettings(
+		deviceMemoryTargetByteCount,
+		platformTransportBudget,
+	)
 	platformTransportSettings.Log = clientSettings.Log
-	platformTransport := connect.NewPlatformTransport(
+	platformTransportSettings.ModePreferences = maps.Clone(modePreferences)
+	// The provider exists before outbound client windows. Its optional Auto-H3
+	// lease must therefore be reclaimable by foreground client Auto/H3 demand;
+	// otherwise creation order permanently leaves every outbound window on H1.
+	// Explicit provider H3 is a required reservation and ignores this priority.
+	platformTransportSettings.PlatformTransportBudgetPriority =
+		connect.PlatformTransportBudgetPriorityBackground
+	platformTransport := connect.NewPlatformTransportWithTargetMode(
 		client.Ctx(),
 		clientStrategy,
 		client.RouteManager(),
 		networkSpace.platformUrl,
 		auth,
+		targetMode,
 		platformTransportSettings,
 	)
 
@@ -134,7 +167,9 @@ func newDeviceLocalProviderWithOverrides(
 	// provider profile sized from the provider share, so an unbudgeted
 	// desktop/server build does not become unbounded, while generic local
 	// NAT callers do not inherit phone caps.
-	localUserNatSettings := connect.DefaultProviderLocalUserNatSettingsWithMemoryTarget(memoryTargetByteCount)
+	localUserNatSettings := connect.DefaultProviderLocalUserNatSettingsWithMemoryTarget(
+		providerMemoryTargetByteCount,
+	)
 	localUserNatSettings.Log = clientSettings.Log
 	localUserNat := connect.NewLocalUserNat(client.Ctx(), clientId.String(), localUserNatSettings)
 
@@ -151,6 +186,9 @@ func newDeviceLocalProviderWithOverrides(
 		clientStrategy:            clientStrategy,
 		platformUrl:               networkSpace.platformUrl,
 		platformTransportSettings: platformTransportSettings,
+		targetMode:                targetMode,
+		modePreferences:           maps.Clone(modePreferences),
+		transportPolicyVersion:    1,
 		migrateConnectTimeout:     platformTransportMigrateConnectTimeout,
 		migrateMaxScheduleDelay:   platformTransportMigrateMaxScheduleDelay,
 		auth:                      auth,
@@ -217,13 +255,29 @@ func (self *deviceLocalProvider) handleControlFrames(source connect.TransferPath
 			continue
 		}
 		migrateTime := time.UnixMilli(int64(residentMigrate.MigrateTime))
-		if self.migrating.CompareAndSwap(false, true) {
-			go connect.HandleError(func() {
-				defer self.migrating.Store(false)
-				self.migratePlatformTransport(migrateTime)
-			})
-		}
+		self.requestPlatformTransportMigration(migrateTime)
 	}
+}
+
+func (self *deviceLocalProvider) requestPlatformTransportMigration(migrateTime time.Time) {
+	if !self.migrating.CompareAndSwap(false, true) {
+		return
+	}
+	go connect.HandleError(func() {
+		defer self.migrating.Store(false)
+		for {
+			attemptedPolicyVersion := self.migratePlatformTransportWithPolicy(migrateTime)
+			self.stateLock.Lock()
+			currentPolicyVersion := self.transportPolicyVersion
+			self.stateLock.Unlock()
+			if attemptedPolicyVersion == 0 || attemptedPolicyVersion == currentPolicyVersion {
+				return
+			}
+			// The policy changed while the replacement was pending. Apply the
+			// latest policy immediately; do not replay server migration jitter.
+			migrateTime = time.Now()
+		}
+	})
 }
 
 // migratePlatformTransport performs make-before-break at `migrateTime`: build
@@ -234,6 +288,10 @@ func (self *deviceLocalProvider) handleControlFrames(source connect.TransferPath
 // draining server evicts it, and the reconnect falls back to the drain excuse
 // path (CONNECTDRAIN2.md §3.3).
 func (self *deviceLocalProvider) migratePlatformTransport(migrateTime time.Time) {
+	self.migratePlatformTransportWithPolicy(migrateTime)
+}
+
+func (self *deviceLocalProvider) migratePlatformTransportWithPolicy(migrateTime time.Time) uint64 {
 	maxScheduleDelay := self.migrateMaxScheduleDelay
 	if maxScheduleDelay <= 0 {
 		maxScheduleDelay = platformTransportMigrateMaxScheduleDelay
@@ -246,53 +304,68 @@ func (self *deviceLocalProvider) migratePlatformTransport(migrateTime time.Time)
 		defer timer.Stop()
 		select {
 		case <-self.ctx.Done():
-			return
+			return 0
 		case <-timer.C:
 		}
 	}
 
-	auth, authVersion := func() (*connect.ClientAuth, uint64) {
+	auth, authVersion, targetMode, modePreferences, policyVersion, platformTransportSettings := func() (
+		*connect.ClientAuth,
+		uint64,
+		connect.TransportMode,
+		map[connect.TransportMode]int,
+		uint64,
+		*connect.PlatformTransportSettings,
+	) {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 		auth := *self.auth
-		return &auth, self.authVersion
+		settings := *connect.DefaultPlatformTransportSettings()
+		if self.platformTransportSettings != nil {
+			settings = *self.platformTransportSettings
+		}
+		settings.ModePreferences = maps.Clone(self.modePreferences)
+		targetMode := self.targetMode
+		if targetMode == connect.TransportModeNone {
+			targetMode = connect.TransportModeAuto
+		}
+		return &auth,
+			self.authVersion,
+			targetMode,
+			maps.Clone(self.modePreferences),
+			self.transportPolicyVersion,
+			&settings
 	}()
+	platformTransportSettings.ModePreferences = modePreferences
 	var next migratablePlatformTransport
 	if self.newPlatformTransport != nil {
-		next = self.newPlatformTransport(auth)
+		next = self.newPlatformTransport(auth, targetMode, platformTransportSettings)
 	} else {
-		next = connect.NewPlatformTransport(
+		next = connect.NewPlatformTransportWithTargetMode(
 			self.client.Ctx(),
 			self.clientStrategy,
 			self.client.RouteManager(),
 			self.platformUrl,
 			auth,
-			self.platformTransportSettings,
+			targetMode,
+			platformTransportSettings,
 		)
 	}
-
-	connectEndTime := time.Now().Add(self.migrateConnectTimeout)
-	for {
-		notify := next.ConnectedNotify()
-		if next.IsConnected() {
-			break
-		}
-		if connectEndTime.Before(time.Now()) {
-			// the replacement did not come up; keep the old transport
-			next.Close()
-			return
-		}
-		select {
-		case <-self.ctx.Done():
-			next.Close()
-			return
-		case <-notify:
-		case <-time.After(1 * time.Second):
+	brokeBeforeMake := false
+	if nextPlatform, ok := next.(*connect.PlatformTransport); ok {
+		self.stateLock.Lock()
+		previous := self.platformTransport
+		self.stateLock.Unlock()
+		if previousPlatform, ok := previous.(*connect.PlatformTransport); ok &&
+			!nextPlatform.CanMakeBeforeBreakFrom(previousPlatform) {
+			// A second full H3 working set would escape the shared memory cap.
+			// H1 transitions use Connect's bounded handoff and keep the old route;
+			// only a budget-blocked H3-to-H3-family transition breaks first.
+			previous.Close()
+			brokeBeforeMake = true
 		}
 	}
-
-	var previous migratablePlatformTransport
-	func() {
+	installNext := func() migratablePlatformTransport {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 		// Token refresh can race replacement construction/connection. Reapply
@@ -302,12 +375,62 @@ func (self *deviceLocalProvider) migratePlatformTransport(migrateTime time.Time)
 		if authVersion != self.authVersion {
 			next.SetAuth(self.auth)
 		}
-		previous = self.platformTransport
+		previous := self.platformTransport
 		self.platformTransport = next
-	}()
-	if previous != nil {
+		return previous
+	}
+
+	connectEndTime := time.Now().Add(self.migrateConnectTimeout)
+	for {
+		notify := next.ConnectedNotify()
+		if next.IsConnected() {
+			break
+		}
+		if connectEndTime.Before(time.Now()) {
+			if brokeBeforeMake {
+				// The old full-H3 carrier is already closed to honor the memory
+				// cap. Keep the replacement installed so its owned reconnect loop
+				// continues instead of leaving a closed source as current.
+				installNext()
+				return policyVersion
+			}
+			// the replacement did not come up; keep the old transport
+			next.Close()
+			return policyVersion
+		}
+		select {
+		case <-self.ctx.Done():
+			next.Close()
+			return policyVersion
+		case <-notify:
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	previous := installNext()
+	if previous != nil && !brokeBeforeMake {
 		previous.Close()
 	}
+	return policyVersion
+}
+
+// SetTransportPolicy applies a provider carrier policy make-before-break. A
+// duplicate policy is a no-op; a change racing resident migration is replayed
+// once after that migration reaches a terminal state.
+func (self *deviceLocalProvider) SetTransportPolicy(
+	targetMode connect.TransportMode,
+	modePreferences map[connect.TransportMode]int,
+) {
+	self.stateLock.Lock()
+	if self.targetMode == targetMode && maps.Equal(self.modePreferences, modePreferences) {
+		self.stateLock.Unlock()
+		return
+	}
+	self.targetMode = targetMode
+	self.modePreferences = maps.Clone(modePreferences)
+	self.transportPolicyVersion += 1
+	self.stateLock.Unlock()
+	self.requestPlatformTransportMigration(time.Now())
 }
 
 func (self *deviceLocalProvider) Client() *connect.Client {
@@ -372,6 +495,14 @@ func newDeviceClientSettings(
 	if clientSettings.ReceiveBufferSettings != nil {
 		receiveBufferSettings := *clientSettings.ReceiveBufferSettings
 		clientSettings.ReceiveBufferSettings = &receiveBufferSettings
+	}
+	if clientSettings.ForwardBufferSettings != nil {
+		forwardBufferSettings := *clientSettings.ForwardBufferSettings
+		clientSettings.ForwardBufferSettings = &forwardBufferSettings
+	}
+	if clientSettings.ContractManagerSettings != nil {
+		contractManagerSettings := *clientSettings.ContractManagerSettings
+		clientSettings.ContractManagerSettings = &contractManagerSettings
 	}
 	if clientSettings.WebRtcSettings != nil {
 		webRtcSettings := *clientSettings.WebRtcSettings

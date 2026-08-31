@@ -43,26 +43,36 @@ import (
 // `warp` environment expectations, which is not compatible with the client lib
 
 func init() {
+	// Version is populated by the linker before package initialization. Stamp
+	// the shared Connect core once so a device acting as an exit publishes the
+	// actual SDK/app build rather than an empty provider identity.
+	stampConnectBuildVersion()
+
 	// gc pacing: the go soft memory limit (see SetMemoryLimit) is the
 	// footprint backstop; gogc paces how often the collector runs below it.
-	// ios keeps the historical 10 (a collection every 10% of heap growth):
-	// the network extension carries ~16 MiB of baseline under a ~50 MiB
-	// jetsam limit, and a higher float measurably regressed throughput there
-	// — the raised heap triggers os memory-pressure events whose FreeMemory
-	// response drains the pools (cold reuse caches), and the footprint
-	// approaches the soft limit where allocation pays gc assist. Android and
-	// desktop/server hosts have real headroom and run mostly off it, with
-	// the soft limit bounding the footprint.
-	switch runtime.GOOS {
-	case "ios":
-		debug.SetGCPercent(10)
-	case "android":
-		debug.SetGCPercent(50)
-	default:
-		debug.SetGCPercent(100)
-	}
+	// The 24-MiB profile uses 25: the measured 20-MiB candidate's value of 10
+	// held more than two MiB of unused headroom while collecting roughly every
+	// 2.5 seconds during a low-throughput transfer, while 50 let a stalled H3
+	// page reach 29.95 MiB. The aggregate packet gate, quiet reclaim, and
+	// 32-MiB soft limit remain the burst backstops. Android and iOS deliberately
+	// use the same value so the measurable Android surrogate does not hide iOS
+	// allocator float. Desktop/server retains the runtime default.
+	debug.SetGCPercent(gcPercentForPlatform(runtime.GOOS))
 
 	initGlog()
+}
+
+func stampConnectBuildVersion() {
+	connect.SetBuildVersion(Version)
+}
+
+func gcPercentForPlatform(goos string) int {
+	switch goos {
+	case "android", "ios":
+		return 25
+	default:
+		return 100
+	}
 }
 
 func initGlog() {
@@ -180,6 +190,28 @@ const (
 	memoryTargetRatioParts           = 34
 )
 
+// Derives free-list capacities from the process limit while applying the
+// tighter mobile returned-buffer ceiling. Servers retain the historical
+// proportional sizing; live/in-flight allocations are not governed here.
+func messagePoolMemoryTargetsForPlatform(
+	limit int64,
+	mobile bool,
+) (packetPoolByteCount int64, largeObjectPoolByteCount int64) {
+	packetPoolByteCount = limit * memoryTargetRatioPacketPool / memoryTargetRatioParts
+	largeObjectPoolByteCount = limit * memoryTargetRatioLargeObjectPool / memoryTargetRatioParts
+	if mobile {
+		packetPoolByteCount = min(
+			packetPoolByteCount,
+			int64(mobilePacketPoolCapacityByteCount),
+		)
+		largeObjectPoolByteCount = min(
+			largeObjectPoolByteCount,
+			int64(mobileLargeObjectPoolCapacityByteCount),
+		)
+	}
+	return
+}
+
 // SetMemoryLimit tunes the sdk to a process memory budget. the app-facing
 // process-level knob:
 //   - bounds the global message pool free lists by ratio (packet pool 12 :
@@ -193,22 +225,28 @@ const (
 // memory: each DeviceLocal's target is passed explicitly where the device
 // is created, so a multi-device process bounds every device independently.
 func SetMemoryLimit(limit int64) {
-	SetMessagePoolMemoryTargets(
-		limit*memoryTargetRatioPacketPool/memoryTargetRatioParts,
-		limit*memoryTargetRatioLargeObjectPool/memoryTargetRatioParts,
-	)
-	// Pre-warm up to 1 MiB (and no more than a quarter of the packet-class
-	// cap) so the first traffic burst skips the cold allocation storm.
+	packetPoolByteCount, largeObjectPoolByteCount :=
+		messagePoolMemoryTargetsForPlatform(limit, mobileRuntime())
+	SetMessagePoolMemoryTargets(packetPoolByteCount, largeObjectPoolByteCount)
+	// Pre-warm a bounded part of the packet class so the first traffic burst
+	// skips the cold allocation storm. Mobile retains 512 KiB; desktop/server
+	// preserve the historical 1 MiB.
 	// Startup only — the pressure path (FreeMemory) deliberately leaves pools
 	// cold.
-	connect.WarmMessagePools()
+	if mobileRuntime() {
+		connect.WarmMessagePoolsTo(mobilePacketPoolWarmByteCount)
+	} else {
+		connect.WarmMessagePools()
+	}
 	connect.SetMemoryBudget(limit)
 	debug.SetMemoryLimit(limit)
+	startMobileIdleMemoryTrimmer()
 }
 
 // SetMessagePoolMemoryTargets bounds the global message pool free lists:
-// packetPoolByteCount bounds the packet (2048) class, and
-// largeObjectPoolByteCount is split evenly among the larger size classes.
+// packetPoolByteCount is split between the 256-byte small/control and 2048-byte
+// full-MTU packet classes, and largeObjectPoolByteCount is split evenly among
+// the larger size classes.
 // The pools are the process-global complement to the per-device memory
 // target (DeviceLocalSettings.MemoryTargetByteCount). Applies live.
 func SetMessagePoolMemoryTargets(
@@ -222,9 +260,9 @@ func SetMessagePoolMemoryTargets(
 // physical network interface indices (IPv4 and IPv6), so that when this process
 // provides a VPN tunnel its own platform and provider connections do not loop
 // back into that tunnel. Pass 0 for a family to leave it unbound. This is the
-// Windows self-exclusion mechanism (R1); it is a no-op on other platforms,
-// where the OS handles self-exclusion (macOS network extension, Android
-// VpnService). The Windows service updates these on every network change.
+// Windows self-exclusion mechanism (R1) and the macOS controlled-peer
+// acceptance mechanism; it is a no-op on other platforms, where the OS handles
+// self-exclusion. The Windows service updates these on every network change.
 func SetEgressInterfaceIndex(index4 int, index6 int) {
 	connect.SetEgressInterfaceIndex(uint32(index4), uint32(index6))
 }
@@ -244,6 +282,62 @@ func FreeMemory() {
 		float64(runtimeTotalByteCount())/float64(1024*1024),
 		time.Since(startTime)/time.Millisecond,
 	)
+}
+
+// TrimMemory rebuilds burst-sized message-pool free lists as their warm reuse
+// set and returns the old spans to the OS. Clearing before collection and
+// warming afterward matters: retaining an arbitrary subset of burst buffers
+// can pin sparsely occupied allocator spans even when their byte sum is small.
+// Unlike FreeMemory, this preserves resolver/connection/affinity caches and
+// every pool's configured capacity. Hosts may use it after a verified
+// traffic-quiescent interval; active and in-flight buffers are never affected.
+func TrimMemory() {
+	trimMemory(true)
+}
+
+// A forced collection has a latency and battery cost. Automatic maintenance
+// therefore rebuilds allocator spans only after at least one additional MiB
+// accumulated above the warm set. Smaller idle refills are still pruned from
+// the free lists, but normal GC can reclaim them; explicit host pressure always
+// forces release.
+const automaticIdleMemoryRebuildMinDroppedByteCount ByteCount = 1024 * 1024
+
+// trimMemory returns the bytes dropped by a material pool rebuild. Automatic
+// idle maintenance skips the forced collection when the pools are already warm
+// or only trivially above it; an explicit host request still forces release so
+// it has deterministic pressure semantics.
+func trimMemory(force bool) ByteCount {
+	warmByteCount := ByteCount(1024 * 1024)
+	if mobileRuntime() {
+		warmByteCount = mobilePacketPoolWarmByteCount
+	}
+	return rebuildMessagePools(force, warmByteCount)
+}
+
+func rebuildMessagePools(force bool, warmByteCount ByteCount) ByteCount {
+	startTime := time.Now()
+	totalByteCountBefore := runtimeTotalByteCount()
+	// This first decay is a cheap no-op test for automatic maintenance. If an
+	// idle high-water exists, clear all remaining free-list references so the
+	// collector can release whole spans rather than leaving sparse survivors.
+	droppedByteCount := connect.TrimMessagePoolsTo(warmByteCount)
+	if !force && droppedByteCount < automaticIdleMemoryRebuildMinDroppedByteCount {
+		return 0
+	}
+	retainedBefore := connect.GetMessagePoolAggregateStats().RetainedByteCount
+	connect.ClearMessagePools()
+	debug.FreeOSMemory()
+	connect.WarmMessagePoolsTo(warmByteCount)
+	retainedAfter := connect.GetMessagePoolAggregateStats().RetainedByteCount
+	droppedByteCount += max(ByteCount(0), retainedBefore-retainedAfter)
+	glog.Infof(
+		"[mem]rebuild idle pools %.1fmib -> %.1fmib dropped=%.1fmib (%dms)",
+		float64(totalByteCountBefore)/float64(1024*1024),
+		float64(runtimeTotalByteCount())/float64(1024*1024),
+		float64(droppedByteCount)/float64(1024*1024),
+		time.Since(startTime)/time.Millisecond,
+	)
+	return droppedByteCount
 }
 
 func MessagePoolGet(n int) []byte {

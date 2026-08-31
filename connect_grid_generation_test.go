@@ -142,22 +142,8 @@ func TestConnectGridFailedStatus(t *testing.T) {
 	connect.AssertEqual(t, vc.GetConnectionStatus(), Connected)
 }
 
-// TestToWindowStatusCarriesStallDiagnosis pins the WindowStatus rpc surface:
-// the stall reason and the failed latch cross from the connect monitor into
-// the struct DeviceRemote reads (GetWindowStatus and the change listener both
-// carry it, so the app sees the same diagnosis as DeviceLocal).
-func TestToWindowStatusCarriesStallDiagnosis(t *testing.T) {
-	monitor := connect.NewRemoteUserNatMultiClientMonitorWithDefaults()
-
-	windowStatus := toWindowStatus(monitor)
-	connect.AssertEqual(t, windowStatus.StallReason, connect.WindowStallEvaluating)
-	connect.AssertEqual(t, windowStatus.Failed, false)
-
-	monitor.SetStallStatus(connect.WindowStallPlatformUnreachable, true)
-	windowStatus = toWindowStatus(monitor)
-	connect.AssertEqual(t, windowStatus.StallReason, connect.WindowStallPlatformUnreachable)
-	connect.AssertEqual(t, windowStatus.Failed, true)
-}
+// TestToWindowStatusCarriesStallDiagnosis lives in
+// device_local_window_status_test.go, where upstream carried it.
 
 // TestDeviceLocalRpcWindowMonitorGenerationTag is the D10 stale-monitor
 // hardening: a monitor callback subscribed under an older window generation

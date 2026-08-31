@@ -53,7 +53,21 @@ func jsConnectLocation(location *sdk.ConnectLocation) js.Value {
 		"providerCount": location.ProviderCount,
 	}
 	if location.ConnectLocationId != nil {
+		// the composite id, the one to hand back to the sdk
 		m["connectLocationId"] = location.ConnectLocationId.String()
+		// ...and its parts, for callers that persist or forward a bare id
+		// (the web settings doc and the extension both carry a location id,
+		// not the composite). Exactly one of these is set.
+		if location.ConnectLocationId.LocationId != nil {
+			m["locationId"] = location.ConnectLocationId.LocationId.String()
+		}
+		if location.ConnectLocationId.LocationGroupId != nil {
+			m["locationGroupId"] = location.ConnectLocationId.LocationGroupId.String()
+		}
+		if location.ConnectLocationId.ClientId != nil {
+			m["clientId"] = location.ConnectLocationId.ClientId.String()
+		}
+		m["bestAvailable"] = location.ConnectLocationId.BestAvailable
 	}
 	return js.ValueOf(m)
 }
@@ -119,8 +133,9 @@ func jsConnectedProviderLocation(location *sdk.ConnectedProviderLocation) js.Val
 	return js.ValueOf(m)
 }
 
-// jsConnectedProviderLocations marshals the list, preserving the sdk's order
-// (oldest connected first).
+// jsConnectedProviderLocations marshals the list, preserving whatever order it
+// arrives in — the sdk's own (oldest connected first) from the device, display
+// order from `ProviderLocationsViewController.getProviderLocations`.
 func jsConnectedProviderLocations(locations *sdk.ConnectedProviderLocationList) js.Value {
 	out := []any{}
 	if locations != nil {
@@ -152,6 +167,9 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	m["getRemoteConnected"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		return js.ValueOf(device.GetRemoteConnected())
 	})
+	m["getSyncError"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return js.ValueOf(device.GetSyncError())
+	})
 
 	// offline
 	m["getOffline"] = js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -159,6 +177,7 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["setOffline"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.SetOffline(args[0].Bool())
+		device.Sync()
 		return js.Null()
 	})
 
@@ -168,6 +187,7 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["setVpnInterfaceWhileOffline"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.SetVpnInterfaceWhileOffline(args[0].Bool())
+		device.Sync()
 		return js.Null()
 	})
 
@@ -177,6 +197,7 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["setRouteLocal"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.SetRouteLocal(args[0].Bool())
+		device.Sync()
 		return js.Null()
 	})
 
@@ -186,6 +207,7 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["setBlockerEnabled"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.SetBlockerEnabled(args[0].Bool())
+		device.Sync()
 		return js.Null()
 	})
 
@@ -195,6 +217,7 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["setProvidePaused"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.SetProvidePaused(args[0].Bool())
+		device.Sync()
 		return js.Null()
 	})
 
@@ -204,14 +227,24 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["setConnectLocation"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.SetConnectLocation(parseConnectLocation(args[0]))
+		device.Sync()
+		return js.Null()
+	})
+	// the explicit "connect to this" action: rebuilds even when the location is
+	// already the installed destination (see Device.Reconnect)
+	m["reconnect"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		device.Reconnect(parseConnectLocation(args[0]))
+		device.Sync()
 		return js.Null()
 	})
 	m["removeDestination"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.RemoveDestination()
+		device.Sync()
 		return js.Null()
 	})
 	m["shuffle"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		device.Shuffle()
+		device.Sync()
 		return js.Null()
 	})
 
@@ -261,6 +294,7 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	m["setDnsResolverSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		if 0 < len(args) {
 			device.SetDnsResolverSettings(parseDnsResolverSettings(args[0]))
+			device.Sync()
 		}
 		return js.Null()
 	})
@@ -274,6 +308,95 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	// the default (most secure) settings, for a reset action
 	m["getDefaultDnsResolverSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		return jsDnsResolverSettings(sdk.GetDefaultDnsResolverSettings())
+	})
+
+	// transport policy (over the device-rpc): one carrier or Auto over the
+	// enabled carriers. see sdk.TransportSettings. A hosted device (the web's
+	// cloud proxy) is pinned to h1 and ignores the setters; the getters and
+	// listeners still work, so the policy can be shown
+	m["getTransportSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsTransportSettings(device.GetTransportSettings())
+	})
+	m["getProviderTransportSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsTransportSettings(device.GetProviderTransportSettings())
+	})
+	m["getTransportStatus"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsTransportStatus(device.GetTransportStatus())
+	})
+	m["getProviderTransportStatus"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsTransportStatus(device.GetProviderTransportStatus())
+	})
+	m["setTransportSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		if 0 < len(args) {
+			device.SetTransportSettings(parseTransportSettings(args[0]))
+			device.Sync()
+		}
+		return js.Null()
+	})
+	m["setProviderTransportSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		if 0 < len(args) {
+			device.SetProviderTransportSettings(parseTransportSettings(args[0]))
+			device.Sync()
+		}
+		return js.Null()
+	})
+	m["addTransportSettingsChangeListener"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		cb, ok := funcArg(args)
+		if !ok {
+			return js.Null()
+		}
+		return jsSub(device.AddTransportSettingsChangeListener(&jsTransportSettingsChangeListener{cb}))
+	})
+	m["addProviderTransportSettingsChangeListener"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		cb, ok := funcArg(args)
+		if !ok {
+			return js.Null()
+		}
+		return jsSub(device.AddProviderTransportSettingsChangeListener(&jsProviderTransportSettingsChangeListener{cb}))
+	})
+	m["addTransportStatusChangeListener"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		cb, ok := funcArg(args)
+		if !ok {
+			return js.Null()
+		}
+		return jsSub(device.AddTransportStatusChangeListener(&jsTransportStatusChangeListener{cb}))
+	})
+	m["addProviderTransportStatusChangeListener"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		cb, ok := funcArg(args)
+		if !ok {
+			return js.Null()
+		}
+		return jsSub(device.AddProviderTransportStatusChangeListener(&jsProviderTransportStatusChangeListener{cb}))
+	})
+	m["getDefaultTransportSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsTransportSettings(sdk.DefaultTransportSettings())
+	})
+	m["getDefaultProviderTransportSettings"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsTransportSettings(sdk.DefaultProviderTransportSettings())
+	})
+	// the selectable modes in default preference order (h1, h3, dns, dnspump)
+	m["getSelectableTransportModes"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsStringListDR(sdk.SelectableTransportModes())
+	})
+	// the shared editing rules over a policy value: an edited copy (a refused
+	// edit -- disabling the last Auto mode -- returns an equal copy)
+	m["transportSettingsWithMode"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) < 2 || args[1].Type() != js.TypeString {
+			return js.Null()
+		}
+		return jsTransportSettings(sdk.TransportSettingsWithMode(parseTransportSettings(args[0]), args[1].String()))
+	})
+	m["transportSettingsWithAutoModeEnabled"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) < 3 || args[1].Type() != js.TypeString || args[2].Type() != js.TypeBoolean {
+			return js.Null()
+		}
+		return jsTransportSettings(sdk.TransportSettingsWithAutoModeEnabled(parseTransportSettings(args[0]), args[1].String(), args[2].Bool()))
+	})
+	m["transportSettingsEqual"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) < 2 {
+			return js.ValueOf(false)
+		}
+		return js.ValueOf(sdk.TransportSettingsEqual(parseTransportSettings(args[0]), parseTransportSettings(args[1])))
 	})
 
 	// view controllers — the same layer the native app screens are built on
@@ -327,6 +450,12 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 		vc := device.OpenDevicesViewController()
 		return jsDevicesViewController(vc, func() {
 			device.CloseDevicesViewController(vc)
+		})
+	})
+	m["openProviderLocationsViewController"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		vc := device.OpenProviderLocationsViewController()
+		return jsProviderLocationsViewController(vc, func() {
+			device.CloseProviderLocationsViewController(vc)
 		})
 	})
 
@@ -518,6 +647,102 @@ func parseDnsResolverSettings(v js.Value) *sdk.DnsResolverSettings {
 	}
 }
 
+// jsTransportSettings mirrors the transport policy: the mode ("auto" or a
+// carrier), the Auto priority rows, and the derived views every renderer needs
+// (the Auto modes in preference order and the carriers the policy enables) so
+// the app never re-implements the rules
+func jsTransportSettings(s *sdk.TransportSettings) js.Value {
+	if s == nil {
+		return js.Null()
+	}
+	priorities := []any{}
+	if s.AutoModePriorities != nil {
+		for i := 0; i < s.AutoModePriorities.Len(); i += 1 {
+			item := s.AutoModePriorities.Get(i)
+			if item == nil {
+				continue
+			}
+			priorities = append(priorities, map[string]any{
+				"mode":     item.Mode,
+				"priority": item.Priority,
+			})
+		}
+	}
+	return js.ValueOf(map[string]any{
+		"mode":                  s.Mode,
+		"autoModePriorities":    priorities,
+		"autoModes":             jsStringListDR(s.AutoModes()),
+		"enabledTransportTypes": jsStringListDR(s.EnabledTransportTypes()),
+	})
+}
+
+func jsTransportStatus(status *sdk.TransportStatus) js.Value {
+	if status == nil {
+		return js.Null()
+	}
+	return js.ValueOf(map[string]any{
+		"autoDegraded":      status.AutoDegraded,
+		"autoEligibleModes": jsStringListDR(status.AutoEligibleModes),
+		"autoConstraint":    status.AutoConstraint,
+	})
+}
+
+// parseTransportSettings reads a policy from a JS object ({mode,
+// autoModePriorities: [{mode, priority}]}); null reads as the default policy.
+// The sdk normalizes what it is given
+func parseTransportSettings(v js.Value) *sdk.TransportSettings {
+	if v.IsNull() || v.IsUndefined() {
+		return sdk.DefaultTransportSettings()
+	}
+	settings := &sdk.TransportSettings{
+		Mode:               sdk.TransportModeAuto,
+		AutoModePriorities: sdk.NewTransportModePriorityList(),
+	}
+	if x := v.Get("mode"); x.Type() == js.TypeString {
+		settings.Mode = x.String()
+	}
+	if items := v.Get("autoModePriorities"); items.Type() == js.TypeObject {
+		n := items.Length()
+		for i := 0; i < n; i += 1 {
+			item := items.Index(i)
+			mode := item.Get("mode")
+			priority := item.Get("priority")
+			if mode.Type() != js.TypeString || priority.Type() != js.TypeNumber {
+				continue
+			}
+			settings.AutoModePriorities.Add(&sdk.TransportModePriority{
+				Mode:     mode.String(),
+				Priority: priority.Int(),
+			})
+		}
+	}
+	return settings
+}
+
+type jsTransportSettingsChangeListener struct{ cb js.Value }
+
+func (self *jsTransportSettingsChangeListener) TransportSettingsChanged(s *sdk.TransportSettings) {
+	self.cb.Invoke(jsTransportSettings(s))
+}
+
+type jsProviderTransportSettingsChangeListener struct{ cb js.Value }
+
+func (self *jsProviderTransportSettingsChangeListener) ProviderTransportSettingsChanged(s *sdk.TransportSettings) {
+	self.cb.Invoke(jsTransportSettings(s))
+}
+
+type jsTransportStatusChangeListener struct{ cb js.Value }
+
+func (self *jsTransportStatusChangeListener) TransportStatusChanged(status *sdk.TransportStatus) {
+	self.cb.Invoke(jsTransportStatus(status))
+}
+
+type jsProviderTransportStatusChangeListener struct{ cb js.Value }
+
+func (self *jsProviderTransportStatusChangeListener) ProviderTransportStatusChanged(status *sdk.TransportStatus) {
+	self.cb.Invoke(jsTransportStatus(status))
+}
+
 type jsDnsResolverSettingsChangeListener struct{ cb js.Value }
 
 func (self *jsDnsResolverSettingsChangeListener) DnsResolverSettingsChanged(s *sdk.DnsResolverSettings) {
@@ -553,24 +778,33 @@ func parseConnectLocationId(s string) (*sdk.ConnectLocationId, error) {
 	return &sdk.ConnectLocationId{LocationId: id}, nil
 }
 
-// NewPlatformDeviceRemote(apiUrl, platformUrl, byJwt, proxyUrl, signedProxyId)
+// NewPlatformDeviceRemote(apiUrl, platformUrl, byJwt, proxyUrl, signedProxyId, instanceId)
 // builds a DeviceRemote that controls a hosted DeviceLocal by connecting
 // directly to the proxy host at wss://<proxyUrl>/device-rpc, authenticating
 // with the device's signed proxy id (not a jwt). byJwt is the network member
-// jwt for the network space api.
+// jwt for the network space api. instanceId is the exact hosted DeviceLocal
+// instance returned by /network/auth-client; inventing one makes strict RPC
+// pairing reject every sync.
 func NewPlatformDeviceRemote(this js.Value, args []js.Value) any {
-	if len(args) < 5 {
-		return js.Null()
+	if len(args) < 6 {
+		return js.ValueOf(map[string]any{
+			"error": "hosted device instance_id is required",
+		})
 	}
 	apiUrl := args[0].String()
 	platformUrl := args[1].String()
 	byJwt := args[2].String()
 	proxyUrl := args[3].String()
 	signedProxyId := args[4].String()
+	instanceId, err := sdk.ParseId(args[5].String())
+	if err != nil {
+		return js.ValueOf(map[string]any{
+			"error": "invalid hosted device instance_id: " + err.Error(),
+		})
+	}
 
 	networkSpace := sdk.NewUrlsNetworkSpace(apiUrl, platformUrl)
 
-	instanceId := sdk.NewId()
 	device, err := sdk.NewPlatformDeviceRemote(networkSpace, byJwt, proxyUrl, signedProxyId, instanceId)
 	if err != nil {
 		return js.ValueOf(map[string]any{"error": err.Error()})
