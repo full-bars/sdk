@@ -13,8 +13,10 @@ import (
 
 	// "math/big"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	// "strings"
@@ -148,7 +150,23 @@ func clearOldLogs(logDir string) {
 
 }
 
+// currentLogDir is the directory glog was last pointed at.
+//
+// glog.SetLogDir mutates only glog's internal logDirs/dirSet, never the
+// `log_dir` flag, so the flag is not a readback path. Tracking it here is what
+// makes GetLogDir answerable at all; reading the flag returned "" in every
+// process, including the one that had just called SetLogDir.
+var currentLogDirMu sync.Mutex
+var currentLogDir string
+
 func GetLogDir() string {
+	currentLogDirMu.Lock()
+	dir := currentLogDir
+	currentLogDirMu.Unlock()
+	if dir != "" {
+		return dir
+	}
+	// honor an explicit --log_dir for embedders that never call SetLogDir
 	if f := flag.Lookup("log_dir"); f != nil {
 		return f.Value.String()
 	}
@@ -160,16 +178,90 @@ func FlushGlog() {
 }
 
 func SetLogDir(logDir string) error {
+	// the legacy single-directory configuration: after this call there is no
+	// per-process root, so the recorded one is cleared rather than left
+	// pointing somewhere glog is no longer writing. LogInventory reads the
+	// root, so a stale one would have it enumerate a directory this process
+	// abandoned and miss the one it is actually using.
+	return setLogDirWithRoot(logDir, "")
+}
 
+// setLogDirWithRoot points glog at logDir and records logDir and root
+// together, under one lock. They describe the same decision -- GetLogRoot must
+// always name the parent of the directory GetLogDir names -- so nothing may
+// update one without the other.
+func setLogDirWithRoot(logDir string, root string) error {
 	glog.SetMaxLogSize(1024 * 1024 * 16)
 	err := glog.SetLogDir(logDir)
 	if err != nil {
 		glog.Infof("SetLogDir to %q failed: %v", logDir, err)
+		return err
 	}
+	currentLogDirMu.Lock()
+	currentLogDir = logDir
+	currentLogRoot = root
+	currentLogDirMu.Unlock()
 	glog.Infof("New glog initialized")
 	clearOldLogs(logDir)
 
-	return err
+	return nil
+}
+
+// currentLogRoot is the parent of the per-process log directories, recorded so
+// the exporter can enumerate every process's logs rather than only this
+// process's. Empty when only the legacy SetLogDir was used. Guarded by
+// currentLogDirMu, and always written together with currentLogDir.
+var currentLogRoot string
+
+// SetLogDirForProcess points glog at <root>/<processName> and records root.
+//
+// Each process gets its own subdirectory because clearOldLogs keeps the 4
+// newest files in whatever directory it is given: processes sharing one
+// directory delete each other's history. The subdirectory name is also the
+// source label the exported bundle reports, which is more reliable than
+// parsing glog's <program>.<host>.<user>.log.<SEVERITY>.<time>.<pid> names.
+//
+// When root cannot be used it falls back to a process-local directory and
+// returns nil -- logging must never be what breaks a launch. It returns a
+// non-nil error only when neither can be opened, in which case glog keeps its
+// previous destination. The directory actually in use is always readable via
+// GetLogDir, and the recorded root via GetLogRoot.
+func SetLogDirForProcess(root string, processName string) error {
+	if processName == "" {
+		return fmt.Errorf("log process name cannot be empty")
+	}
+
+	dir := filepath.Join(root, processName)
+	if root != "" {
+		if err := os.MkdirAll(dir, LocalStorageDirectoryPermissions); err == nil {
+			if err := setLogDirWithRoot(dir, root); err == nil {
+				return nil
+			}
+		}
+	}
+
+	// fall back to a process-local directory under the os temp dir, and record
+	// its parent as the root so an export still finds this process's files
+	fallbackRoot := filepath.Join(os.TempDir(), "urnetwork-logs")
+	fallbackDir := filepath.Join(fallbackRoot, processName)
+	if err := os.MkdirAll(fallbackDir, LocalStorageDirectoryPermissions); err != nil {
+		return err
+	}
+	// Neither destination could be opened. glog keeps its previous
+	// destination, and the recorded dir and root keep describing it, because
+	// nothing below the failed calls has touched them.
+	if err := setLogDirWithRoot(fallbackDir, fallbackRoot); err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetLogRoot returns the parent of the per-process log directories, or "" when
+// only the legacy SetLogDir was used.
+func GetLogRoot() string {
+	currentLogDirMu.Lock()
+	defer currentLogDirMu.Unlock()
+	return currentLogRoot
 }
 
 // memory target ratio: how SetMemoryLimit divides the process budget into

@@ -710,6 +710,8 @@ uint64_t urnet_device_add_vpn_interface_while_offline_change_listener(uint64_t s
 uint64_t urnet_device_add_window_status_change_listener(uint64_t self, urnet_window_status_change_cb listener_window_status_changed, void* listener_user_data);
 void urnet_device_cancel(uint64_t self);
 void urnet_device_close(uint64_t self);
+char* urnet_device_diagnostic_manifest_json(uint64_t self);
+void urnet_device_flush_glog(uint64_t self);
 bool urnet_device_get_allow_foreground(uint64_t self);
 uint64_t urnet_device_get_api(uint64_t self);
 char* urnet_device_get_block_action_overrides(uint64_t self);
@@ -1243,6 +1245,7 @@ char* urnet_default_transport_settings(void);
 char* urnet_default_tunnel_dns_setting(void);
 char* urnet_encode_base58(const uint8_t* data, int32_t data_len);
 char* urnet_encrypt_data(const uint8_t* data, int32_t data_len, const char* nonce_base58, const char* shared_secret_base58, char** out_error);
+char* urnet_export_diagnostic_bundle(const char* dest_path, const char* opts_json, char** out_error);
 void urnet_flush_glog(void);
 void urnet_free_memory(void);
 uint64_t urnet_generate_device_rpc_key_material(char** out_error);
@@ -1256,6 +1259,7 @@ int64_t urnet_get_default_tunnel_mtu(void);
 char* urnet_get_filtered_locations_from_result(const char* result_json, const char* filter);
 bool urnet_get_fips140_enabled(void);
 char* urnet_get_log_dir(void);
+char* urnet_get_log_root(void);
 char* urnet_get_memory_stats(void);
 char* urnet_get_recommended_dns_resolver_settings(const char* country_code);
 char* urnet_get_regional_dns_servers(void);
@@ -1266,6 +1270,7 @@ bool urnet_is_balance_code_format_valid(const char* secret);
 bool urnet_is_checkout_redirect(const char* uri);
 bool urnet_is_purchase_report_terminal(const char* status);
 bool urnet_is_valid_payment_reference(const char* s);
+char* urnet_log_inventory(void);
 double urnet_nano_cents_to_usd(int64_t nano_cents);
 double urnet_nano_points_to_points(int64_t nano_points);
 uint64_t urnet_new_async_local_state(const char* local_storage_home);
@@ -1275,6 +1280,7 @@ uint64_t urnet_new_device_local_with_defaults(uint64_t network_space, const char
 uint64_t urnet_new_device_local_with_key_material(uint64_t network_space, const char* by_jwt, const char* device_description, const char* device_spec, const char* app_version, const char* instance_id, bool enable_rpc, uint64_t key_material, char** out_error);
 uint64_t urnet_new_device_local_with_memory_target(uint64_t network_space, const char* by_jwt, const char* device_description, const char* device_spec, const char* app_version, const char* instance_id, bool enable_rpc, uint64_t key_material, int64_t memory_target_byte_count, char** out_error);
 uint64_t urnet_new_device_remote_with_defaults(uint64_t network_space, const char* by_jwt, const char* instance_id, char** out_error);
+char* urnet_new_export_options(void);
 char* urnet_new_id(void);
 uint64_t urnet_new_login_view_controller(uint64_t api);
 uint64_t urnet_new_network_name_validation_view_controller(uint64_t api);
@@ -1298,6 +1304,7 @@ char* urnet_selectable_transport_modes(void);
 char* urnet_service_url(const char* key_json, const char* values_json, const char* scheme, const char* service);
 void urnet_set_egress_interface_index(int64_t index4, int64_t index6);
 bool urnet_set_log_dir(const char* log_dir, char** out_error);
+bool urnet_set_log_dir_for_process(const char* root, const char* process_name, char** out_error);
 void urnet_set_memory_limit(int64_t limit);
 void urnet_set_memory_profile_rate(int64_t byte_count);
 void urnet_set_message_pool_memory_targets(int64_t packet_pool_byte_count, int64_t large_object_pool_byte_count);
@@ -1966,6 +1973,19 @@ uint64_t urnet_new_io_loop(uint64_t device_local, int64_t fd, urnet_io_loop_done
  *   = Exit | null[]
  */
 
+/* ExportOptions (json):
+ *   Redact: boolean
+ *   IncludeManifest: boolean
+ *   IncludePlatformLogs: boolean
+ *   SelectedNames: StringList | null
+ */
+
+/* ExportResult (json):
+ *   ByteCount: number
+ *   FileCount: number
+ *   MissingSources: StringList | null
+ */
+
 /* FeedbackSendArgs (json):
  *   needs: FeedbackSendNeeds | null
  *   star_count: number
@@ -2203,6 +2223,19 @@ uint64_t urnet_new_io_loop(uint64_t device_local, int64_t fd, urnet_io_loop_done
 
 /* LocationResultList (json):
  *   = LocationResult | null[]
+ */
+
+/* LogFileInfo (json):
+ *   Name: string
+ *   Path: string
+ *   Source: string
+ *   Severity: string
+ *   ByteCount: number
+ *   ModifiedMillis: number
+ */
+
+/* LogFileInfoList (json):
+ *   = LogFileInfo | null[]
  */
 
 /* MemoryStats (json):
