@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestLogInventoryFindsEveryProcessAndSkipsSymlinks pins two things that the
@@ -183,5 +184,72 @@ func TestExportDiagnosticBundleRedactsWhenAsked(t *testing.T) {
 		if strings.Contains(string(content), "203.0.113.7") {
 			t.Fatalf("entry %q in a redacted bundle still contains the raw address", f.Name)
 		}
+	}
+}
+
+// TestExportDiagnosticBundlePreservesLogFileModTimes pins that a log entry's
+// zip header carries the source file's real Modified time (and, via
+// zip.FileInfoHeader, its mode bits), not a header built from scratch. A
+// zip.FileHeader assembled without an fs.FileInfo has no Modified set, which
+// the zip format resolves to 1979-11-30 -- its DOS-era zero-value sentinel --
+// silently changing the bytes ExportDiagnosticBundle/UploadLogs ship and
+// discarding the per-rotation timestamps that make a diagnostic bundle
+// readable.
+func TestExportDiagnosticBundlePreservesLogFileModTimes(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	name := "urnetwork.host.user.log.INFO.20260830-101112.4242"
+	writeTestingLogFile(t, appDir, name)
+
+	// A distinctive mtime, clear of both zip's 1979 sentinel and "now", so a
+	// header built from time.Now() (as a synthetic entry gets) instead of
+	// the file's real fs.FileInfo cannot pass this test by accident.
+	wantModTime := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	logPath := filepath.Join(appDir, name)
+	if err := os.Chtimes(logPath, wantModTime, wantModTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "modtime.zip")
+	if _, err := ExportDiagnosticBundle(destPath, NewExportOptions()); err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v", err)
+	}
+
+	reader, err := zip.OpenReader(destPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+
+	entryName := "logs/app/" + name
+	var entry *zip.File
+	for _, f := range reader.File {
+		if f.Name == entryName {
+			entry = f
+			break
+		}
+	}
+	if entry == nil {
+		t.Fatalf("bundle missing %q", entryName)
+	}
+
+	if entry.Modified.Year() <= 1980 {
+		t.Fatalf("entry %q Modified = %v, looks like the zip 1979 zero-value sentinel, not the source file's real mtime", entryName, entry.Modified)
+	}
+
+	// The zip format's DOS date/time fields store 2-second granularity.
+	diff := entry.Modified.UTC().Sub(wantModTime)
+	if diff < 0 {
+		diff = -diff
+	}
+	if 2*time.Second < diff {
+		t.Fatalf("entry %q Modified = %v, want ~%v (the source file's mtime, within 2s)", entryName, entry.Modified, wantModTime)
 	}
 }

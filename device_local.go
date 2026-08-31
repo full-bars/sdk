@@ -6525,11 +6525,28 @@ func (self *DeviceLocal) UploadLogs(feedbackId string, callback UploadLogsCallba
 // zipEntryWriter writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.
-func zipWriteEntry(zipWriter *zip.Writer, name string, r io.Reader, transform func(string) string) error {
-	w, err := zipWriter.CreateHeader(&zip.FileHeader{
-		Name:   name,
-		Method: zip.Deflate,
-	})
+//
+// fi, when non-nil, is the source file's os.FileInfo: the header is built
+// from it via zip.FileInfoHeader so the entry keeps the file's real
+// Modified time and permission bits, with only Name and Method overridden.
+// fi is nil for synthetic entries with no backing file (manifest.json,
+// README.txt, platform/*), which instead get Modified set to time.Now() so
+// they carry a real date rather than zip's 1979 zero-value sentinel.
+func zipWriteEntry(zipWriter *zip.Writer, name string, r io.Reader, fi os.FileInfo, transform func(string) string) error {
+	var hdr *zip.FileHeader
+	if fi != nil {
+		var err error
+		hdr, err = zip.FileInfoHeader(fi)
+		if err != nil {
+			return err
+		}
+	} else {
+		hdr = &zip.FileHeader{Modified: time.Now()}
+	}
+	hdr.Name = name
+	hdr.Method = zip.Deflate
+
+	w, err := zipWriter.CreateHeader(hdr)
 	if err != nil {
 		return err
 	}
@@ -6568,7 +6585,12 @@ func zipLogs(
 		if err != nil {
 			return err
 		}
-		if err := zipWriteEntry(zipWriter, filepath.Base(path), f, nil); err != nil {
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			return err
+		}
+		if err := zipWriteEntry(zipWriter, filepath.Base(path), f, fi, nil); err != nil {
 			f.Close()
 			return err
 		}

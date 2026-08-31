@@ -213,7 +213,13 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 			result.MissingSources.Add(info.Name + ": " + err.Error())
 			continue
 		}
-		err = zipWriteEntry(zipWriter, "logs/"+info.Source+"/"+info.Name, f, transform)
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			result.MissingSources.Add(info.Name + ": " + err.Error())
+			continue
+		}
+		err = zipWriteEntry(zipWriter, "logs/"+info.Source+"/"+info.Name, f, fi, transform)
 		f.Close()
 		if err != nil {
 			zipWriter.Close()
@@ -227,7 +233,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		if manifestJson == "" {
 			manifestJson = "{\"available\":false}"
 		}
-		if err := zipWriteEntry(zipWriter, "manifest.json", strings.NewReader(manifestJson), transform); err != nil {
+		if err := zipWriteEntry(zipWriter, "manifest.json", strings.NewReader(manifestJson), nil, transform); err != nil {
 			zipWriter.Close()
 			return nil, err
 		}
@@ -239,6 +245,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 				zipWriter,
 				"platform/"+opts.platformNames.Get(i),
 				strings.NewReader(opts.platformLogs.Get(i)),
+				nil,
 				transform,
 			)
 			if err != nil {
@@ -248,7 +255,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 		}
 	}
 
-	if err := zipWriteEntry(zipWriter, "README.txt", strings.NewReader(exportReadme(opts, result)), nil); err != nil {
+	if err := zipWriteEntry(zipWriter, "README.txt", strings.NewReader(exportReadme(opts, result)), nil, nil); err != nil {
 		zipWriter.Close()
 		return nil, err
 	}
