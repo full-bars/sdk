@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -6521,6 +6522,34 @@ func (self *DeviceLocal) UploadLogs(feedbackId string, callback UploadLogsCallba
 	return nil
 }
 
+// zipEntryWriter writes one entry into an open zip. transform, when non-nil,
+// rewrites the content line by line -- this is how redaction is applied
+// without ever holding a whole log file in memory.
+func zipWriteEntry(zipWriter *zip.Writer, name string, r io.Reader, transform func(string) string) error {
+	w, err := zipWriter.CreateHeader(&zip.FileHeader{
+		Name:   name,
+		Method: zip.Deflate,
+	})
+	if err != nil {
+		return err
+	}
+	if transform == nil {
+		_, err = io.Copy(w, r)
+		return err
+	}
+	scanner := bufio.NewScanner(r)
+	// glog caps a message at MaxLogMessageLen = 15000, but a line carrying a
+	// backtrace can exceed the scanner's 64KiB default, and a truncated log is
+	// a misleading one.
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		if _, err := io.WriteString(w, transform(scanner.Text())+"\n"); err != nil {
+			return err
+		}
+	}
+	return scanner.Err()
+}
+
 func zipLogs(
 	logFiles []string,
 	zipPath string,
@@ -6539,28 +6568,7 @@ func zipLogs(
 		if err != nil {
 			return err
 		}
-
-		fi, err := f.Stat()
-		if err != nil {
-			f.Close()
-			return err
-		}
-
-		hdr, err := zip.FileInfoHeader(fi)
-		if err != nil {
-			f.Close()
-			return err
-		}
-		hdr.Name = filepath.Base(path)
-		hdr.Method = zip.Deflate
-
-		w, err := zipWriter.CreateHeader(hdr)
-		if err != nil {
-			f.Close()
-			return err
-		}
-
-		if _, err := io.Copy(w, f); err != nil {
+		if err := zipWriteEntry(zipWriter, filepath.Base(path), f, nil); err != nil {
 			f.Close()
 			return err
 		}

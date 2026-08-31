@@ -1,8 +1,11 @@
 package sdk
 
 import (
+	"archive/zip"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -72,5 +75,113 @@ func TestLogInventoryFindsEveryProcessAndSkipsSymlinks(t *testing.T) {
 	}
 	if extension.Severity != "ERROR" {
 		t.Fatalf("extension severity = %q, want ERROR", extension.Severity)
+	}
+}
+
+// TestExportDiagnosticBundleWritesEverySelectedSource covers the zip layout and
+// that a source which cannot be read is REPORTED, never fatal -- an ios build
+// whose provisioning profile lacks the app group must still export its own
+// logs.
+func TestExportDiagnosticBundleWritesEverySelectedSource(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeTestingLogFile(t, appDir, "urnetwork.host.user.log.INFO.20260830-101112.4242")
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	// SetLogDirForProcess's own SetLogDir call writes one incidental
+	// bookkeeping entry ("New glog initialized") into appDir before this test
+	// ever calls ExportDiagnosticBundle (see log_export_test.go's identical
+	// note; SetLogDir/clearOldLogs are out of this task's scope to change).
+	// LogInventory correctly counts that real file alongside the fixture one,
+	// so the expected count is taken from the inventory itself rather than
+	// hardcoded, keeping the assertion honest about what is actually on disk.
+	wantFileCount := LogInventory().Len()
+
+	destPath := filepath.Join(t.TempDir(), "bundle.zip")
+
+	opts := NewExportOptions()
+	opts.IncludeManifest = true
+	opts.MissingSourceReason("extension", "app group container unavailable")
+
+	result, err := ExportDiagnosticBundle(destPath, opts)
+	if err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil", err)
+	}
+	if result.FileCount != wantFileCount {
+		t.Fatalf("FileCount = %d, want %d", result.FileCount, wantFileCount)
+	}
+	if result.MissingSources.Len() != 1 {
+		t.Fatalf("MissingSources.Len() = %d, want 1", result.MissingSources.Len())
+	}
+
+	reader, err := zip.OpenReader(destPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+
+	names := map[string]bool{}
+	for _, f := range reader.File {
+		names[f.Name] = true
+	}
+	for _, want := range []string{
+		"README.txt",
+		"manifest.json",
+		"logs/app/urnetwork.host.user.log.INFO.20260830-101112.4242",
+	} {
+		if !names[want] {
+			t.Errorf("bundle missing %q; has %v", want, names)
+		}
+	}
+}
+
+// A redacted export must not carry the raw value anywhere in the archive.
+func TestExportDiagnosticBundleRedactsWhenAsked(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	name := "urnetwork.host.user.log.INFO.20260830-101112.4242"
+	if err := os.WriteFile(filepath.Join(appDir, name),
+		[]byte("I0830 10:11:12.131415 1 x.go:1] peer 203.0.113.7:443\n"), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "redacted.zip")
+	opts := NewExportOptions()
+	opts.Redact = true
+
+	if _, err := ExportDiagnosticBundle(destPath, opts); err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v", err)
+	}
+
+	reader, err := zip.OpenReader(destPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+
+	for _, f := range reader.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %q: %v", f.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatalf("read %q: %v", f.Name, err)
+		}
+		if strings.Contains(string(content), "203.0.113.7") {
+			t.Fatalf("entry %q in a redacted bundle still contains the raw address", f.Name)
+		}
 	}
 }
