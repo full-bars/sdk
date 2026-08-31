@@ -293,9 +293,11 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 
 	result := &ExportResult{MissingSources: NewStringList()}
 	sources := newExportSourceReport()
+	declaredMissing := map[string]bool{}
 	for i := 0; i < opts.missingNames.Len(); i += 1 {
 		result.MissingSources.Add(opts.missingNames.Get(i) + ": " + opts.missingWhy.Get(i))
 		sources.unavailable(opts.missingNames.Get(i), opts.missingWhy.Get(i))
+		declaredMissing[opts.missingNames.Get(i)] = true
 	}
 
 	zipFile, err := os.Create(destPath)
@@ -320,6 +322,12 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 
 	inventory, unreadable := logInventory()
 	for _, entry := range unreadable {
+		if declaredMissing[entry.Source] {
+			// the platform already said why this source is missing, in words
+			// meant for a person; two lines about one source in the summary
+			// and the README read as two separate problems
+			continue
+		}
 		result.MissingSources.Add(entry.Source + ": " + entry.Reason)
 		sources.unavailable(entry.Source, entry.Reason)
 	}
