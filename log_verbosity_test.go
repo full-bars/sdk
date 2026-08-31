@@ -307,3 +307,29 @@ func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 	}
 	connect.AssertEqual(t, persisted, true)
 }
+
+// Restoring is for a level the user chose. With nothing persisted there is no
+// instruction to apply, and applying the default anyway would clear a level an
+// embedder set another way -- a server that passed -v on its command line
+// would lose it to the first device it constructed.
+func TestDeviceLocalRestoreLeavesAnUnsetVerbosityAlone(t *testing.T) {
+	restoreTestingLogVerbosity(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	networkSpace, byJwt, err := testing_newNetworkSpace(ctx)
+	if err != nil {
+		t.Fatalf("network space: %v", err)
+	}
+
+	// the embedder's own choice, made before any device exists
+	if err := SetLogVerbosity(LogVerbosityDetail); err != nil {
+		t.Fatalf("SetLogVerbosity: %v", err)
+	}
+
+	device := testing_newBlockDeviceWithNetworkSpace(t, networkSpace, byJwt, false)
+	defer device.Close()
+
+	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityDetail)
+}

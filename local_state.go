@@ -377,14 +377,26 @@ func (self *LocalState) SetLogVerbosity(level int) error {
 // a process starts at anyway -- restoring must never be what raises logging
 // nobody asked for.
 func (self *LocalState) GetLogVerbosity() int {
+	level, _ := self.logVerbosityIfSet()
+	return level
+}
+
+// logVerbosityIfSet is GetLogVerbosity plus whether a level was ever written.
+//
+// Restoring at construction needs the difference: a persisted 0 is a level the
+// user chose, while nothing persisted is no instruction at all, and applying
+// the default for the second case would silently reset an embedder that set
+// its own level another way -- a server passing -v on the command line would
+// have it cleared by the first device it constructed.
+func (self *LocalState) logVerbosityIfSet() (int, bool) {
 	path := filepath.Join(self.localStorageDir, ".log_verbosity")
 	if levelBytes, err := os.ReadFile(path); err == nil {
 		var level int
 		if _, err := fmt.Sscanf(string(levelBytes), "%d", &level); err == nil {
-			return clampLogVerbosity(level)
+			return clampLogVerbosity(level), true
 		}
 	}
-	return LogVerbosityDefault
+	return LogVerbosityDefault, false
 }
 
 func (self *LocalState) SetBlockerEnabled(blockerEnabled bool) error {

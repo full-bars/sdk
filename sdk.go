@@ -332,13 +332,18 @@ func GetLogVerbosity() int {
 // being captured usually needs. Every process that starts a device runs
 // initGlog first, which resets the level to 0.
 //
-// A nil localState (a network space with no local storage) leaves the process
-// at whatever it is already logging at.
+// A nil localState (a network space with no local storage), or one with no
+// level ever written, leaves the process at whatever it is already logging at
+// -- restoring is for a level the user chose, and must not clear one an
+// embedder set another way.
 func applyPersistedLogVerbosity(localState *LocalState, log connect.Logger) {
 	if localState == nil {
 		return
 	}
-	level := localState.GetLogVerbosity()
+	level, ok := localState.logVerbosityIfSet()
+	if !ok {
+		return
+	}
 	if err := SetLogVerbosity(level); err != nil && log != nil {
 		log.Infof("[device]restore log verbosity %d err = %s\n", level, err)
 	}
