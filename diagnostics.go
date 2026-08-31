@@ -233,7 +233,16 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	if opts.IncludeManifest {
 		manifestJson := opts.manifestJson
 		if manifestJson == "" {
-			manifestJson = "{\"available\":false}"
+			// No platform ever called SetManifestJson -- e.g. Android exporting
+			// while disconnected, where deviceManager.device is null. Build the
+			// fallback through buildDiagnosticManifestJson rather than a
+			// hand-written literal, so this path and the normal one share a
+			// single source of truth for the manifest's shape and can't drift
+			// apart on key names again.
+			manifestJson = buildDiagnosticManifestJson(diagnosticManifestInput{
+				SdkVersion:      Version,
+				DeviceAvailable: false,
+			})
 		}
 		if err := zipWriteEntry(zipWriter, "manifest.json", strings.NewReader(manifestJson), nil, transform); err != nil {
 			zipWriter.Close()

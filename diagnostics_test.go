@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"archive/zip"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -251,5 +252,73 @@ func TestExportDiagnosticBundlePreservesLogFileModTimes(t *testing.T) {
 	}
 	if 2*time.Second < diff {
 		t.Fatalf("entry %q Modified = %v, want ~%v (the source file's mtime, within 2s)", entryName, entry.Modified, wantModTime)
+	}
+}
+
+// TestExportDiagnosticBundleManifestFallbackUsesDeviceAvailableKey pins the
+// key name in the fallback manifest written when IncludeManifest is set but
+// no platform ever calls SetManifestJson -- the case for an Android export
+// started while disconnected, where deviceManager.device is null. The
+// fallback must use the same "device_available" key that
+// buildDiagnosticManifestJson uses everywhere else, not a hand-written
+// "available" key that a manifest.json reader would never look for.
+func TestExportDiagnosticBundleManifestFallbackUsesDeviceAvailableKey(t *testing.T) {
+	root := t.TempDir()
+	appDir := filepath.Join(root, "app")
+	if err := os.MkdirAll(appDir, 0700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := SetLogDirForProcess(root, "app"); err != nil {
+		t.Fatalf("SetLogDirForProcess: %v", err)
+	}
+
+	destPath := filepath.Join(t.TempDir(), "no-manifest-call.zip")
+
+	opts := NewExportOptions()
+	opts.IncludeManifest = true
+	// deliberately no opts.SetManifestJson(...) call
+
+	if _, err := ExportDiagnosticBundle(destPath, opts); err != nil {
+		t.Fatalf("ExportDiagnosticBundle = %v, want nil", err)
+	}
+
+	reader, err := zip.OpenReader(destPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer reader.Close()
+
+	var manifest *zip.File
+	for _, f := range reader.File {
+		if f.Name == "manifest.json" {
+			manifest = f
+			break
+		}
+	}
+	if manifest == nil {
+		t.Fatalf("bundle missing manifest.json")
+	}
+
+	rc, err := manifest.Open()
+	if err != nil {
+		t.Fatalf("open manifest.json: %v", err)
+	}
+	content, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		t.Fatalf("read manifest.json: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(content, &decoded); err != nil {
+		t.Fatalf("manifest.json is not valid json: %v\n%s", err, content)
+	}
+
+	available, ok := decoded["device_available"]
+	if !ok {
+		t.Fatalf("manifest.json missing %q; has %v", "device_available", decoded)
+	}
+	if available != false {
+		t.Fatalf("device_available = %v, want false", available)
 	}
 }
