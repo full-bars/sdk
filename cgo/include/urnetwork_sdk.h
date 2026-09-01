@@ -92,8 +92,8 @@ bool urnet_packet_batch_get(uint64_t self, int64_t index, uint8_t* out, int32_t*
 #define URNET_LOCATION_TYPE_COUNTRY "country"
 #define URNET_LOCATION_TYPE_REGION "region"
 #define URNET_LOG_VERBOSITY_DEFAULT 0
-#define URNET_LOG_VERBOSITY_DETAIL 2
-#define URNET_LOG_VERBOSITY_TRACE 1
+#define URNET_LOG_VERBOSITY_TRACE 2
+#define URNET_LOG_VERBOSITY_VERBOSE 1
 #define URNET_MATIC "MATIC"
 #define URNET_PROVIDER_STATE_ADDED "Added"
 #define URNET_PROVIDER_STATE_EVALUATION_FAILED "EvaluationFailed"

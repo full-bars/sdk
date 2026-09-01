@@ -153,8 +153,8 @@ func normalizeRedactionTokens(line string) string {
 // test missed it by only ever surrounding an address with spaces.
 //
 // Over-redaction is the other half: a glog HH:MM:SS timestamp and a bracketed
-// counter are shaped like the address forms, and the spec requires both to
-// survive verbatim.
+// counter are shaped like the address forms, and both must survive
+// verbatim.
 func TestRedactorMasksIPv6WhateverSurroundsIt(t *testing.T) {
 	redactor, err := newLogRedactor()
 	if err != nil {

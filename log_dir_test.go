@@ -11,9 +11,11 @@ import (
 
 // TestGetLogDirReturnsTheDirectoryGlogWritesTo pins the readback contract.
 // glog.SetLogDir mutates only glog's internal logDirs/dirSet and never the
-// `log_dir` flag, and sdk.SetLogDir stopped setting that flag in 9f41a00, so
-// GetLogDir returned "" in every process -- silently breaking UploadLogs and
-// both platforms' export buttons, all of which os.ReadDir(GetLogDir()).
+// log_dir flag, and SetLogDir stopped setting that flag in 9f41a00, so
+// GetLogDir returned "" in every process -- including the one that had just
+// called SetLogDir. That silently broke DeviceLocal.UploadLogs, which does
+// os.ReadDir(GetLogDir()) and fails on the empty path before it can attach
+// anything to the feedback.
 func TestGetLogDirReturnsTheDirectoryGlogWritesTo(t *testing.T) {
 	restoreTestingLogDir(t)
 
@@ -68,14 +70,12 @@ func TestSetLogDirForProcessScopesRetentionPerProcess(t *testing.T) {
 	}
 	appDir := GetLogDir()
 	writeTestingLogFile(t, appDir, "urnetwork.host.user.log.INFO.20260830-000000.200")
-	// SetLogDirForProcess("app") already routed through SetLogDir, whose own
-	// clearOldLogs/Infof housekeeping writes created one file of its own here
-	// (glog only opens a file in the newly-targeted directory on its next log
-	// write, and that write is this pipeline's own bookkeeping -- see
-	// SetLogDir and clearOldLogs, neither of which this task may change).
-	// Snapshot the count now so the assertion below tests the real intent --
-	// that pruning extensionDir must not touch appDir at all -- rather than
-	// hardcoding a total that depends on that incidental write.
+	// pointing glog at appDir already ran this pipeline's own housekeeping
+	// (clearOldLogs plus an Infof), and glog opens its file in the newly
+	// targeted directory on the next write -- so appDir may already hold a
+	// file of its own. Snapshot the count now so the assertion below tests the
+	// real intent, that pruning extensionDir must not touch appDir at all,
+	// rather than a total that depends on that incidental write.
 	appDirCountBeforePrune := countTestingLogFiles(t, appDir)
 
 	// prune the extension's directory again, as its next launch would
@@ -89,35 +89,13 @@ func TestSetLogDirForProcessScopesRetentionPerProcess(t *testing.T) {
 	}
 }
 
-func writeTestingLogFile(t *testing.T, dir string, name string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte("I0830 00:00:00.000000 1 x.go:1] test\n"), 0600); err != nil {
-		t.Fatalf("WriteFile(%q): %v", name, err)
-	}
-}
-
-func countTestingLogFiles(t *testing.T, dir string) int {
-	t.Helper()
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("ReadDir(%q): %v", dir, err)
-	}
-	n := 0
-	for _, e := range entries {
-		if strings.Contains(e.Name(), ".log.") {
-			n += 1
-		}
-	}
-	return n
-}
-
 // TestSetLogDirClearsTheRecordedRoot pins that GetLogRoot never names a root
 // that does not contain the directory glog is writing to.
 //
-// A plain SetLogDir after a SetLogDirForProcess used to leave the previous
-// root recorded, and LogInventory enumerates that root: the export would list
-// files from per-process directories this process had abandoned and miss the
-// one it was actually writing.
+// A plain SetLogDir after a SetLogDirForProcess would otherwise leave the
+// previous root recorded, and LogInventory enumerates that root: the export
+// would list files from per-process directories this process had abandoned
+// and miss the one it was actually writing.
 func TestSetLogDirClearsTheRecordedRoot(t *testing.T) {
 	restoreTestingLogDir(t)
 
@@ -155,12 +133,32 @@ func TestSetLogDirClearsTheRecordedRoot(t *testing.T) {
 	}
 }
 
-// restoreTestingLogDir puts glog's destination back when the test ends.
-//
-// SetLogDir and SetLogDirForProcess mutate process-global glog state, and
-// every test here points them at a t.TempDir that is deleted on exit -- so
-// without this the last such test leaves every later test in the package
-// logging into a directory that no longer exists.
+func writeTestingLogFile(t *testing.T, dir string, name string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("I0830 00:00:00.000000 1 x.go:1] test\n"), 0600); err != nil {
+		t.Fatalf("WriteFile(%q): %v", name, err)
+	}
+}
+
+func countTestingLogFiles(t *testing.T, dir string) int {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%q): %v", dir, err)
+	}
+	n := 0
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".log.") {
+			n += 1
+		}
+	}
+	return n
+}
+
+// restoreTestingLogDir puts the process-global log destination back after the
+// test. SetLogDir and SetLogDirForProcess point glog at a t.TempDir that is
+// deleted on exit, so without this every later test in the package logs into a
+// directory that no longer exists.
 func restoreTestingLogDir(t *testing.T) {
 	t.Helper()
 	dir := GetLogDir()

@@ -258,7 +258,7 @@ func TestExportDiagnosticBundleRedactsIPv6AndLeavesARawExportVerbatim(t *testing
 			}
 		}
 	}
-	// the structure the spec promises survives redaction
+	// the structure that must survive redaction
 	entry := readZipEntry(t, redactedPath, "logs/app/"+name)
 	for _, want := range []string{"I0830 10:11:12.131415", "c.go:1]", "retry [10] of [42]", "Port:443}"} {
 		if !strings.Contains(entry, want) {
@@ -675,8 +675,8 @@ func TestExportDiagnosticBundleDoesNotAbortOnAnUnreadableEntry(t *testing.T) {
 }
 
 // TestExportDiagnosticBundleManifestCarriesModeAndSourceAvailability pins the
-// two export-metadata fields the spec requires and the bundle had nowhere
-// else: the mode, and the per-source availability list.
+// two export-metadata fields the bundle had nowhere else to record: the
+// mode, and the per-source availability list.
 //
 // Without them nothing machine-readable in the bundle says whether it was
 // redacted -- the mode survived only as English prose in README.txt -- so a

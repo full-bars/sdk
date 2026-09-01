@@ -151,12 +151,15 @@ func clearOldLogs(logDir string) {
 
 }
 
-// currentLogDir is the directory glog was last pointed at.
+// currentLogDir is the directory glog was last pointed at, guarded by
+// currentLogDirMu because SetLogDir and GetLogDir are called from whatever
+// thread the embedder happens to be on.
 //
 // glog.SetLogDir mutates only glog's internal logDirs/dirSet, never the
-// `log_dir` flag, so the flag is not a readback path. Tracking it here is what
-// makes GetLogDir answerable at all; reading the flag returned "" in every
-// process, including the one that had just called SetLogDir.
+// log_dir flag, so that flag is not a readback path. Recording the directory
+// here is what makes GetLogDir answerable at all: since the flag write was
+// dropped from SetLogDir, reading the flag returned "" in every process,
+// including the one that had just called SetLogDir.
 var currentLogDirMu sync.Mutex
 var currentLogDir string
 
@@ -167,7 +170,8 @@ func GetLogDir() string {
 	if dir != "" {
 		return dir
 	}
-	// honor an explicit --log_dir for embedders that never call SetLogDir
+	// fall back to an explicit --log_dir, for embedders that point glog at a
+	// directory with the flag and never call SetLogDir
 	if f := flag.Lookup("log_dir"); f != nil {
 		return f.Value.String()
 	}
@@ -180,9 +184,9 @@ func FlushGlog() {
 
 func SetLogDir(logDir string) error {
 	// the legacy single-directory configuration: after this call there is no
-	// per-process root, so the recorded one is cleared rather than left
-	// pointing somewhere glog is no longer writing. LogInventory reads the
-	// root, so a stale one would have it enumerate a directory this process
+	// per-process root, so the recorded one is cleared rather than left naming
+	// a directory glog is no longer writing under. A reader that enumerates
+	// GetLogRoot would otherwise walk per-process directories this process has
 	// abandoned and miss the one it is actually using.
 	return setLogDirWithRoot(logDir, "")
 }
@@ -192,48 +196,55 @@ func SetLogDir(logDir string) error {
 // always name the parent of the directory GetLogDir names -- so nothing may
 // update one without the other.
 func setLogDirWithRoot(logDir string, root string) error {
+
 	glog.SetMaxLogSize(1024 * 1024 * 16)
 	err := glog.SetLogDir(logDir)
 	if err != nil {
 		glog.Infof("SetLogDir to %q failed: %v", logDir, err)
-		return err
+	} else {
+		// only record a directory glog accepted. glog returns before touching
+		// logDirs when it fails, so it keeps writing wherever it already was,
+		// and GetLogDir has to keep naming that directory rather than this one.
+		currentLogDirMu.Lock()
+		currentLogDir = logDir
+		currentLogRoot = root
+		currentLogDirMu.Unlock()
 	}
-	currentLogDirMu.Lock()
-	currentLogDir = logDir
-	currentLogRoot = root
-	currentLogDirMu.Unlock()
 	glog.Infof("New glog initialized")
 	clearOldLogs(logDir)
 
-	return nil
+	return err
 }
 
 // currentLogRoot is the parent of the per-process log directories, recorded so
-// the exporter can enumerate every process's logs rather than only this
-// process's. Empty when only the legacy SetLogDir was used. Guarded by
-// currentLogDirMu, and always written together with currentLogDir.
+// a reader can enumerate every process's logs rather than only this process's.
+// Empty when only the legacy SetLogDir was used. Guarded by currentLogDirMu,
+// and always written together with currentLogDir.
 var currentLogRoot string
 
 // SetLogDirForProcess points glog at <root>/<processName> and records root.
 //
 // Each process gets its own subdirectory because clearOldLogs keeps the 4
-// newest files in whatever directory it is given: processes sharing one
-// directory delete each other's history. The subdirectory name is also the
-// source label the exported bundle reports, which is more reliable than
-// parsing glog's <program>.<host>.<user>.log.<SEVERITY>.<time>.<pid> names.
+// newest files in whatever directory it is handed: processes sharing one
+// directory delete each other's history. On ios that is the app and the
+// network extension, which both log. The subdirectory name is also a reliable
+// label for which process wrote a file, rather than parsing it back out of
+// glog's <program>.<host>.<user>.log.<SEVERITY>.<time>.<pid> names.
 //
-// When root cannot be used it falls back to a process-local directory and
-// returns nil -- logging must never be what breaks a launch. It returns a
-// non-nil error only when neither can be opened, in which case glog keeps its
-// previous destination. The directory actually in use is always readable via
-// GetLogDir, and the recorded root via GetLogRoot.
+// When root cannot be used it falls back to a process-local directory under
+// the os temp dir and returns nil -- logging must never be what breaks a
+// launch. It returns a non-nil error only when processName is empty, which is
+// a caller bug rather than an environment failure, or when neither directory
+// can be opened for logging; in the latter case glog keeps its previous
+// destination, and GetLogDir and GetLogRoot keep describing that destination.
+// The directory actually in use is always readable back from GetLogDir.
 func SetLogDirForProcess(root string, processName string) error {
 	if processName == "" {
 		return fmt.Errorf("log process name cannot be empty")
 	}
 
-	dir := filepath.Join(root, processName)
 	if root != "" {
+		dir := filepath.Join(root, processName)
 		if err := os.MkdirAll(dir, LocalStorageDirectoryPermissions); err == nil {
 			if err := setLogDirWithRoot(dir, root); err == nil {
 				return nil
@@ -242,19 +253,13 @@ func SetLogDirForProcess(root string, processName string) error {
 	}
 
 	// fall back to a process-local directory under the os temp dir, and record
-	// its parent as the root so an export still finds this process's files
+	// its parent as the root so a reader still finds this process's files
 	fallbackRoot := filepath.Join(os.TempDir(), "urnetwork-logs")
 	fallbackDir := filepath.Join(fallbackRoot, processName)
 	if err := os.MkdirAll(fallbackDir, LocalStorageDirectoryPermissions); err != nil {
 		return err
 	}
-	// Neither destination could be opened. glog keeps its previous
-	// destination, and the recorded dir and root keep describing it, because
-	// nothing below the failed calls has touched them.
-	if err := setLogDirWithRoot(fallbackDir, fallbackRoot); err != nil {
-		return err
-	}
-	return nil
+	return setLogDirWithRoot(fallbackDir, fallbackRoot)
 }
 
 // GetLogRoot returns the parent of the per-process log directories, or "" when
@@ -265,7 +270,14 @@ func GetLogRoot() string {
 	return currentLogRoot
 }
 
-// The glog verbosity levels this sdk exposes, named for what each one buys.
+// The glog verbosity levels this sdk exposes, named for the labels the apps
+// show beside them: Default, Verbose and Trace at 0, 1 and 2.
+//
+// The names follow the ui rather than the other way round. A bug report
+// quotes the word the user read on the screen, so a constant that disagreed
+// with that label by one level would be read as the level below the one
+// actually running -- exactly the direction that makes a log look emptier
+// than it should.
 //
 // The `connect` package gates its diagnostics at V(1) and V(2) only (see its
 // log.go logging convention), so this is the whole meaningful range -- and it
@@ -277,18 +289,18 @@ const (
 	// Warning and Error only -- abnormal behavior, backpressure and
 	// connectivity timeouts, recoverable exits.
 	LogVerbosityDefault = 0
-	// LogVerbosityTrace adds the V(1) key events, which is what a contract or
+	// LogVerbosityVerbose adds the V(1) key events, which is what a contract or
 	// connection report needs: contract accounting ([contract] add, close,
 	// expire, provide ping), send/receive and stream lifecycle ([s], [r],
 	// [sm], [cr]), transport dial and handshake ([tls], [p2p], [peerconn],
 	// [pt]), and multi-client window formation ([multi]).
-	LogVerbosityTrace = 1
-	// LogVerbosityDetail adds the V(2) per-use-case detail on top: per-message
+	LogVerbosityVerbose = 1
+	// LogVerbosityTrace adds the V(2) per-use-case detail on top: per-message
 	// transfer and routing ([tr], [mrr], [mrw], [f%d], [r%d]), network and
 	// control traffic ([net], [control]), and rtt samples ([rtt]). High volume
 	// on a busy connection -- it is for reproducing one bug, not for running
 	// on.
-	LogVerbosityDetail = 2
+	LogVerbosityTrace = 2
 )
 
 // SetLogVerbosity sets THIS process's glog verbosity, and takes effect on the
@@ -299,7 +311,7 @@ const (
 // runtime is the supported way to change the level in a process that never
 // parses a command line. TestLogVerbosityTakesEffectAtRuntime pins that.
 //
-// The level is clamped to LogVerbosityDefault..LogVerbosityDetail rather than
+// The level is clamped to LogVerbosityDefault..LogVerbosityTrace rather than
 // rejected: `connect` only ever asks for V(1) and V(2), so a higher number is
 // volume with nothing to show for it and a negative one is meaningless. The
 // clamped value is what GetLogVerbosity then reports.
@@ -331,7 +343,7 @@ var logVerbosityMu sync.Mutex
 // setLogVerbosityFlag is the one write path for the -v flag, taking the level
 // exactly as given. Callers that must honor the sdk's range clamp first -- see
 // SetLogVerbosity. Restoring a level captured from GetLogVerbosity goes
-// through here unclamped, so a -v an embedder set above LogVerbosityDetail on
+// through here unclamped, so a -v an embedder set above LogVerbosityTrace on
 // the command line comes back as what it was.
 func setLogVerbosityFlag(level int) error {
 	logVerbosityMu.Lock()
@@ -343,7 +355,7 @@ func setLogVerbosityFlag(level int) error {
 //
 // It reads the flag rather than a shadow copy, so it also reports a level an
 // embedder set some other way, including a -v on the command line above
-// LogVerbosityDetail -- what is reported is what V() will honor.
+// LogVerbosityTrace -- what is reported is what V() will honor.
 func GetLogVerbosity() int {
 	f := flag.Lookup("v")
 	if f == nil {
@@ -388,8 +400,8 @@ func clampLogVerbosity(level int) int {
 	if level < LogVerbosityDefault {
 		return LogVerbosityDefault
 	}
-	if LogVerbosityDetail < level {
-		return LogVerbosityDetail
+	if LogVerbosityTrace < level {
+		return LogVerbosityTrace
 	}
 	return level
 }

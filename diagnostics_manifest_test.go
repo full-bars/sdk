@@ -67,7 +67,7 @@ func TestDiagnosticManifestNamesItsOwnProcessLogRoot(t *testing.T) {
 	if err := SetLogDirForProcess(root, "extension"); err != nil {
 		t.Fatalf("SetLogDirForProcess: %v", err)
 	}
-	if err := SetLogVerbosity(LogVerbosityDetail); err != nil {
+	if err := SetLogVerbosity(LogVerbosityTrace); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
 
@@ -95,8 +95,8 @@ func TestDiagnosticManifestNamesItsOwnProcessLogRoot(t *testing.T) {
 	}
 	// what the reader can expect to find: at the default level none of the
 	// V(1) contract or transport lines were written at all
-	if decoded["manifest_log_verbosity"] != float64(LogVerbosityDetail) {
-		t.Errorf("manifest_log_verbosity = %v, want %d", decoded["manifest_log_verbosity"], LogVerbosityDetail)
+	if decoded["manifest_log_verbosity"] != float64(LogVerbosityTrace) {
+		t.Errorf("manifest_log_verbosity = %v, want %d", decoded["manifest_log_verbosity"], LogVerbosityTrace)
 	}
 }
 
@@ -127,7 +127,7 @@ func TestExportDiagnosticBundleManifestNamesTheRootEachSourceWasReadFrom(t *test
 	if err := SetLogDirForProcess(exportRoot, "app"); err != nil {
 		t.Fatalf("SetLogDirForProcess: %v", err)
 	}
-	if err := SetLogVerbosity(LogVerbosityTrace); err != nil {
+	if err := SetLogVerbosity(LogVerbosityVerbose); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
 
@@ -158,8 +158,8 @@ func TestExportDiagnosticBundleManifestNamesTheRootEachSourceWasReadFrom(t *test
 	if manifest["export_log_root"] != exportRoot {
 		t.Errorf("export_log_root = %v, want %q", manifest["export_log_root"], exportRoot)
 	}
-	if manifest["export_log_verbosity"] != float64(LogVerbosityTrace) {
-		t.Errorf("export_log_verbosity = %v, want %d", manifest["export_log_verbosity"], LogVerbosityTrace)
+	if manifest["export_log_verbosity"] != float64(LogVerbosityVerbose) {
+		t.Errorf("export_log_verbosity = %v, want %d", manifest["export_log_verbosity"], LogVerbosityVerbose)
 	}
 
 	sources, ok := manifest["sources"].([]any)

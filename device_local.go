@@ -6567,8 +6567,8 @@ func (self *DeviceLocal) FlushGlog() {
 // SetLogVerbosity sets the glog verbosity of the process this device runs in.
 //
 // On ios that is the network extension: the process that runs the transport
-// and writes the [contract], [multi] and [s] lines a diagnostic bundle is
-// collected for. An app in another process reaches this through
+// and writes the [contract], [multi] and [s] lines the logs are being raised
+// for. An app in another process reaches this through
 // DeviceRemote.SetLogVerbosity, which sets both.
 func (self *DeviceLocal) SetLogVerbosity(level int) {
 	if self.hostedIncompatibleGuarded("SetLogVerbosity") {
@@ -6600,7 +6600,7 @@ func (self *DeviceLocal) GetLogVerbosity() int {
 	return GetLogVerbosity()
 }
 
-// zipEntryWriter writes one entry into an open zip. transform, when non-nil,
+// zipWriteEntry writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.
 //
@@ -6608,8 +6608,9 @@ func (self *DeviceLocal) GetLogVerbosity() int {
 // from it via zip.FileInfoHeader so the entry keeps the file's real
 // Modified time and permission bits, with only Name and Method overridden.
 // fi is nil for synthetic entries with no backing file (manifest.json,
-// README.txt, files under platform/), which instead get Modified set to time.Now() so
-// they carry a real date rather than zip's 1979 zero-value sentinel.
+// README.txt, files under platform/), which instead get Modified set to
+// time.Now() so they carry a real date rather than zip's 1979 zero-value
+// sentinel.
 func zipWriteEntry(zipWriter *zip.Writer, name string, r io.Reader, fi os.FileInfo, transform func(string) string) error {
 	var hdr *zip.FileHeader
 	if fi != nil {

@@ -109,8 +109,8 @@ var (
 //
 // This is the guard that lets the patterns be generous. Timestamps, bracketed
 // counters, hex-looking tags and byte slices that are not addresses reach it
-// and are rejected, which is what the spec means by "timestamps, component
-// tags, counters and message structure survive verbatim".
+// and are rejected, so timestamps, component tags, counters and message
+// structure survive verbatim.
 func matchAddr(match string) (netip.Addr, bool) {
 	if addr, ok := addrFromByteList(match); ok {
 		return addr, true

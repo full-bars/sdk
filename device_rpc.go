@@ -5673,10 +5673,10 @@ func (self *DeviceRemote) FlushGlog() {
 // the device process over the rpc -- or, when the rpc cannot carry it now, on
 // the next sync.
 //
-// Both, for the same reason FlushGlog does both: the app is where the level is
-// chosen and displayed, and the extension is where the logs that justify
-// raising it are produced. Setting only the app's would leave the user looking
-// at a "verbose" switch that changes nothing in the bundle.
+// Both, because the app is where the level is chosen and displayed, and the
+// extension is where the logs that justify raising it are produced. Setting
+// only the app's would leave the user looking at a "verbose" switch that
+// changes nothing in the logs they go on to upload.
 //
 // Persisting is NOT how the level reaches the device process. On ios the two
 // processes keep separate local states -- each one's storage path is its own
@@ -5897,20 +5897,25 @@ type DevicePerformanceProfile struct {
 	PerformanceProfile *PerformanceProfile
 }
 
+// DeviceRemoteState is the state a DeviceRemote replays to the device process
+// on the next sync, for calls the rpc could not carry when they were made.
+//
+// LogVerbosity is worth calling out here rather than in the field list, which
+// gofmt keeps as one aligned run: on ios the device process is the network
+// extension, whose glog state and whose persisted copy of the level are both
+// its own, so the queued value is the only thing that carries a newly chosen
+// level across. See `DeviceRemote.SetLogVerbosity`.
+//
 //gomobile:noexport
 type DeviceRemoteState struct {
 	// thick state + last known state
 
-	CanShowRatingDialog  deviceRemoteValue[bool]
-	CanPromptIntroFunnel deviceRemoteValue[bool]
-	ProvideControlMode   deviceRemoteValue[ProvideControlMode]
-	CanRefer             deviceRemoteValue[bool]
-	AllowForeground      deviceRemoteValue[bool]
-	RouteLocal           deviceRemoteValue[bool]
-	// the glog verbosity, queued for the device process. On ios that is the
-	// network extension, whose glog state and whose persisted copy of the
-	// level are both its own, so this queued value is the only thing that
-	// carries a newly chosen level across. See `DeviceRemote.SetLogVerbosity`.
+	CanShowRatingDialog      deviceRemoteValue[bool]
+	CanPromptIntroFunnel     deviceRemoteValue[bool]
+	ProvideControlMode       deviceRemoteValue[ProvideControlMode]
+	CanRefer                 deviceRemoteValue[bool]
+	AllowForeground          deviceRemoteValue[bool]
+	RouteLocal               deviceRemoteValue[bool]
 	LogVerbosity             deviceRemoteValue[int]
 	BlockerEnabled           deviceRemoteValue[bool]
 	InitProvideSecretKeys    deviceRemoteValue[bool]

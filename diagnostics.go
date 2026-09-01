@@ -88,7 +88,7 @@ const logRootSourceName = "log root"
 // recorded as missing, so a user whose Logs/extension directory had become
 // unreadable got a zip with an empty NOT INCLUDED block and an ExportResult
 // reporting zero missing sources, while a whole process's logs were absent.
-// The spec's degradation promise is that a source that cannot be read is
+// The rule this export holds to is that a source that cannot be read is
 // recorded as missing, never silently dropped.
 func logInventory() (*LogFileInfoList, []unreadableSource, map[string]string) {
 	inventory := NewLogFileInfoList()
@@ -372,7 +372,7 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 			// error partway through a file, or a line past the redaction
 			// scanner's 4 MiB cap (a corrupt or non-newline-terminated file),
 			// used to abort here and return with a truncated zip still on
-			// disk. The spec makes only an unwritable destination fatal;
+			// disk. Only an unwritable destination is fatal;
 			// everything else is reported. Whatever was copied stays in the
 			// archive as a valid entry, and the file is named as incomplete
 			// rather than counted as exported.
@@ -502,7 +502,7 @@ const (
 )
 
 // manifestSourceAvailability is one entry of the manifest's per-source
-// availability list, in the shape the spec names:
+// availability list:
 // {"source": "extension", "available": false, "reason": "app group container
 // unavailable"}.
 type manifestSourceAvailability struct {
@@ -600,8 +600,8 @@ func (self *exportSourceReport) all() []manifestSourceAvailability {
 // addExportMetadata merges what the sdk knows about THIS export into the
 // manifest body the platform supplied.
 //
-// The spec defines manifest.json as the DiagnosticManifestJson output plus
-// export metadata, and three of those fields are safety-relevant: the mode, so
+// manifest.json is the DiagnosticManifestJson output plus export metadata,
+// and three of those fields are safety-relevant: the mode, so
 // a reader can tell a redacted bundle from a raw one without parsing English
 // out of README.txt; the per-source availability list, so a source that was
 // unreachable is distinguishable from a source that had nothing to say; and
@@ -611,8 +611,8 @@ func (self *exportSourceReport) all() []manifestSourceAvailability {
 // augments the manifest, so if the sdk does not add these they exist nowhere
 // machine-readable in the bundle.
 //
-// The spec's remaining manifest fields -- app version and build, os version,
-// device model -- are deliberately not here. The sdk cannot know them, and
+// The other fields a support engineer would want -- app version and build,
+// os version, device model -- are deliberately not here. The sdk cannot know them, and
 // inventing them would put wrong values in the one file support trusts;
 // carrying them needs new api surface on both platforms to inject them.
 func addExportMetadata(manifestJson string, redact bool, sources []manifestSourceAvailability) (string, error) {

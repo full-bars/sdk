@@ -46,8 +46,8 @@ func TestLogVerbosityTakesEffectAtRuntime(t *testing.T) {
 		wantV2 bool
 	}{
 		{LogVerbosityDefault, false, false},
-		{LogVerbosityTrace, true, false},
-		{LogVerbosityDetail, true, true},
+		{LogVerbosityVerbose, true, false},
+		{LogVerbosityTrace, true, true},
 		// and back down again: raising verbosity for a repro must be
 		// reversible in the same process
 		{LogVerbosityDefault, false, false},
@@ -74,7 +74,7 @@ func TestLogVerbosityClampsOutOfRange(t *testing.T) {
 	if err := SetLogVerbosity(7); err != nil {
 		t.Fatalf("SetLogVerbosity(7) = %v, want nil", err)
 	}
-	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityTrace)
 	// clamped, not merely reported as clamped: V(7) must be off, or the
 	// process is logging at a level nothing in `connect` writes at while
 	// every V() call site pays for the check
@@ -90,7 +90,7 @@ func TestLogVerbosityClampsOutOfRange(t *testing.T) {
 
 // TestDeviceLocalSetLogVerbosity: the device-level setter raises the process
 // it runs in, which on ios is the network extension -- the process that writes
-// the contract and transport lines a bundle is collected for.
+// the contract and transport lines the level is raised for.
 func TestDeviceLocalSetLogVerbosity(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
@@ -102,9 +102,9 @@ func TestDeviceLocalSetLogVerbosity(t *testing.T) {
 
 	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityDefault)
 
-	device.SetLogVerbosity(LogVerbosityDetail)
-	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityDetail)
-	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDetail)
+	device.SetLogVerbosity(LogVerbosityTrace)
+	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityTrace)
+	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityTrace)
 	connect.AssertEqual(t, connect.NewGlogLogger().V(2).Enabled(), true)
 }
 
@@ -123,7 +123,7 @@ func TestDeviceLocalHostedSetLogVerbosityIsIgnored(t *testing.T) {
 		settings: &DeviceLocalSettings{HostedIncompatible: true},
 		log:      connect.NewNoopLogger(),
 	}
-	hosted.SetLogVerbosity(LogVerbosityDetail)
+	hosted.SetLogVerbosity(LogVerbosityTrace)
 
 	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityDefault)
 }
@@ -237,7 +237,7 @@ func TestDeviceRemoteSetLogVerbosityCrossesToTheDeviceProcess(t *testing.T) {
 	}
 	connect.AssertEqual(t, localSpaceState.GetLogVerbosity(), LogVerbosityDefault)
 
-	deviceRemote.SetLogVerbosity(LogVerbosityDetail)
+	deviceRemote.SetLogVerbosity(LogVerbosityTrace)
 
 	// delivered over the live rpc, not left for a later sync
 	deviceRemote.stateLock.Lock()
@@ -247,10 +247,10 @@ func TestDeviceRemoteSetLogVerbosityCrossesToTheDeviceProcess(t *testing.T) {
 		t.Fatal("the level is queued for a later sync, so the connected device never received it")
 	}
 
-	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityTrace)
 	// the device recorded it in ITS OWN storage, which only the device side
 	// writes -- the crossing, observed from the far end
-	if !testing_awaitPersistedLogVerbosity(t, localSpaceState, LogVerbosityDetail) {
+	if !testing_awaitPersistedLogVerbosity(t, localSpaceState, LogVerbosityTrace) {
 		t.Fatal("the device process never recorded the level, so nothing crossed the rpc")
 	}
 }
@@ -263,7 +263,7 @@ func TestDeviceRemoteSetLogVerbosityCrossesToTheDeviceProcess(t *testing.T) {
 // each read their own Documents container -- only the app group is shared, and
 // this repo uses it for logs alone -- so the level the app wrote is a file the
 // extension never opens, and the tunnel comes up at 0 and captures none of the
-// V(1) contract and transport lines the export exists for. The queued sync
+// V(1) contract and transport lines the raise exists for. The queued sync
 // state is what carries it, so this test starts the device AFTER the set and
 // checks the DEVICE's own storage.
 func TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect(t *testing.T) {
@@ -296,7 +296,7 @@ func TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect(t *testing.T) {
 	defer deviceRemote.Close()
 	connect.AssertEqual(t, deviceRemote.GetRemoteConnected(), false)
 
-	deviceRemote.SetLogVerbosity(LogVerbosityTrace)
+	deviceRemote.SetLogVerbosity(LogVerbosityVerbose)
 
 	// with no service to take the call the level is queued, which is the only
 	// thing that will reach the device process
@@ -304,7 +304,7 @@ func TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect(t *testing.T) {
 	queued := deviceRemote.state.LogVerbosity
 	deviceRemote.stateLock.Unlock()
 	connect.AssertEqual(t, queued.IsSet, true)
-	connect.AssertEqual(t, queued.Value, LogVerbosityTrace)
+	connect.AssertEqual(t, queued.Value, LogVerbosityVerbose)
 
 	// stand in for the tunnel process starting: a fresh device, whose own
 	// storage has never held a level, in a process reset to 0
@@ -325,10 +325,10 @@ func TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect(t *testing.T) {
 		t.Fatal("device remote did not sync after the device came up")
 	}
 
-	if !testing_awaitPersistedLogVerbosity(t, localSpaceState, LogVerbosityTrace) {
+	if !testing_awaitPersistedLogVerbosity(t, localSpaceState, LogVerbosityVerbose) {
 		t.Fatal("the tunnel came up at the default level, so the session being reproduced captures nothing")
 	}
-	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityTrace)
+	connect.AssertEqual(t, deviceLocal.GetLogVerbosity(), LogVerbosityVerbose)
 }
 
 // A level the app restored from its own storage is re-queued for the device
@@ -336,7 +336,7 @@ func TestDeviceRemoteLogVerbosityQueuedWhileDownCrossesOnConnect(t *testing.T) {
 // files in separate containers on ios, so a reinstall, a cleared extension
 // container, or simply a level chosen against one tunnel and carried across an
 // app relaunch would otherwise leave the extension at 0 while the app reports
-// -- and the exported manifest claims -- the level the user chose.
+// the level the user chose.
 func TestDeviceRemoteRestoredLogVerbosityIsQueuedForTheDevice(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
@@ -349,7 +349,7 @@ func TestDeviceRemoteRestoredLogVerbosityIsQueuedForTheDevice(t *testing.T) {
 	}
 
 	// the level a previous app session chose
-	if err := networkSpace.GetAsyncLocalState().GetLocalState().SetLogVerbosity(LogVerbosityDetail); err != nil {
+	if err := networkSpace.GetAsyncLocalState().GetLocalState().SetLogVerbosity(LogVerbosityTrace); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
 	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
@@ -371,13 +371,13 @@ func TestDeviceRemoteRestoredLogVerbosityIsQueuedForTheDevice(t *testing.T) {
 	}
 	defer deviceRemote.Close()
 
-	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityTrace)
 
 	deviceRemote.stateLock.Lock()
 	queued := deviceRemote.state.LogVerbosity
 	deviceRemote.stateLock.Unlock()
 	connect.AssertEqual(t, queued.IsSet, true)
-	connect.AssertEqual(t, queued.Value, LogVerbosityDetail)
+	connect.AssertEqual(t, queued.Value, LogVerbosityTrace)
 }
 
 // SetLogVerbosity is exported to gomobile and to the C ABI, and inside the sdk
@@ -392,7 +392,7 @@ func TestDeviceRemoteRestoredLogVerbosityIsQueuedForTheDevice(t *testing.T) {
 func TestSetLogVerbosityIsSafeForConcurrentUse(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
-	levels := []int{LogVerbosityDefault, LogVerbosityTrace, LogVerbosityDetail}
+	levels := []int{LogVerbosityDefault, LogVerbosityVerbose, LogVerbosityTrace}
 
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i += 1 {
@@ -413,10 +413,10 @@ func TestSetLogVerbosityIsSafeForConcurrentUse(t *testing.T) {
 	wg.Wait()
 
 	// still a coherent level, and still the one last written
-	if err := SetLogVerbosity(LogVerbosityTrace); err != nil {
+	if err := SetLogVerbosity(LogVerbosityVerbose); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
-	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityTrace)
+	connect.AssertEqual(t, GetLogVerbosity(), LogVerbosityVerbose)
 }
 
 // TestLocalStateLogVerbosityRoundTrip: the level survives the process, which
@@ -429,17 +429,17 @@ func TestLocalStateLogVerbosityRoundTrip(t *testing.T) {
 	// unset reads as the level a process starts at anyway
 	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDefault)
 
-	if err := localState.SetLogVerbosity(LogVerbosityDetail); err != nil {
+	if err := localState.SetLogVerbosity(LogVerbosityTrace); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
-	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityTrace)
 
 	// a level from a future build with a wider range must not read back as a
 	// level this build does not honor
 	if err := localState.SetLogVerbosity(9); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
-	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityTrace)
 
 	// a corrupt file is not a reason to start a process logging at an unknown
 	// level
@@ -452,9 +452,9 @@ func TestLocalStateLogVerbosityRoundTrip(t *testing.T) {
 
 // TestDeviceLocalLogVerbosityPersistRestore is the user's actual workflow:
 // raise the level, reproduce the bug -- which means reconnecting -- then
-// export. The reconnect starts a new tunnel process whose initGlog resets the
-// level to 0, so without the restore the session being captured is the one
-// session that is not captured.
+// upload the logs. The reconnect starts a new tunnel process whose initGlog
+// resets the level to 0, so without the restore the session being captured is
+// the one session that is not captured.
 func TestDeviceLocalLogVerbosityPersistRestore(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
@@ -471,10 +471,10 @@ func TestDeviceLocalLogVerbosityPersistRestore(t *testing.T) {
 	connect.AssertEqual(t, localState.GetLogVerbosity(), LogVerbosityDefault)
 
 	// the set persists asynchronously to local state
-	device.SetLogVerbosity(LogVerbosityDetail)
+	device.SetLogVerbosity(LogVerbosityTrace)
 	persisted := false
 	for i := 0; i < 100; i += 1 {
-		if localState.GetLogVerbosity() == LogVerbosityDetail {
+		if localState.GetLogVerbosity() == LogVerbosityTrace {
 			persisted = true
 			break
 		}
@@ -491,13 +491,12 @@ func TestDeviceLocalLogVerbosityPersistRestore(t *testing.T) {
 
 	restored := testing_newBlockDeviceWithNetworkSpace(t, networkSpace, byJwt, false)
 	defer restored.Close()
-	connect.AssertEqual(t, restored.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, restored.GetLogVerbosity(), LogVerbosityTrace)
 }
 
 // TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown covers what the APP
 // process keeps for itself while the tunnel is down: the level it restores at
-// its own next launch, and the one it reports and stamps into the exported
-// manifest in the meantime.
+// its own next launch, and the one it reports in the meantime.
 //
 // It is deliberately not the crossing. This local state is the app's own
 // container on ios, and the extension never reads it -- what puts the level in
@@ -518,7 +517,7 @@ func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 
 	// a level chosen in an earlier session, and an app process that has just
 	// restarted: initGlog has reset this process to 0
-	if err := localState.SetLogVerbosity(LogVerbosityDetail); err != nil {
+	if err := localState.SetLogVerbosity(LogVerbosityTrace); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
 	if err := setLogVerbosityFlag(LogVerbosityDefault); err != nil {
@@ -546,17 +545,17 @@ func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 	// the remote restores the persisted level into the app process too, so
 	// what the app reports is what the extension it is about to start will be
 	// logging at, rather than the 0 this process was reset to
-	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityTrace)
 
-	deviceRemote.SetLogVerbosity(LogVerbosityTrace)
+	deviceRemote.SetLogVerbosity(LogVerbosityVerbose)
 
 	// the app process is raised immediately, so its own lines match the level
-	// the bundle will report
-	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityTrace)
+	// it reports
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityVerbose)
 
 	persisted := false
 	for i := 0; i < 100; i += 1 {
-		if localState.GetLogVerbosity() == LogVerbosityTrace {
+		if localState.GetLogVerbosity() == LogVerbosityVerbose {
 			persisted = true
 			break
 		}
@@ -571,10 +570,10 @@ func TestDeviceRemoteSetLogVerbosityPersistsWithTheTunnelDown(t *testing.T) {
 // must never be sent to it, nor left queued for the next sync to send.
 //
 // This process is a different matter. It is the client's own, its level is
-// already raised on the spot, and it is the level the exported manifest
-// reports -- so it is recorded and restored like anywhere else. Guarding the
-// record too would leave the platform client showing a level it silently
-// forgets at the next reload.
+// already raised on the spot, and it is the level it reports -- so it is
+// recorded and restored like anywhere else. Guarding the record too would
+// leave the platform client showing a level it silently forgets at the next
+// reload.
 func TestDeviceRemoteHostedSetLogVerbosityStopsAtThisProcess(t *testing.T) {
 	restoreTestingLogVerbosity(t)
 
@@ -619,10 +618,10 @@ func TestDeviceRemoteHostedSetLogVerbosityStopsAtThisProcess(t *testing.T) {
 	}
 
 	deviceRemote := newHostedRemote()
-	deviceRemote.SetLogVerbosity(LogVerbosityDetail)
+	deviceRemote.SetLogVerbosity(LogVerbosityTrace)
 
-	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityDetail)
-	if !testing_awaitPersistedLogVerbosity(t, localState, LogVerbosityDetail) {
+	connect.AssertEqual(t, deviceRemote.GetLogVerbosity(), LogVerbosityTrace)
+	if !testing_awaitPersistedLogVerbosity(t, localState, LogVerbosityTrace) {
 		t.Fatal("the client did not record its own level, so it reports one it does not keep")
 	}
 	if queuedForTheDevice(deviceRemote) {
@@ -635,7 +634,7 @@ func TestDeviceRemoteHostedSetLogVerbosityStopsAtThisProcess(t *testing.T) {
 		t.Fatalf("setLogVerbosityFlag: %v", err)
 	}
 	relaunched := newHostedRemote()
-	connect.AssertEqual(t, relaunched.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, relaunched.GetLogVerbosity(), LogVerbosityTrace)
 	if queuedForTheDevice(relaunched) {
 		t.Fatal("the restored level is queued for a hosted device, which the guard exists to prevent")
 	}
@@ -657,12 +656,12 @@ func TestDeviceLocalRestoreLeavesAnUnsetVerbosityAlone(t *testing.T) {
 	}
 
 	// the embedder's own choice, made before any device exists
-	if err := SetLogVerbosity(LogVerbosityDetail); err != nil {
+	if err := SetLogVerbosity(LogVerbosityTrace); err != nil {
 		t.Fatalf("SetLogVerbosity: %v", err)
 	}
 
 	device := testing_newBlockDeviceWithNetworkSpace(t, networkSpace, byJwt, false)
 	defer device.Close()
 
-	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityDetail)
+	connect.AssertEqual(t, device.GetLogVerbosity(), LogVerbosityTrace)
 }
