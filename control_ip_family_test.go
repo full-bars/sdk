@@ -542,3 +542,56 @@ func awaitPersistedControlIpFamilyPolicy(t *testing.T, localState *LocalState, w
 	}
 	return false
 }
+
+// A space with nothing persisted must not spend the manager's one restore.
+//
+// Two configured spaces is the normal case on this branch -- a custom api host
+// alongside the production one -- and only one of them need ever have had a
+// policy written. If the guard were spent by the first space the restore was
+// offered, regardless of whether it applied anything, the space that DOES hold
+// the user's force would never get to restore it: the process would keep
+// dialing that space's api host under whatever the other space's silence left
+// in place, until the next launch.
+func TestASpaceWithNoPersistedPolicyDoesNotSpendTheRestore(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	storagePath := t.TempDir()
+	// the bundled space, active at boot, with no policy ever written
+	bundledKey := *NewNetworkSpaceKey("bringyour.com", "main")
+	// the custom space, holding the force from an earlier session
+	customKey := *NewNetworkSpaceKey("custom.example", "main")
+
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &customKey, IpFamilyPolicyForce6)
+	writeNetworkSpaceIndex(t, storagePath, []NetworkSpaceKey{bundledKey, customKey}, &bundledKey)
+
+	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+	networkSpaceManager := newNetworkSpaceManagerWithContext(ctx, storagePath)
+	defer networkSpaceManager.Close()
+
+	// the active space has nothing to say, so nothing changes -- and nothing
+	// is spent either
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyAuto {
+		t.Fatalf("policy is %d after construction, want auto -- the bundled space has no policy to restore", got)
+	}
+
+	// the in-session switch: android NetworkServerSelector, ios
+	// setActiveNetworkSpace
+	networkSpaceManager.SetActiveNetworkSpace(networkSpaceManager.GetNetworkSpace(&customKey))
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyForce6 {
+		t.Fatalf("policy is %d after switching to the custom space, want force6 -- "+
+			"the space with no persisted policy spent the restore", got)
+	}
+
+	// and now that a policy HAS been applied the guard is closed: the bug the
+	// guard exists for must not come back with it
+	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+	networkSpaceManager.SetActiveNetworkSpace(networkSpaceManager.GetNetworkSpace(&bundledKey))
+	networkSpaceManager.SetActiveNetworkSpace(networkSpaceManager.GetNetworkSpace(&customKey))
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyAuto {
+		t.Fatalf("policy is %d after re-selecting the custom space, want auto -- "+
+			"a restore re-fired over a value set at runtime", got)
+	}
+}

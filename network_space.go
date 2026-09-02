@@ -466,18 +466,24 @@ func (self *NetworkSpace) SetControlIpFamilyPolicy(policy int) {
 }
 
 // restoreControlIpFamilyPolicy applies this space's persisted control-plane ip
-// family policy to this process.
+// family policy to this process, and reports whether there was one to apply.
 //
 // Only the manager calls this, and only once per manager (see
 // `NetworkSpaceManager.restoreControlIpFamilyPolicyOnce`): the policy is
 // process-global while the persisted copy is per-space, so restoring from
 // every constructed space would let whichever space happened to be built last
 // decide what the process dials under.
-func (self *NetworkSpace) restoreControlIpFamilyPolicy() {
+//
+// The bool is what the manager's guard is spent on. A space with no local
+// storage, or one that has never had a policy written, changes nothing here --
+// and a guard spent on it would be a guard the space that DOES have a policy
+// never gets.
+func (self *NetworkSpace) restoreControlIpFamilyPolicy() bool {
 	if self.asyncLocalState == nil {
-		return
+		return false
 	}
-	applyPersistedControlIpFamilyPolicy(self.asyncLocalState.GetLocalState(), self.log)
+	_, applied := applyPersistedControlIpFamilyPolicy(self.asyncLocalState.GetLocalState(), self.log)
+	return applied
 }
 
 func (self *NetworkSpace) close() {
@@ -533,7 +539,11 @@ type NetworkSpaceManager struct {
 
 	// the control ip family policy is restored from ONE space, ONCE per
 	// manager. See restoreControlIpFamilyPolicyOnce.
-	controlIpFamilyPolicyRestore sync.Once
+	//
+	// Its own lock, not stateLock: `load` and `updateNetworkSpace` both call
+	// the restore while holding stateLock, and sync.Mutex is not reentrant.
+	controlIpFamilyPolicyRestoreLock sync.Mutex
+	controlIpFamilyPolicyRestored    bool
 }
 
 // restoreControlIpFamilyPolicyOnce applies networkSpace's persisted
@@ -559,11 +569,32 @@ type NetworkSpaceManager struct {
 // second case is the ios packet tunnel extension, which imports its space and
 // never selects an active one -- gating purely on the active space would leave
 // the extension dialing under Auto until the app's device rpc reached it.
+//
+// The guard is spent only when a policy was ACTUALLY applied. A space with
+// nothing persisted applies nothing, so letting it spend the guard would let
+// it decide the process's policy by silence: with a custom api host
+// configured alongside the production one -- two spaces, the normal case on
+// this branch -- the bundled space with no policy is routinely the first one
+// the restore sees, and it would leave the space that does have one unable to
+// restore it for the rest of the session.
+//
+// Once a policy IS applied the guard is closed for good, which is the half
+// this must not lose: `updateNetworkSpace` rebuilds a space on every launch
+// and every custom-server import, and a second apply there would re-impose the
+// persisted value over one an embedder had just set through
+// `SetControlIpFamilyPolicy`.
 func (self *NetworkSpaceManager) restoreControlIpFamilyPolicyOnce(networkSpace *NetworkSpace) {
 	if networkSpace == nil {
 		return
 	}
-	self.controlIpFamilyPolicyRestore.Do(networkSpace.restoreControlIpFamilyPolicy)
+
+	self.controlIpFamilyPolicyRestoreLock.Lock()
+	defer self.controlIpFamilyPolicyRestoreLock.Unlock()
+
+	if self.controlIpFamilyPolicyRestored {
+		return
+	}
+	self.controlIpFamilyPolicyRestored = networkSpace.restoreControlIpFamilyPolicy()
 }
 
 func NewNetworkSpaceManagerNoStorage() *NetworkSpaceManager {
@@ -781,8 +812,10 @@ func (self *NetworkSpaceManager) SetActiveNetworkSpace(networkSpace *NetworkSpac
 		// the first selection is a restore point too: a fresh install, or one
 		// whose `.network_spaces` was unreadable, has no active space when the
 		// manager is built and gets one here, still before any api request.
-		// The once guard is what keeps a LATER re-selection from re-imposing a
-		// persisted policy over one set at runtime.
+		// It is also the point an in-session space switch reaches, so a space
+		// whose policy has never been restored still gets to restore it.
+		// The once guard is what keeps a re-selection made AFTER a policy was
+		// applied from re-imposing a persisted one over one set at runtime.
 		self.restoreControlIpFamilyPolicyOnce(self.GetActiveNetworkSpace())
 		self.store()
 		self.activeNetworkSpaceChanged(self.GetActiveNetworkSpace())
