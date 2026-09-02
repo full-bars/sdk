@@ -777,6 +777,24 @@ type Device interface {
 	// Device is answering from. The policy alone, never a learned demotion.
 	GetControlIpFamilyPolicy() int
 
+	// GetControlIpFamilyStatus describes any family the DIALING process has
+	// demoted after a proven post-connect failure, and is empty when there is
+	// none. For a developer ui's detail line: without it, Auto reads
+	// identically whether the heuristic has fired or not.
+	//
+	// The learned memory, never the policy -- the two are separate state and
+	// never mix, so a row can still round-trip exactly what was set.
+	//
+	// This is the one member of the family pair that DeviceRemote cannot
+	// answer locally. The policy is set in both processes together, so the
+	// local copy is the answer; a demotion is learned independently in
+	// whichever process dialed, and on ios that is the network extension
+	// whenever the tunnel is up. DeviceRemote therefore asks the device
+	// process and falls back to its own ledger, which is the right answer when
+	// there is no device process to ask: with the tunnel down, this process is
+	// the one dialing.
+	GetControlIpFamilyStatus() string
+
 	RefreshToken(attempt int) error
 
 	SetPerformanceProfile(performanceProfile *PerformanceProfile)

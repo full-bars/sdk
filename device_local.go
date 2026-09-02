@@ -6639,6 +6639,17 @@ func (self *DeviceLocal) GetControlIpFamilyPolicy() int {
 	return GetControlIpFamilyPolicy()
 }
 
+// GetControlIpFamilyStatus describes any family this device's process has
+// demoted, and is empty when there is none.
+//
+// This process's own ledger, which is the whole point: on ios this is the
+// network extension, the process that dials the control plane while the tunnel
+// is up and therefore the only one that learns a demotion from it. The app
+// reaches this through DeviceRemote.GetControlIpFamilyStatus.
+func (self *DeviceLocal) GetControlIpFamilyStatus() string {
+	return GetControlIpFamilyStatus()
+}
+
 // zipWriteEntry writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.

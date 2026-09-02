@@ -11211,6 +11211,7 @@ public:
 	std::optional<ConnectedProviderLocationList> getConnectedProviderLocations() const;
 	std::optional<ContractStatus> getContractStatus() const;
 	int64_t getControlIpFamilyPolicy() const;
+	std::string getControlIpFamilyStatus() const;
 	std::optional<ConnectLocation> getDefaultLocation() const;
 	std::optional<DnsResolverSettings> getDnsResolverSettings() const;
 	bool getDone() const;
@@ -17120,6 +17121,10 @@ inline std::optional<ContractStatus> Device::getContractStatus() const {
 inline int64_t Device::getControlIpFamilyPolicy() const {
 	int64_t r = urnet_device_get_control_ip_family_policy(handle());
 	return r;
+}
+inline std::string Device::getControlIpFamilyStatus() const {
+	char* r_c = urnet_device_get_control_ip_family_status(handle());
+	return detail::takeString(r_c);
 }
 inline std::optional<ConnectLocation> Device::getDefaultLocation() const {
 	char* r_c = urnet_device_get_default_location(handle());

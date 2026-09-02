@@ -5880,6 +5880,49 @@ func (self *DeviceRemote) GetControlIpFamilyPolicy() int {
 	return GetControlIpFamilyPolicy()
 }
 
+// GetControlIpFamilyStatus describes any family the DIALING process has
+// demoted, and is empty when there is none.
+//
+// The one member of this pair that IS an rpc round trip, and the departure is
+// the whole reason the method exists. GetControlIpFamilyPolicy can answer
+// locally because SetControlIpFamilyPolicy sets both processes together, so
+// the two agree by construction. A demotion is not set, it is LEARNED, in
+// whichever process made the dial that failed -- on ios the network extension
+// whenever the tunnel is up, which is the regime the heuristic actually fires
+// in. Answering that from this process's ledger would report an empty string
+// while a demotion was in force, which is the state the detail line exists to
+// distinguish from Auto.
+//
+// The fallback is this process's own status rather than a cached last-known
+// value. With no service the tunnel is down and THIS process is the one
+// dialing, so its ledger is the correct answer, not a stale one; and a
+// demotion expires on a timer, so a cached string would be wrong in the
+// direction that matters -- reporting a narrowing that is no longer in force.
+func (self *DeviceRemote) GetControlIpFamilyStatus() string {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	status, success := func() (string, bool) {
+		if self.service == nil {
+			return "", false
+		}
+
+		status, err := rpcCallNoArg[string](
+			self.service,
+			"DeviceLocalRpc.GetControlIpFamilyStatus",
+			self.closeService,
+		)
+		if err != nil {
+			return "", false
+		}
+		return status, true
+	}()
+	if success {
+		return status
+	}
+	return GetControlIpFamilyStatus()
+}
+
 // *important rpc note* gob encoding cannot encode fields that are not exported
 // so our usual gomobile types that have private fields cannot be properly sent via rpc
 // for rpc we redefine these gomobile types so that they can be gob encoded
@@ -6262,6 +6305,12 @@ func (self *DeviceRemoteState) Merge(update *DeviceRemoteState) {
 // decodes `DeviceRemoteState.ControlIpFamilyPolicy` as a zero it never reads,
 // so the extension keeps dialing the family the user is stuck on while the
 // developer menu reads the force back as applied.
+//
+// Version 3 also covers `DeviceLocalRpc.GetControlIpFamilyStatus`. That one is
+// a VALUE call, and only the void call has an allow-missing variant, so a local
+// that lacks the method answers "rpc: can't find method" and the remote tears
+// the session down. Adding a value method to an ALREADY SHIPPED version is
+// therefore a bump, not the free addition an optional gob field would be.
 const DeviceRpcVersion = 3
 
 //gomobile:noexport
@@ -10482,6 +10531,11 @@ func (self *DeviceLocalRpc) SetLogVerbosity(level int, _ RpcVoid) error {
 
 func (self *DeviceLocalRpc) SetControlIpFamilyPolicy(policy int, _ RpcVoid) error {
 	self.deviceLocal.SetControlIpFamilyPolicy(policy)
+	return nil
+}
+
+func (self *DeviceLocalRpc) GetControlIpFamilyStatus(_ RpcNoArg, status *string) error {
+	*status = self.deviceLocal.GetControlIpFamilyStatus()
 	return nil
 }
 

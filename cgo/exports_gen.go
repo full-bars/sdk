@@ -6173,6 +6173,17 @@ func urnet_device_get_control_ip_family_policy(self C.uint64_t) C.int64_t {
 	return C.int64_t(r0)
 }
 
+//export urnet_device_get_control_ip_family_status
+func urnet_device_get_control_ip_family_status(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_get_control_ip_family_status")
+	self_, ok := resolveHandle[sdk.Device](uint64(self), "urnet_device_get_control_ip_family_status")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetControlIpFamilyStatus()
+	return cString(string(r0))
+}
+
 //export urnet_device_get_default_location
 func urnet_device_get_default_location(self C.uint64_t) *C.char {
 	defer cgoGuard("urnet_device_get_default_location")

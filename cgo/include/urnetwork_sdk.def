@@ -247,6 +247,7 @@ EXPORTS
 	urnet_device_get_connected_provider_locations
 	urnet_device_get_contract_status
 	urnet_device_get_control_ip_family_policy
+	urnet_device_get_control_ip_family_status
 	urnet_device_get_default_location
 	urnet_device_get_dns_resolver_settings
 	urnet_device_get_done

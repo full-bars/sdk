@@ -595,3 +595,46 @@ func TestASpaceWithNoPersistedPolicyDoesNotSpendTheRestore(t *testing.T) {
 			"a restore re-fired over a value set at runtime", got)
 	}
 }
+
+// The status is the one half of the family pair that DeviceRemote cannot
+// answer from its own process, and this pins that it asks the device.
+//
+// The assertion is on the SESSION, not on the value. Both devices share this
+// test process, so they share connect's demotion ledger and the two answers
+// are equal whether the rpc was used or not -- but the rpc handler's argument
+// shape is a RUNTIME contract, not a compile-time one. RpcNoArg is `int`
+// (device_rpc.go), so a handler written with the wrong argument or result
+// shape still compiles, is still registered by net/rpc, and simply fails every
+// call -- and `rpcCallNoArg` hands that failure to `closeService`, which drops
+// the whole rpc session. The fallback then returns this process's own status
+// and the caller sees a plausible answer over a torn-down tunnel rpc.
+func TestDeviceRemoteControlIpFamilyStatusAsksTheDeviceProcess(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	deviceLocal, deviceRemote, _, _ := testing_newSyncedDeviceLocalRemoteSeparateSpaces(t, ctx)
+
+	status := deviceRemote.GetControlIpFamilyStatus()
+
+	if !deviceRemote.GetRemoteConnected() {
+		t.Fatal("the status call tore the rpc session down, so the device's ledger is unreachable " +
+			"and every later call falls back to the app process's own")
+	}
+	if status != deviceLocal.GetControlIpFamilyStatus() {
+		t.Fatalf("status is %q, want the device process's %q", status, deviceLocal.GetControlIpFamilyStatus())
+	}
+}
+
+// With no device process to ask, the answer is this process's own ledger --
+// which is the correct one, not a degraded one: the tunnel is down, so this
+// process is the one dialing the control plane.
+func TestDeviceRemoteControlIpFamilyStatusFallsBackToThisProcess(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+	deviceRemote := newTestDeviceRemoteWithNoService(t)
+
+	if got := deviceRemote.GetControlIpFamilyStatus(); got != GetControlIpFamilyStatus() {
+		t.Fatalf("status is %q with no service, want this process's %q", got, GetControlIpFamilyStatus())
+	}
+}

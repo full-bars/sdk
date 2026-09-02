@@ -733,6 +733,7 @@ char* urnet_device_get_connect_location(uint64_t self);
 char* urnet_device_get_connected_provider_locations(uint64_t self);
 char* urnet_device_get_contract_status(uint64_t self);
 int64_t urnet_device_get_control_ip_family_policy(uint64_t self);
+char* urnet_device_get_control_ip_family_status(uint64_t self);
 char* urnet_device_get_default_location(uint64_t self);
 char* urnet_device_get_dns_resolver_settings(uint64_t self);
 bool urnet_device_get_done(uint64_t self);
