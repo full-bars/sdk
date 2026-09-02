@@ -76,7 +76,7 @@ bool urnet_packet_batch_get(uint64_t self, int64_t index, uint8_t* out, int32_t*
 #define URNET_CONTRACT_STATUS_CLOSED "closed"
 #define URNET_CONTRACT_STATUS_OPEN "open"
 #define URNET_DESTINATION_SET "DESTINATION_SET"
-#define URNET_DEVICE_RPC_VERSION 2
+#define URNET_DEVICE_RPC_VERSION 3
 #define URNET_DEVICE_RPC_WS_BINARY 2
 #define URNET_DEVICE_RPC_WS_PING 9
 #define URNET_DISCONNECTED "DISCONNECTED"
