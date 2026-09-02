@@ -9087,6 +9087,20 @@ func urnet_get_color_hex(code *C.char) *C.char {
 	return cString(string(r0))
 }
 
+//export urnet_get_control_ip_family_policy
+func urnet_get_control_ip_family_policy() C.int64_t {
+	defer cgoGuard("urnet_get_control_ip_family_policy")
+	r0 := sdk.GetControlIpFamilyPolicy()
+	return C.int64_t(r0)
+}
+
+//export urnet_get_control_ip_family_status
+func urnet_get_control_ip_family_status() *C.char {
+	defer cgoGuard("urnet_get_control_ip_family_status")
+	r0 := sdk.GetControlIpFamilyStatus()
+	return cString(string(r0))
+}
+
 //export urnet_get_default_dns_resolver_settings
 func urnet_get_default_dns_resolver_settings() *C.char {
 	defer cgoGuard("urnet_get_default_dns_resolver_settings")
@@ -11670,6 +11684,12 @@ func urnet_service_url(key *C.char, values *C.char, scheme *C.char, service *C.c
 	}
 	r0 := sdk.ServiceUrl(key_, values_, goString(scheme), goString(service))
 	return cString(string(r0))
+}
+
+//export urnet_set_control_ip_family_policy
+func urnet_set_control_ip_family_policy(policy C.int64_t) {
+	defer cgoGuard("urnet_set_control_ip_family_policy")
+	sdk.SetControlIpFamilyPolicy(int(int64(policy)))
 }
 
 //export urnet_set_egress_interface_index

@@ -80,6 +80,9 @@ bool urnet_packet_batch_get(uint64_t self, int64_t index, uint8_t* out, int32_t*
 #define URNET_DEVICE_RPC_WS_BINARY 2
 #define URNET_DEVICE_RPC_WS_PING 9
 #define URNET_DISCONNECTED "DISCONNECTED"
+#define URNET_IP_FAMILY_POLICY_AUTO 0
+#define URNET_IP_FAMILY_POLICY_FORCE4 1
+#define URNET_IP_FAMILY_POLICY_FORCE6 2
 #define URNET_IP_PROTOCOL_TCP 2
 #define URNET_IP_PROTOCOL_UDP 1
 #define URNET_IP_PROTOCOL_UNKNOWN 0
@@ -1259,6 +1262,8 @@ uint64_t urnet_generate_device_rpc_key_material(char** out_error);
 char* urnet_generate_nonce(void);
 char* urnet_generate_wallet_key_pair(char** out_error);
 char* urnet_get_color_hex(const char* code);
+int64_t urnet_get_control_ip_family_policy(void);
+char* urnet_get_control_ip_family_status(void);
 char* urnet_get_default_dns_resolver_settings(void);
 char* urnet_get_default_probe_suite_config(void);
 char* urnet_get_default_tunnel_dns_address_ipv4(void);
@@ -1310,6 +1315,7 @@ char* urnet_public_identity_key_hash(const uint8_t* public_key, int32_t public_k
 int64_t urnet_purchase_report_backoff_millis(int64_t attempt);
 char* urnet_selectable_transport_modes(void);
 char* urnet_service_url(const char* key_json, const char* values_json, const char* scheme, const char* service);
+void urnet_set_control_ip_family_policy(int64_t policy);
 void urnet_set_egress_interface_index(int64_t index4, int64_t index6);
 bool urnet_set_log_dir(const char* log_dir, char** out_error);
 bool urnet_set_log_dir_for_process(const char* root, const char* process_name, char** out_error);

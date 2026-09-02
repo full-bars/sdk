@@ -161,6 +161,9 @@ inline constexpr int64_t DeviceRpcVersion = 2;
 inline constexpr int64_t DeviceRpcWsBinary = 2;
 inline constexpr int64_t DeviceRpcWsPing = 9;
 inline constexpr const char* Disconnected = "DISCONNECTED";
+inline constexpr int64_t IpFamilyPolicyAuto = 0;
+inline constexpr int64_t IpFamilyPolicyForce4 = 1;
+inline constexpr int64_t IpFamilyPolicyForce6 = 2;
 inline constexpr int64_t IpProtocolTcp = 2;
 inline constexpr int64_t IpProtocolUdp = 1;
 inline constexpr int64_t IpProtocolUnknown = 0;
@@ -20898,6 +20901,14 @@ inline std::string getColorHex(const std::string& code) {
 	char* r_c = urnet_get_color_hex(code.c_str());
 	return detail::takeString(r_c);
 }
+inline int64_t getControlIpFamilyPolicy() {
+	int64_t r = urnet_get_control_ip_family_policy();
+	return r;
+}
+inline std::string getControlIpFamilyStatus() {
+	char* r_c = urnet_get_control_ip_family_status();
+	return detail::takeString(r_c);
+}
 inline std::optional<DnsResolverSettings> getDefaultDnsResolverSettings() {
 	char* r_c = urnet_get_default_dns_resolver_settings();
 	auto r_s = detail::takeStringOpt(r_c);
@@ -21235,6 +21246,9 @@ inline std::string serviceUrl(const std::optional<NetworkSpaceKey>& key, const s
 	}
 	char* r_c = urnet_service_url(key_c, values_c, scheme.c_str(), service.c_str());
 	return detail::takeString(r_c);
+}
+inline void setControlIpFamilyPolicy(int64_t policy) {
+	urnet_set_control_ip_family_policy(policy);
 }
 inline void setEgressInterfaceIndex(int64_t index4, int64_t index6) {
 	urnet_set_egress_interface_index(index4, index6);

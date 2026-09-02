@@ -478,6 +478,8 @@ EXPORTS
 	urnet_generate_shared_secret
 	urnet_generate_wallet_key_pair
 	urnet_get_color_hex
+	urnet_get_control_ip_family_policy
+	urnet_get_control_ip_family_status
 	urnet_get_default_dns_resolver_settings
 	urnet_get_default_probe_suite_config
 	urnet_get_default_tunnel_dns_address_ipv4
@@ -684,6 +686,7 @@ EXPORTS
 	urnet_render_identicon_png
 	urnet_selectable_transport_modes
 	urnet_service_url
+	urnet_set_control_ip_family_policy
 	urnet_set_egress_interface_index
 	urnet_set_log_dir
 	urnet_set_log_dir_for_process
