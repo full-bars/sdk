@@ -6258,7 +6258,11 @@ func (self *DeviceRemoteState) Merge(update *DeviceRemoteState) {
 // NOT require a bump. A new field that represents required settable state does:
 // otherwise a new remote can report the setting as accepted while an old local
 // silently ignores it. Version 2 establishes the transport-settings contract.
-const DeviceRpcVersion = 2
+// Version 3 establishes the control-plane ip family contract: an old local
+// decodes `DeviceRemoteState.ControlIpFamilyPolicy` as a zero it never reads,
+// so the extension keeps dialing the family the user is stuck on while the
+// developer menu reads the force back as applied.
+const DeviceRpcVersion = 3
 
 //gomobile:noexport
 type DeviceRemoteSyncRequest struct {
