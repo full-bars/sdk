@@ -466,11 +466,17 @@ func clampIpFamilyPolicy(policy int) int {
 // applyPersistedControlIpFamilyPolicy restores the policy the user last chose
 // into THIS process, and reports whether there was one.
 //
-// Called from newNetworkSpaceWithConnectSettings, NOT from the Device
-// constructors where applyPersistedLogVerbosity is called. The login api call
-// is made before any Device exists, and for a user whose ipv6 path is broken
-// that is the call they are stuck on -- restoring at Device construction would
-// leave the setting inert for exactly the request it was set to fix.
+// Called from NetworkSpaceManager (see restoreControlIpFamilyPolicyOnce), NOT
+// from the Device constructors where applyPersistedLogVerbosity is called. The
+// login api call is made before any Device exists, and for a user whose ipv6
+// path is broken that is the call they are stuck on -- restoring at Device
+// construction would leave the setting inert for exactly the request it was
+// set to fix.
+//
+// Once per manager, from the space the manager is bound to. The runtime policy
+// is process-global while the persisted copy is per-space, so restoring from
+// every space the manager constructs would let the last one built win over the
+// active one.
 //
 // A nil localState (a network space with no local storage), or one with no
 // policy ever written, leaves the process dialing under whatever it already

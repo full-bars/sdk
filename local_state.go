@@ -417,8 +417,9 @@ func (self *LocalState) logVerbosityIfSet() (int, bool) {
 // Unlike the log verbosity, this one has to be restored BEFORE any device
 // exists: the login api call is made from the app process with no device, and
 // for the user this setting exists for that is the call that hangs. See
-// applyPersistedControlIpFamilyPolicy, which newNetworkSpaceWithConnectSettings
-// calls.
+// applyPersistedControlIpFamilyPolicy, which
+// NetworkSpaceManager.restoreControlIpFamilyPolicyOnce calls -- once, from the
+// active space, while the manager is still being built.
 func (self *LocalState) SetControlIpFamilyPolicy(policy int) error {
 	path := filepath.Join(self.localStorageDir, ".control_ip_family_policy")
 	policyBytes := []byte(fmt.Sprintf("%d", clampIpFamilyPolicy(policy)))

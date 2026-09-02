@@ -2,6 +2,9 @@ package sdk
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -60,6 +63,55 @@ func TestClampIpFamilyPolicy(t *testing.T) {
 	}
 }
 
+// seedPersistedControlIpFamilyPolicy writes a policy into the local storage of
+// one network space key, without going through a NetworkSpace: the restore
+// under test runs while the manager is being built, so anything that
+// constructs a space would run it before the seed was in place.
+func seedPersistedControlIpFamilyPolicy(t *testing.T, ctx context.Context, storagePath string, key *NetworkSpaceKey, policy int) {
+	t.Helper()
+	// envStoragePath owns the host/env directory layout (and creates it), so
+	// the seed lands where the manager's own space will look for it
+	seedManager := newNetworkSpaceManagerWithContext(ctx, storagePath)
+	envStoragePath := seedManager.envStoragePath(key)
+	seedManager.Close()
+	if err := newLocalState(ctx, envStoragePath).SetControlIpFamilyPolicy(policy); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeNetworkSpaceIndex writes the manager's stored index directly, in a
+// GIVEN order.
+//
+// `store` serializes the spaces out of a map, so the on-disk order is random.
+// A two-space test that relied on it would only catch the per-space restore
+// half the time. Writing the index by hand puts the ACTIVE space first and the
+// other last, which is the worst case for a restore that fires from every
+// constructed space: the last one built is the one that wins.
+func writeNetworkSpaceIndex(t *testing.T, storagePath string, keys []NetworkSpaceKey, active *NetworkSpaceKey) {
+	t.Helper()
+	networkSpaceStates := []*networkSpaceState{}
+	for _, key := range keys {
+		networkSpaceStates = append(networkSpaceStates, &networkSpaceState{
+			Key:    key,
+			Values: NetworkSpaceValues{},
+		})
+	}
+	stateBytes, err := json.Marshal(&networkSpaceManagerState{
+		NetworkSpaces: networkSpaceStates,
+		Active:        active,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(storagePath, ".network_spaces"),
+		stateBytes,
+		LocalStorageFilePermissions,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // THE departure from the log-verbosity template, and the reason for it.
 //
 // A user who forces IPv4, kills the app and relaunches hits the LOGIN api call
@@ -67,34 +119,144 @@ func TestClampIpFamilyPolicy(t *testing.T) {
 // log verbosity is restored from the two Device constructors, which would
 // leave this setting inert during the one request that matters -- while the
 // developer menu read back the correct value the whole time.
-func TestPolicyIsInForceAfterNetworkSpaceConstructionWithNoDevice(t *testing.T) {
+//
+// The assertion is made the instant the manager constructor returns: no
+// listener can have been registered yet, no Device exists, and the api token
+// manager's refresh worker parks until a Device calls StartJwtRefresh, so
+// nothing has been able to issue a request.
+func TestPolicyIsInForceAfterNetworkSpaceManagerConstructionWithNoDevice(t *testing.T) {
 	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
-	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	storagePath := t.TempDir()
-	localState := newLocalState(ctx, storagePath)
-	if err := localState.SetControlIpFamilyPolicy(IpFamilyPolicyForce4); err != nil {
-		t.Fatal(err)
-	}
+	key := *NewNetworkSpaceKey("example.test", "main")
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &key, IpFamilyPolicyForce4)
+	writeNetworkSpaceIndex(t, storagePath, []NetworkSpaceKey{key}, &key)
 
-	networkSpace := newNetworkSpace(
-		ctx,
-		*NewNetworkSpaceKey("example.test", "main"),
-		NetworkSpaceValues{
-			NetExposeServerIps:       true,
-			NetExposeServerHostNames: true,
-		},
-		storagePath,
-	)
-	defer networkSpace.close()
-	defer networkSpace.asyncLocalState.Close()
+	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+	networkSpaceManager := newNetworkSpaceManagerWithContext(ctx, storagePath)
+	defer networkSpaceManager.Close()
 
 	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyForce4 {
-		t.Fatalf("policy is %d after constructing a network space, want force4 -- "+
+		t.Fatalf("policy is %d after constructing the network space manager, want force4 -- "+
 			"the restore did not happen before the first api call could be made", got)
+	}
+}
+
+// The fresh-install and corrupt-index paths: the manager comes up with no
+// spaces at all, and the app creates the bundled space and activates it before
+// it reads a stored jwt. The restore still has to be in force by then, because
+// that is still before any Device exists.
+func TestPolicyIsInForceOnTheFirstSpaceWithNoStoredIndex(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	storagePath := t.TempDir()
+	key := *NewNetworkSpaceKey("example.test", "main")
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &key, IpFamilyPolicyForce6)
+
+	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+	networkSpaceManager := newNetworkSpaceManagerWithContext(ctx, storagePath)
+	defer networkSpaceManager.Close()
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyAuto {
+		t.Fatalf("policy is %d with no stored index, want auto -- nothing was bound yet", got)
+	}
+
+	networkSpace := networkSpaceManager.UpdateNetworkSpaceValues(&key, &NetworkSpaceValues{})
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyForce6 {
+		t.Fatalf("policy is %d after the bundled space was created, want force6", got)
+	}
+	networkSpaceManager.SetActiveNetworkSpace(networkSpace)
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyForce6 {
+		t.Fatalf("policy is %d after activating the space, want force6", got)
+	}
+}
+
+// The ACTIVE space's policy wins, not whichever space the manager happened to
+// construct last.
+//
+// This is the normal case on this branch, not an edge case: a custom api host
+// exists alongside the production one precisely so both are configured. The
+// manager builds EVERY stored space before it selects the active one, so a
+// restore that ran per space handed the process the last entry in the stored
+// slice -- here, deliberately, the space the user is not on.
+func TestTheActiveSpacesPersistedPolicyWins(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	storagePath := t.TempDir()
+	activeKey := *NewNetworkSpaceKey("custom.example", "main")
+	otherKey := *NewNetworkSpaceKey("bringyour.com", "main")
+
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &activeKey, IpFamilyPolicyForce4)
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &otherKey, IpFamilyPolicyForce6)
+	writeNetworkSpaceIndex(t, storagePath, []NetworkSpaceKey{activeKey, otherKey}, &activeKey)
+
+	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+	networkSpaceManager := newNetworkSpaceManagerWithContext(ctx, storagePath)
+	defer networkSpaceManager.Close()
+
+	if networkSpaceManager.GetActiveNetworkSpace() == nil {
+		t.Fatal("no active network space was selected, so the test proves nothing")
+	}
+	if got := networkSpaceManager.GetActiveNetworkSpace().GetHostName(); got != activeKey.HostName {
+		t.Fatalf("active space is %s, want %s", got, activeKey.HostName)
+	}
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyForce4 {
+		t.Fatalf("policy is %d, want force4 -- the INACTIVE space's persisted force6 won", got)
+	}
+}
+
+// A policy set at runtime survives everything the manager does afterwards.
+//
+// `updateNetworkSpace` rebuilds a space, and ios calls it at boot for the
+// bundled space and again on every custom-server import. A restore that ran
+// per constructed space re-imposed the persisted value over one an embedder
+// had just set, with nothing in the logs to explain it.
+func TestManagerDoesNotReimposeAPersistedPolicyOverARuntimeSet(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	storagePath := t.TempDir()
+	activeKey := *NewNetworkSpaceKey("custom.example", "main")
+	otherKey := *NewNetworkSpaceKey("bringyour.com", "main")
+
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &activeKey, IpFamilyPolicyForce4)
+	seedPersistedControlIpFamilyPolicy(t, ctx, storagePath, &otherKey, IpFamilyPolicyForce6)
+	writeNetworkSpaceIndex(t, storagePath, []NetworkSpaceKey{activeKey, otherKey}, &activeKey)
+
+	networkSpaceManager := newNetworkSpaceManagerWithContext(ctx, storagePath)
+	defer networkSpaceManager.Close()
+
+	// whatever the construction restore did, the embedder now turns the force
+	// back off at runtime without persisting it. Asserted from here rather
+	// than from the restored value, so this test pins the re-imposition on its
+	// own -- TestTheActiveSpacesPersistedPolicyWins owns the restore itself.
+	SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	// the boot refresh of the bundled (inactive) space, and a custom-server
+	// import of the active one
+	networkSpaceManager.UpdateNetworkSpaceValues(&otherKey, &NetworkSpaceValues{})
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyAuto {
+		t.Fatalf("policy is %d after updating the inactive space, want auto -- its persisted force6 was re-imposed", got)
+	}
+	networkSpaceManager.UpdateNetworkSpaceValues(&activeKey, &NetworkSpaceValues{})
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyAuto {
+		t.Fatalf("policy is %d after updating the active space, want auto -- its persisted force4 was re-imposed", got)
+	}
+
+	// and re-selecting a space is not a restore point either
+	networkSpaceManager.SetActiveNetworkSpace(networkSpaceManager.GetNetworkSpace(&otherKey))
+	if got := GetControlIpFamilyPolicy(); got != IpFamilyPolicyAuto {
+		t.Fatalf("policy is %d after re-selecting a space, want auto", got)
 	}
 }
 

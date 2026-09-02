@@ -133,6 +133,9 @@ type NetworkSpace struct {
 	clientStrategy  *connect.ClientStrategy
 	asyncLocalState *AsyncLocalState
 	api             *Api
+	// the space's dial logger, carried so the manager's one-time control ip
+	// family restore lands on the same log as the dials it governs
+	log connect.Logger
 }
 
 func newNetworkSpace(
@@ -188,13 +191,6 @@ func newNetworkSpaceWithConnectSettings(
 		asyncLocalState = NewAsyncLocalState(storagePath)
 	}
 
-	// before the api client is built, and therefore before any request can be
-	// made: on a relaunch the login call is the first thing out, and for the
-	// user this setting exists for, it is the call that hangs
-	if asyncLocalState != nil {
-		applyPersistedControlIpFamilyPolicy(asyncLocalState.GetLocalState(), clientStrategySettings.ConnectSettings.Log)
-	}
-
 	api := newApi(cancelCtx, clientStrategy, apiUrl)
 
 	return &NetworkSpace{
@@ -211,6 +207,7 @@ func newNetworkSpaceWithConnectSettings(
 		clientStrategy:  clientStrategy,
 		asyncLocalState: asyncLocalState,
 		api:             api,
+		log:             clientStrategySettings.ConnectSettings.Log,
 	}
 }
 
@@ -468,6 +465,21 @@ func (self *NetworkSpace) SetControlIpFamilyPolicy(policy int) {
 	}
 }
 
+// restoreControlIpFamilyPolicy applies this space's persisted control-plane ip
+// family policy to this process.
+//
+// Only the manager calls this, and only once per manager (see
+// `NetworkSpaceManager.restoreControlIpFamilyPolicyOnce`): the policy is
+// process-global while the persisted copy is per-space, so restoring from
+// every constructed space would let whichever space happened to be built last
+// decide what the process dials under.
+func (self *NetworkSpace) restoreControlIpFamilyPolicy() {
+	if self.asyncLocalState == nil {
+		return
+	}
+	applyPersistedControlIpFamilyPolicy(self.asyncLocalState.GetLocalState(), self.log)
+}
+
 func (self *NetworkSpace) close() {
 	self.cancel()
 }
@@ -518,6 +530,40 @@ type NetworkSpaceManager struct {
 
 	networkSpacesChangeListeners      *connect.CallbackList[NetworkSpacesChangeListener]
 	activeNetworkSpaceChangeListeners *connect.CallbackList[ActiveNetworkSpaceChangeListener]
+
+	// the control ip family policy is restored from ONE space, ONCE per
+	// manager. See restoreControlIpFamilyPolicyOnce.
+	controlIpFamilyPolicyRestore sync.Once
+}
+
+// restoreControlIpFamilyPolicyOnce applies networkSpace's persisted
+// control-plane ip family policy to this process, at most once per manager.
+//
+// Two properties this has to hold, and neither survives restoring at
+// NetworkSpace construction:
+//
+//   - the ACTIVE space wins. The runtime policy is process-global while the
+//     persisted copy lives under each space's own local storage. `load`
+//     constructs every stored space before it selects the active one, so a
+//     per-construction restore hands the process whichever space came last in
+//     the stored slice. With a custom api host configured alongside the
+//     production one -- the case this branch exists for -- that is routinely
+//     the wrong space.
+//   - a runtime set is not undone. `updateNetworkSpace` rebuilds a space on
+//     every launch and on every custom-server import, so a per-construction
+//     restore re-imposes the persisted value over one an embedder had just set
+//     through `SetControlIpFamilyPolicy`, with nothing in the logs to say why.
+//
+// Called with the space this manager is bound to: the active one wherever
+// there is a selection, and otherwise the space just created or imported. The
+// second case is the ios packet tunnel extension, which imports its space and
+// never selects an active one -- gating purely on the active space would leave
+// the extension dialing under Auto until the app's device rpc reached it.
+func (self *NetworkSpaceManager) restoreControlIpFamilyPolicyOnce(networkSpace *NetworkSpace) {
+	if networkSpace == nil {
+		return
+	}
+	self.controlIpFamilyPolicyRestore.Do(networkSpace.restoreControlIpFamilyPolicy)
 }
 
 func NewNetworkSpaceManagerNoStorage() *NetworkSpaceManager {
@@ -619,6 +665,14 @@ func (self *NetworkSpaceManager) load() (returnErr error) {
 			}
 			// else active key not found
 		}
+
+		// AFTER the selection above, and still inside the manager constructor:
+		// no listener can be registered yet and no Device exists, so nothing
+		// has been able to make an api request. That is the whole point of
+		// restoring here rather than at Device construction -- on a relaunch
+		// the login call is the first request out, and for the user this
+		// setting exists for it is the call that hangs.
+		self.restoreControlIpFamilyPolicyOnce(self.activeNetworkSpace)
 	}()
 	if returnErr != nil {
 		return
@@ -724,6 +778,12 @@ func (self *NetworkSpaceManager) SetActiveNetworkSpace(networkSpace *NetworkSpac
 		set = true
 	}()
 	if set {
+		// the first selection is a restore point too: a fresh install, or one
+		// whose `.network_spaces` was unreadable, has no active space when the
+		// manager is built and gets one here, still before any api request.
+		// The once guard is what keeps a LATER re-selection from re-imposing a
+		// persisted policy over one set at runtime.
+		self.restoreControlIpFamilyPolicyOnce(self.GetActiveNetworkSpace())
 		self.store()
 		self.activeNetworkSpaceChanged(self.GetActiveNetworkSpace())
 	}
@@ -792,6 +852,17 @@ func (self *NetworkSpaceManager) updateNetworkSpace(key *NetworkSpaceKey, callba
 			networkSpace.close()
 		}
 		self.networkSpaces[*key] = copyNetworkSpace
+
+		// only when this manager has no active space at all -- the ios packet
+		// tunnel extension, which imports its space and never selects one, and
+		// the app path where `.network_spaces` was missing or unreadable and
+		// the bundled space is created right here. With an active space
+		// selected the restore has already run against it and the once guard
+		// makes this a no-op, which is what stops every launch and every
+		// custom-server import from re-imposing a persisted policy.
+		if self.activeNetworkSpace == nil {
+			self.restoreControlIpFamilyPolicyOnce(copyNetworkSpace)
+		}
 	}()
 	self.store()
 	self.networkSpacesChanged()
