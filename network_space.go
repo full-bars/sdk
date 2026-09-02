@@ -188,6 +188,13 @@ func newNetworkSpaceWithConnectSettings(
 		asyncLocalState = NewAsyncLocalState(storagePath)
 	}
 
+	// before the api client is built, and therefore before any request can be
+	// made: on a relaunch the login call is the first thing out, and for the
+	// user this setting exists for, it is the call that hangs
+	if asyncLocalState != nil {
+		applyPersistedControlIpFamilyPolicy(asyncLocalState.GetLocalState(), clientStrategySettings.ConnectSettings.Log)
+	}
+
 	api := newApi(cancelCtx, clientStrategy, apiUrl)
 
 	return &NetworkSpace{
@@ -442,6 +449,23 @@ func (self *NetworkSpace) GetPlatformUrl() string {
 
 func (self *NetworkSpace) GetApi() *Api {
 	return self.api
+}
+
+// SetControlIpFamilyPolicy sets the control-plane address family policy for
+// this process and records it, so a relaunch comes back up under it.
+//
+// The entry point a developer ui uses when there is no Device -- signed out,
+// or with the tunnel down. With a Device, use Device.SetControlIpFamilyPolicy
+// instead: on ios that also carries the policy into the packet tunnel
+// extension, which is the process that dials while the tunnel is up.
+func (self *NetworkSpace) SetControlIpFamilyPolicy(policy int) {
+	clamped := clampIpFamilyPolicy(policy)
+	SetControlIpFamilyPolicy(clamped)
+	if self.asyncLocalState != nil {
+		self.asyncLocalState.serialAsync(func() error {
+			return self.asyncLocalState.GetLocalState().SetControlIpFamilyPolicy(clamped)
+		})
+	}
 }
 
 func (self *NetworkSpace) close() {
