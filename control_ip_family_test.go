@@ -3,8 +3,11 @@ package sdk
 import (
 	"context"
 	"encoding/json"
+	"net"
+	"net/rpc"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -636,5 +639,135 @@ func TestDeviceRemoteControlIpFamilyStatusFallsBackToThisProcess(t *testing.T) {
 
 	if got := deviceRemote.GetControlIpFamilyStatus(); got != GetControlIpFamilyStatus() {
 		t.Fatalf("status is %q with no service, want this process's %q", got, GetControlIpFamilyStatus())
+	}
+}
+
+// testing_controlIpFamilyStatusRpc stands in for the DEVICE process's
+// DeviceLocalRpc. It answers the one method under test with a string this
+// process's own ledger cannot produce, and counts the calls.
+type testing_controlIpFamilyStatusRpc struct {
+	stateLock sync.Mutex
+	calls     int
+	answer    string
+}
+
+func (self *testing_controlIpFamilyStatusRpc) GetControlIpFamilyStatus(
+	_ RpcNoArg,
+	status *string,
+) error {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.calls += 1
+	*status = self.answer
+	return nil
+}
+
+func (self *testing_controlIpFamilyStatusRpc) callCount() int {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	return self.calls
+}
+
+// The value DeviceRemote.GetControlIpFamilyStatus returns must be the one the
+// DEVICE process computed, not one this process answered locally. Replacing
+// the method's whole body with `return GetControlIpFamilyStatus()` -- the
+// local-answer implementation the finding was filed about -- is the mutation
+// this pins.
+//
+// TestDeviceRemoteControlIpFamilyStatusAsksTheDeviceProcess above cannot pin
+// it, and the reason is structural rather than an oversight: both devices live
+// in this test process and therefore share connect's process-global demotion
+// ledger, so the local answer and the crossed answer are the same string no
+// matter which path ran. The session assertion there catches a handler whose
+// runtime argument shape is wrong -- a real hazard, since RpcNoArg is `int`
+// and a mis-shaped handler still compiles and registers -- but a body that
+// never calls the rpc at all tears nothing down and is invisible to it.
+//
+// So the two ledgers are made to differ, which is what they do in production
+// and the only thing this process cannot arrange with two real devices: the
+// rpc peer here is a stub registered under the production method name, over
+// the same net.Pipe + net/rpc pairing the rest of this package's rpc tests
+// use, and it answers with a sentinel. The sentinel is a demotion string of
+// the shape controlFamilyStatus emits, so nothing about the value itself
+// makes the crossing detectable -- only its provenance does. This process's
+// own status is asserted empty first, so the local answer is a distinct value
+// rather than a coincidence.
+//
+// The call count is asserted too. It fails the mutation for a second,
+// independent reason (a locally answered call invokes no handler), and it
+// pins that the answer is fetched per call rather than cached -- a demotion
+// expires on a timer, so a cached string goes wrong in the direction that
+// matters.
+//
+// The two tests are complements, not duplicates: this one pins the crossing
+// against a stub server, that one pins that the REAL DeviceLocalRpc answers
+// the same method over a real session.
+func TestDeviceRemoteControlIpFamilyStatusIsTheDeviceProcessAnswer(t *testing.T) {
+	defer SetControlIpFamilyPolicy(IpFamilyPolicyAuto)
+
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	deviceProcess := &testing_controlIpFamilyStatusRpc{
+		answer: "IPv6 demoted for 5m0s (2 strikes)",
+	}
+	server := rpc.NewServer()
+	if err := server.RegisterName("DeviceLocalRpc", deviceProcess); err != nil {
+		t.Fatal(err)
+	}
+	go server.ServeConn(serverConn)
+
+	settings := defaultDeviceRpcSettings()
+	service := &rpcClientWithTimeout{
+		ctx:         context.Background(),
+		log:         settings.logger(),
+		timeout:     settings.RpcCallTimeout,
+		closeClient: clientConn.Close,
+		client:      rpc.NewClient(clientConn),
+	}
+	defer service.Close()
+
+	// this process has nothing demoted, so the local answer is the empty
+	// string and cannot be mistaken for the device process's
+	if local := GetControlIpFamilyStatus(); local != "" {
+		t.Fatalf(
+			"this process's own status is %q, want empty -- the local and the "+
+				"crossed answer must be distinguishable for this test to mean anything",
+			local)
+	}
+
+	deviceRemote := newTestDeviceRemoteWithNoService(t)
+	func() {
+		deviceRemote.stateLock.Lock()
+		defer deviceRemote.stateLock.Unlock()
+		deviceRemote.service = service
+		deviceRemote.remoteConnected = true
+	}()
+
+	status := deviceRemote.GetControlIpFamilyStatus()
+
+	if status != deviceProcess.answer {
+		t.Fatalf(
+			"status is %q, want the device process's %q -- the app process "+
+				"answered from its own ledger, which on ios is empty for the "+
+				"whole time the tunnel is up and the extension is the one dialing",
+			status, deviceProcess.answer)
+	}
+	if calls := deviceProcess.callCount(); calls != 1 {
+		t.Fatalf("the device process's handler ran %d times, want exactly 1", calls)
+	}
+	if !deviceRemote.GetRemoteConnected() {
+		t.Fatal("the status call tore the rpc session down, so the device's ledger is " +
+			"unreachable and every later call falls back to the app process's own")
+	}
+
+	// fetched per call, not cached: the second call reaches the handler too
+	if status := deviceRemote.GetControlIpFamilyStatus(); status != deviceProcess.answer {
+		t.Fatalf("second status is %q, want %q", status, deviceProcess.answer)
+	}
+	if calls := deviceProcess.callCount(); calls != 2 {
+		t.Fatalf("the device process's handler ran %d times over two calls, want 2 -- "+
+			"a cached status goes stale when a demotion expires", calls)
 	}
 }
