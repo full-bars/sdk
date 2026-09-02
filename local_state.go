@@ -406,6 +406,18 @@ func (self *LocalState) logVerbosityIfSet() (int, bool) {
 	return LogVerbosityDefault, false
 }
 
+// controlIpFamilyPolicyFileName is the persisted control-plane ip family
+// policy, named once rather than inlined at each accessor the way its
+// neighbors here are.
+//
+// The neighbors get away with it because a typo in one of them is loud: a
+// setting that never comes back is noticed. This one fails silently in the
+// worst direction. A user whose ipv6 path is broken forces IPv4, the write
+// succeeds, the menu reads it back from the process rather than the file, and
+// the next launch is stuck on the same login call -- with no error anywhere to
+// say the read went to a different name than the write.
+const controlIpFamilyPolicyFileName = ".control_ip_family_policy"
+
 // SetControlIpFamilyPolicy persists the control-plane address family policy
 // the user chose, so a relaunch comes back up under it.
 //
@@ -421,7 +433,7 @@ func (self *LocalState) logVerbosityIfSet() (int, bool) {
 // NetworkSpaceManager.restoreControlIpFamilyPolicyOnce calls -- once, from the
 // active space, while the manager is still being built.
 func (self *LocalState) SetControlIpFamilyPolicy(policy int) error {
-	path := filepath.Join(self.localStorageDir, ".control_ip_family_policy")
+	path := filepath.Join(self.localStorageDir, controlIpFamilyPolicyFileName)
 	policyBytes := []byte(fmt.Sprintf("%d", clampIpFamilyPolicy(policy)))
 	return os.WriteFile(path, policyBytes, LocalStorageFilePermissions)
 }
@@ -442,7 +454,7 @@ func (self *LocalState) GetControlIpFamilyPolicy() int {
 // instruction at all. Applying Auto for the second case would clear a policy
 // an embedder set some other way.
 func (self *LocalState) controlIpFamilyPolicyIfSet() (int, bool) {
-	path := filepath.Join(self.localStorageDir, ".control_ip_family_policy")
+	path := filepath.Join(self.localStorageDir, controlIpFamilyPolicyFileName)
 	if policyBytes, err := os.ReadFile(path); err == nil {
 		var policy int
 		if _, err := fmt.Sscanf(string(policyBytes), "%d", &policy); err == nil {
