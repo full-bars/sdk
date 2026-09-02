@@ -6600,6 +6600,45 @@ func (self *DeviceLocal) GetLogVerbosity() int {
 	return GetLogVerbosity()
 }
 
+// SetControlIpFamilyPolicy sets the control-plane address family policy of the
+// process this device runs in.
+//
+// On ios that is the network extension, which is the process that dials the
+// api, the platform websocket and the h3 name path while the tunnel is up, so
+// this is the copy that decides whether a stuck family is routed around. An
+// app in another process reaches this through
+// DeviceRemote.SetControlIpFamilyPolicy, which sets both.
+func (self *DeviceLocal) SetControlIpFamilyPolicy(policy int) {
+	if self.hostedIncompatibleGuarded("SetControlIpFamilyPolicy") {
+		// a hosted device shares one process with unrelated customers'
+		// devices, and the policy is process-global: it is not one tenant's to
+		// force
+		return
+	}
+	clamped := clampIpFamilyPolicy(policy)
+	SetControlIpFamilyPolicy(clamped)
+	self.persistControlIpFamilyPolicy(clamped)
+}
+
+// persistControlIpFamilyPolicy records the policy so the next process to start
+// a device comes up under it -- and, more to the point, so this process's next
+// api call is made under it before any device exists (see
+// `applyPersistedControlIpFamilyPolicy`). The write is serialized with the rest
+// of the local state and does not block the setter.
+func (self *DeviceLocal) persistControlIpFamilyPolicy(policy int) {
+	if asyncLocalState := self.networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
+		asyncLocalState.serialAsync(func() error {
+			return asyncLocalState.GetLocalState().SetControlIpFamilyPolicy(policy)
+		})
+	}
+}
+
+// GetControlIpFamilyPolicy returns the policy this device's process is dialing
+// the control plane under.
+func (self *DeviceLocal) GetControlIpFamilyPolicy() int {
+	return GetControlIpFamilyPolicy()
+}
+
 // zipWriteEntry writes one entry into an open zip. transform, when non-nil,
 // rewrites the content line by line -- this is how redaction is applied
 // without ever holding a whole log file in memory.

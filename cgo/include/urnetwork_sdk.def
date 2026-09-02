@@ -246,6 +246,7 @@ EXPORTS
 	urnet_device_get_connect_location
 	urnet_device_get_connected_provider_locations
 	urnet_device_get_contract_status
+	urnet_device_get_control_ip_family_policy
 	urnet_device_get_default_location
 	urnet_device_get_dns_resolver_settings
 	urnet_device_get_done
@@ -431,6 +432,7 @@ EXPORTS
 	urnet_device_set_can_refer
 	urnet_device_set_can_show_rating_dialog
 	urnet_device_set_connect_location
+	urnet_device_set_control_ip_family_policy
 	urnet_device_set_default_location
 	urnet_device_set_destination
 	urnet_device_set_dns_resolver_settings
@@ -510,6 +512,7 @@ EXPORTS
 	urnet_local_state_get_can_refer
 	urnet_local_state_get_can_show_rating_dialog
 	urnet_local_state_get_connect_location
+	urnet_local_state_get_control_ip_family_policy
 	urnet_local_state_get_default_location
 	urnet_local_state_get_device_local_key_material
 	urnet_local_state_get_dns_resolver_settings
@@ -536,6 +539,7 @@ EXPORTS
 	urnet_local_state_set_can_refer
 	urnet_local_state_set_can_show_rating_dialog
 	urnet_local_state_set_connect_location
+	urnet_local_state_set_control_ip_family_policy
 	urnet_local_state_set_default_location
 	urnet_local_state_set_device_local_key_material
 	urnet_local_state_set_dns_resolver_settings
@@ -603,6 +607,7 @@ EXPORTS
 	urnet_network_space_manager_update_network_space
 	urnet_network_space_manager_update_network_space_values
 	urnet_network_space_service_url
+	urnet_network_space_set_control_ip_family_policy
 	urnet_network_space_to_json
 	urnet_network_user_view_controller_add_is_loading_listener
 	urnet_network_user_view_controller_add_is_updating_listener

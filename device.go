@@ -762,6 +762,21 @@ type Device interface {
 	// read from, so a UI can show the level it is offering to change.
 	GetLogVerbosity() int
 
+	// SetControlIpFamilyPolicy sets the address family used for control-plane
+	// dials -- the api, the platform websocket, and the h3 name path -- in the
+	// process this Device runs in, and records it there.
+	//
+	// One of IpFamilyPolicyAuto, IpFamilyPolicyForce4, IpFamilyPolicyForce6.
+	// Anything else is Auto.
+	//
+	// On ios the tunnel process is the one that dials while the tunnel is up,
+	// so DeviceRemote sets BOTH processes -- see its implementation.
+	SetControlIpFamilyPolicy(policy int)
+
+	// GetControlIpFamilyPolicy returns the policy in force in the process this
+	// Device is answering from. The policy alone, never a learned demotion.
+	GetControlIpFamilyPolicy() int
+
 	RefreshToken(attempt int) error
 
 	SetPerformanceProfile(performanceProfile *PerformanceProfile)

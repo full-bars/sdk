@@ -11210,6 +11210,7 @@ public:
 	std::optional<ConnectLocation> getConnectLocation() const;
 	std::optional<ConnectedProviderLocationList> getConnectedProviderLocations() const;
 	std::optional<ContractStatus> getContractStatus() const;
+	int64_t getControlIpFamilyPolicy() const;
 	std::optional<ConnectLocation> getDefaultLocation() const;
 	std::optional<DnsResolverSettings> getDnsResolverSettings() const;
 	bool getDone() const;
@@ -11261,6 +11262,7 @@ public:
 	void setCanRefer(bool can_refer) const;
 	void setCanShowRatingDialog(bool can_show_rating_dialog) const;
 	void setConnectLocation(const std::optional<ConnectLocation>& location) const;
+	void setControlIpFamilyPolicy(int64_t policy) const;
 	void setDefaultLocation(const std::optional<ConnectLocation>& location) const;
 	void setDestination(const std::optional<ConnectLocation>& location, const std::optional<ProviderSpecList>& specs) const;
 	void setDnsResolverSettings(const std::optional<DnsResolverSettings>& dns_resolver_settings) const;
@@ -11720,6 +11722,7 @@ public:
 	bool getCanRefer() const;
 	bool getCanShowRatingDialog() const;
 	std::optional<ConnectLocation> getConnectLocation() const;
+	int64_t getControlIpFamilyPolicy() const;
 	std::optional<ConnectLocation> getDefaultLocation() const;
 	DeviceLocalKeyMaterial getDeviceLocalKeyMaterial() const;
 	std::optional<DnsResolverSettings> getDnsResolverSettings() const;
@@ -11746,6 +11749,7 @@ public:
 	void setCanRefer(bool can_refer) const;
 	void setCanShowRatingDialog(bool can_show_rating_dialog) const;
 	void setConnectLocation(const std::optional<ConnectLocation>& connect_location) const;
+	void setControlIpFamilyPolicy(int64_t policy) const;
 	void setDefaultLocation(const std::optional<ConnectLocation>& connect_location) const;
 	void setDeviceLocalKeyMaterial(const DeviceLocalKeyMaterial& key_material) const;
 	void setDnsResolverSettings(const std::optional<DnsResolverSettings>& dns_resolver_settings) const;
@@ -11823,6 +11827,7 @@ public:
 	std::string getStore() const;
 	std::string getWallet() const;
 	std::string serviceUrl(const std::string& scheme, const std::string& service) const;
+	void setControlIpFamilyPolicy(int64_t policy) const;
 	std::string toJson() const;
 };
 
@@ -17112,6 +17117,10 @@ inline std::optional<ContractStatus> Device::getContractStatus() const {
 	}
 	return detail::parseJson<ContractStatus>(r_s->c_str());
 }
+inline int64_t Device::getControlIpFamilyPolicy() const {
+	int64_t r = urnet_device_get_control_ip_family_policy(handle());
+	return r;
+}
 inline std::optional<ConnectLocation> Device::getDefaultLocation() const {
 	char* r_c = urnet_device_get_default_location(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -17416,6 +17425,9 @@ inline void Device::setConnectLocation(const std::optional<ConnectLocation>& loc
 		location_c = location_json.c_str();
 	}
 	urnet_device_set_connect_location(handle(), location_c);
+}
+inline void Device::setControlIpFamilyPolicy(int64_t policy) const {
+	urnet_device_set_control_ip_family_policy(handle(), policy);
 }
 inline void Device::setDefaultLocation(const std::optional<ConnectLocation>& location) const {
 	std::string location_json;
@@ -19460,6 +19472,10 @@ inline std::optional<ConnectLocation> LocalState::getConnectLocation() const {
 	}
 	return detail::parseJson<ConnectLocation>(r_s->c_str());
 }
+inline int64_t LocalState::getControlIpFamilyPolicy() const {
+	int64_t r = urnet_local_state_get_control_ip_family_policy(handle());
+	return r;
+}
 inline std::optional<ConnectLocation> LocalState::getDefaultLocation() const {
 	char* r_c = urnet_local_state_get_default_location(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -19666,6 +19682,16 @@ inline void LocalState::setConnectLocation(const std::optional<ConnectLocation>&
 	}
 	if (!ok) {
 		throw Error("urnet: urnet_local_state_set_connect_location failed");
+	}
+}
+inline void LocalState::setControlIpFamilyPolicy(int64_t policy) const {
+	char* err_c = nullptr;
+	bool ok = urnet_local_state_set_control_ip_family_policy(handle(), policy, &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	if (!ok) {
+		throw Error("urnet: urnet_local_state_set_control_ip_family_policy failed");
 	}
 }
 inline void LocalState::setDefaultLocation(const std::optional<ConnectLocation>& connect_location) const {
@@ -20024,6 +20050,9 @@ inline std::string NetworkSpace::getWallet() const {
 inline std::string NetworkSpace::serviceUrl(const std::string& scheme, const std::string& service) const {
 	char* r_c = urnet_network_space_service_url(handle(), scheme.c_str(), service.c_str());
 	return detail::takeString(r_c);
+}
+inline void NetworkSpace::setControlIpFamilyPolicy(int64_t policy) const {
+	urnet_network_space_set_control_ip_family_policy(handle(), policy);
 }
 inline std::string NetworkSpace::toJson() const {
 	char* err_c = nullptr;
