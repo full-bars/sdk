@@ -160,11 +160,19 @@ func deviceMemoryShares(
 func newDeviceLocalPlatformTransportSettings(
 	memoryTargetByteCount ByteCount,
 	platformTransportBudget *connect.PlatformTransportBudget,
+	dialContextSettings *connect.DialContextSettings,
+	dnsPumpHost string,
 ) *connect.PlatformTransportSettings {
 	settings := connect.DefaultPlatformTransportSettingsWithMemoryTarget(
 		memoryTargetByteCount,
 	)
 	settings.PlatformTransportBudget = platformTransportBudget
+	if dnsPumpHost = strings.TrimSpace(dnsPumpHost); dnsPumpHost != "" {
+		settings.DnsPumpHost = dnsPumpHost
+	}
+	if dialContextSettings != nil {
+		settings.H3PacketConnFactory = dialContextSettings.PacketConnFactory
+	}
 	return settings
 }
 
@@ -536,13 +544,20 @@ type DeviceLocalSettings struct {
 	//gomobile:noexport connect.MultiClientIdentityStore is an interface from
 	// another package, which gomobile does not bind. Go/headless hosts only.
 	MultiClientIdentityStore connect.MultiClientIdentityStore
-	// ProviderDialContextSettings, when set, is applied only to the exit NAT's
-	// TCP and UDP sockets. Headless integration harnesses use it to bind each
-	// provider to a distinct loopback source address while exercising the real
-	// tunnel stack on one host. Ordinary applications leave it nil.
+	// ProviderDialContextSettings, when set, is applied to the provider carrier
+	// and the exit NAT's TCP and UDP sockets. Headless integration harnesses use
+	// it to bind every path of each provider to one distinct loopback source
+	// identity while exercising the real tunnel stack on one host. Ordinary
+	// applications leave it nil.
 	//
 	//gomobile:noexport Go-only network dial seam.
 	ProviderDialContextSettings *connect.DialContextSettings
+	// DnsPumpHost overrides the public UDP/53 destination used by the DNS-pump
+	// carrier. Integration hosts with a private or loopback Connect endpoint
+	// must set this to their provisioned pump ingress; sending that endpoint's
+	// TLS SNI through the production pump cannot route back to the private
+	// server. Empty retains connect's production default.
+	DnsPumpHost string
 	// FIXME remove EnableRpc. Turn on RPC when RPC connections are set (receive net.Conn, send net.Conn)
 	EnableRpc bool
 	// KeyMaterial, when set, is applied to `ClientSettings` at construction
@@ -581,6 +596,10 @@ type DeviceLocalSettings struct {
 var _ Device = (*DeviceLocal)(nil)
 var _ device = (*DeviceLocal)(nil)
 var _ ViewControllerManager = (*DeviceLocal)(nil)
+
+type deviceMultiClientGenerator interface {
+	CloseAndWait(context.Context) error
+}
 
 type DeviceLocal struct {
 	networkSpace *NetworkSpace
@@ -625,13 +644,15 @@ type DeviceLocal struct {
 
 	clientStrategy *connect.ClientStrategy
 
-	generatorFunc           func(specs []*connect.ProviderSpec) connect.MultiClientGenerator
-	apiMultiClientGenerator *connect.ApiMultiClientGenerator
-	provider                *deviceLocalProvider
+	generatorFunc             func(specs []*connect.ProviderSpec) connect.MultiClientGenerator
+	apiMultiClientGenerator   *connect.ApiMultiClientGenerator
+	ownedMultiClientGenerator deviceMultiClientGenerator
+	provider                  *deviceLocalProvider
 
 	stats *DeviceStats
 
 	deviceLocalRpcManager *deviceLocalRpcManager
+	securityPolicyMonitor *securityPolicyMonitor
 	// current listener config, so SetRpcServer is a no-op (no rebind that would
 	// drop live connections) when the same server is re-applied
 	rpcHostPort      string
@@ -640,6 +661,14 @@ type DeviceLocal struct {
 
 	stateLock sync.Mutex
 	closeOnce sync.Once
+	closed    bool
+
+	// Every device-owned goroutine or asynchronous retirement is admitted
+	// under stateLock before Close publishes the closed state. The join worker
+	// can therefore wait without racing a late WaitGroup.Add.
+	lifecycleWorkers  sync.WaitGroup
+	lifecycleJoinOnce sync.Once
+	lifecycleDone     chan struct{}
 	// stateLockGoid atomic.Int64
 
 	connectLocation *ConnectLocation // reconnects when launched
@@ -710,10 +739,11 @@ type DeviceLocal struct {
 
 	// windowIdentityStore, when the device owns its storage (not hosted, not
 	// host-provided), persists the window client identities so a relaunch
-	// that reconnects to the same destination reuses them (see
-	// window_identity_store.go). The device stamps the connect-spec
-	// fingerprint before each generator build. nil when unavailable.
-	windowIdentityStore *localStateWindowIdentityStore
+	// that reconnects to the same destination after a process restart can
+	// reuse them (see window_identity_store.go). Each generator receives an
+	// immutable connect-spec scope. nil when unavailable.
+	windowIdentityStore            *localStateWindowIdentityStore
+	windowIdentityStoreGenerations *windowIdentityStoreGenerations
 
 	// sendRoute is an immutable snapshot of the routing fields read on the
 	// per-packet send path (`remoteUserNatClient`, `routeLocal`, `provider`).
@@ -1183,6 +1213,8 @@ func newDeviceLocalWithOverrides(
 			platformTransportBudget,
 			providerTransportMode,
 			providerModePreferences,
+			settings.ProviderDialContextSettings,
+			settings.DnsPumpHost,
 		)
 	}
 
@@ -1216,7 +1248,7 @@ func newDeviceLocalWithOverrides(
 		if !ok {
 			cancel()
 			if ownsApi {
-				api.Close()
+				_ = api.CloseAndWait(context.Background())
 			}
 			return nil, fmt.Errorf("no local tunnel address available")
 		}
@@ -1240,6 +1272,12 @@ func newDeviceLocalWithOverrides(
 		tunnelLocalAddress: tunnelLocalAddress,
 		tunnelDnsSetting:   DefaultTunnelDnsSetting(),
 		clientStrategy:     clientStrategy,
+		lifecycleDone:      make(chan struct{}),
+		// Identity persistence bridges a process restart. Destination
+		// generators overlap during asynchronous retirement, so this owner
+		// gives each one a generation-bound store view and permits restoration
+		// only for the first generation in this process.
+		windowIdentityStoreGenerations: newWindowIdentityStoreGenerations(),
 		// the dns share of the device memory target; one live budget for the
 		// life of the device (see the field doc)
 		dnsMemoryTarget:           connect.NewMemoryTarget(dnsShareByteCount),
@@ -1363,7 +1401,6 @@ func newDeviceLocalWithOverrides(
 		// embedding host).
 		if !settings.HostedIncompatible && settings.MultiClientIdentityStore == nil {
 			deviceLocal.windowIdentityStore = newLocalStateWindowIdentityStore(localState, clientId)
-			settings.MultiClientIdentityStore = deviceLocal.windowIdentityStore
 		}
 	}
 
@@ -1411,7 +1448,9 @@ func newDeviceLocalWithOverrides(
 		// monitor channel synchronously here (before any peer update can be
 		// delivered) so watchNetworkPeers never misses the first change.
 		networkPeersNotify := provider.Client().PeerManager().PeersMonitor().NotifyChannel()
+		deviceLocal.lifecycleWorkers.Add(1)
 		go connect.HandleError(func() {
+			defer deviceLocal.lifecycleWorkers.Done()
 			deviceLocal.watchNetworkPeers(networkPeersNotify)
 		})
 	}
@@ -1419,12 +1458,16 @@ func newDeviceLocalWithOverrides(
 	// the trailing edge of the contract stats epoch gate: carries out the last
 	// batch of a transfer, which lands inside the gate and would otherwise never
 	// be emitted, and decays the bit rate of idle contracts
-	go connect.HandleError(deviceLocal.runContractStatsFlush)
+	deviceLocal.lifecycleWorkers.Add(1)
+	go connect.HandleError(func() {
+		defer deviceLocal.lifecycleWorkers.Done()
+		deviceLocal.runContractStatsFlush()
+	})
 
 	if settings.EnableRpc {
 		deviceLocal.deviceLocalRpcManager = newDeviceLocalRpcManagerWithDefaults(ctx, deviceLocal)
 	} else {
-		newSecurityPolicyMonitor(ctx, deviceLocal, settings.Verbose)
+		deviceLocal.securityPolicyMonitor = newSecurityPolicyMonitor(ctx, deviceLocal, settings.Verbose)
 	}
 
 	// initial allocation: providing starts off (provide mode none), so the
@@ -1439,7 +1482,12 @@ func newDeviceLocalWithOverrides(
 		deviceLocal.platformTransportReceiveStats =
 			&connect.PlatformTransportReceiveStats{}
 		deviceLocal.memorySampler = &mobileMemorySampler{}
-		deviceLocal.memorySampler.start(deviceLocal.ctx, deviceLocal.memorySample)
+		memorySamplerDone := deviceLocal.memorySampler.start(deviceLocal.ctx, deviceLocal.memorySample)
+		deviceLocal.lifecycleWorkers.Add(1)
+		go func() {
+			defer deviceLocal.lifecycleWorkers.Done()
+			<-memorySamplerDone
+		}()
 	}
 
 	return deviceLocal, nil
@@ -2091,15 +2139,20 @@ func (self *DeviceLocal) SetByJwt(byJwt string) {
 	// provider.SetByJwt runs on the snapshot outside the lock (it only sets the
 	// platform transport auth, which has its own locking).
 	var provider *deviceLocalProvider
+	var apiGenerator *connect.ApiMultiClientGenerator
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 		provider = self.provider
+		apiGenerator = self.apiMultiClientGenerator
 		self.byJwt = byJwt
 	}()
 
 	if provider != nil {
 		provider.SetByJwt(byJwt)
+	}
+	if apiGenerator != nil {
+		apiGenerator.SetByJwt(byJwt)
 	}
 
 	// fire listeners
@@ -3276,6 +3329,17 @@ func (self *DeviceLocal) GetProvideEnabled() bool {
 	return self.remoteUserNatProvider != nil
 }
 
+// Reports whether the provider's current platform carrier has a registered
+// route. This is the headless readiness signal; object construction alone does
+// not mean the provider can be discovered or carry traffic.
+func (self *DeviceLocal) GetProviderConnected() bool {
+	self.stateLock.Lock()
+	provider := self.provider
+	closed := self.closed
+	self.stateLock.Unlock()
+	return !closed && provider != nil && provider.IsConnected()
+}
+
 func (self *DeviceLocal) GetConnectEnabled() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
@@ -3375,6 +3439,9 @@ func (self *DeviceLocal) SetProvideMode(provideMode ProvideMode) {
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if self.closed {
+			return
+		}
 
 		changed = self.setProvideModeWithLock(provideMode)
 	}()
@@ -3420,21 +3487,7 @@ func (self *DeviceLocal) setProvideModeWithLock(provideMode ProvideMode) (change
 					self.providerPacketStatsSub = self.remoteUserNatProvider.AddPacketStatsCallback(self.updateProviderPacketStats)
 				}
 			} else {
-				// close
-				if self.remoteUserNatProviderLocalUserNat != nil {
-					self.remoteUserNatProviderLocalUserNat.Close()
-					self.remoteUserNatProviderLocalUserNat = nil
-				}
-				if self.providerPacketStatsSub != nil {
-					self.providerPacketStatsSub()
-					self.providerPacketStatsSub = nil
-				}
-				if self.remoteUserNatProvider != nil {
-					// fold the final packet counters into the device accumulator
-					addConnectPacketStats(&self.providerPacketStatsBase, self.remoteUserNatProvider.PacketStats())
-					self.remoteUserNatProvider.Close()
-					self.remoteUserNatProvider = nil
-				}
+				self.closeRemoteUserNatProviderWithLock()
 			}
 
 			provideModes := map[protocol.ProvideMode]bool{}
@@ -3544,7 +3597,7 @@ func (self *DeviceLocal) saveDohServerScoresWithLock(upgradeMux *connect.Upgrade
 	self.dohServerScoresSeed = scores
 	if asyncLocalState := self.networkSpace.GetAsyncLocalState(); asyncLocalState != nil {
 		localState := asyncLocalState.GetLocalState()
-		go connect.HandleError(func() {
+		self.startLifecycleWorkerWithLock(func() {
 			localState.setDohServerScores(scores)
 		})
 	}
@@ -3579,9 +3632,19 @@ func (self *DeviceLocal) SetPerformanceDegraded(degraded bool) {
 }
 
 func (self *DeviceLocal) NetworkChanged() {
-	// kick every platform transport in the process (window clients + the
-	// provider client); connections bound to the old path re-dial now
-	connect.NetworkChanged()
+	// The multi-client owns the liveness epoch as well as the process-wide
+	// transport kick. Routing through it avoids carrying stale pre-suspend
+	// uplink clocks onto the recovered path. Provider-only/disconnected devices
+	// still need the process-wide kick for their platform transports.
+	if multi, ok := self.multiClient(); ok {
+		multi.NotifyNetworkChanged()
+	} else {
+		connect.NetworkChanged()
+	}
+	self.networkChangedUpgradeMux()
+}
+
+func (self *DeviceLocal) networkChangedUpgradeMux() {
 	self.stateLock.Lock()
 	upgradeMux := self.upgradeMux
 	self.stateLock.Unlock()
@@ -3639,6 +3702,9 @@ func (self *DeviceLocal) setDestination(
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if self.closed {
+			return
+		}
 
 		if !rebuild &&
 			self.destinationInitialized &&
@@ -3681,13 +3747,6 @@ func (self *DeviceLocal) setDestination(
 		self.closeRemoteUserNatClientWithLock()
 
 		if 0 < len(connectSpecs) {
-			// scope window identity persistence to this destination: identities
-			// recorded under one connect's specs must never steer a connect to a
-			// different destination (restored identities are dialed first)
-			if self.windowIdentityStore != nil {
-				self.windowIdentityStore.SetSpecsFingerprint(specsFingerprint)
-			}
-
 			remoteReceive := func(source connect.TransferPath, provideMode protocol.ProvideMode, ipPath *connect.IpPath, packet []byte) {
 				// self.log.Infof("[trace]receive packet\n")
 				self.stats.UpdateRemoteReceive(ByteCount(len(packet)))
@@ -3777,6 +3836,8 @@ func (self *DeviceLocal) setDestination(
 					settings := newDeviceLocalPlatformTransportSettings(
 						self.settings.MemoryTargetByteCount,
 						self.platformTransportBudget,
+						nil,
+						self.settings.DnsPumpHost,
 					)
 					applyMobileLowMemoryPlatformTransportSettings(
 						settings,
@@ -3843,11 +3904,20 @@ func (self *DeviceLocal) setDestination(
 				// window identity persistence across a process restart, when the
 				// embedding host provides a store (e.g. the proxy service,
 				// PROXYDRAIN1.md §3.5)
-				if self.settings.MultiClientIdentityStore != nil {
-					apiGenerator.SetIdentityStore(self.settings.MultiClientIdentityStore)
+				identityStore := self.settings.MultiClientIdentityStore
+				if self.windowIdentityStore != nil {
+					identityStore = self.windowIdentityStore.ForSpecsFingerprint(specsFingerprint)
+				}
+				if identityStore != nil {
+					apiGenerator.SetIdentityStore(
+						self.windowIdentityStoreGenerations.Next(identityStore),
+					)
 				}
 				self.apiMultiClientGenerator = apiGenerator
 				generator = apiGenerator
+			}
+			if ownedGenerator, ok := generator.(deviceMultiClientGenerator); ok {
+				self.ownedMultiClientGenerator = ownedGenerator
 			}
 			settings := connect.DefaultMultiClientSettings()
 			applyMobileLowMemoryMultiClientSettings(
@@ -4510,6 +4580,40 @@ func (self *DeviceLocal) Cancel() {
 
 func (self *DeviceLocal) Close() {
 	self.closeOnce.Do(self.close)
+	self.lifecycleJoinOnce.Do(func() {
+		go func() {
+			self.lifecycleWorkers.Wait()
+			if self.ownsApi {
+				_ = self.api.CloseAndWait(context.Background())
+			}
+			close(self.lifecycleDone)
+		}()
+	})
+}
+
+// Joins the independently owned API session after callback-safe device
+// cancellation. Hosted owners use this before replacing or releasing a device;
+// callbacks running on the API refresh worker must use Close instead.
+//
+//gomobile:noexport
+func (self *DeviceLocal) CloseAndWait(ctx context.Context) error {
+	self.Close()
+	select {
+	case <-self.lifecycleDone:
+		return nil
+	default:
+	}
+	select {
+	case <-self.lifecycleDone:
+		return nil
+	case <-ctx.Done():
+		select {
+		case <-self.lifecycleDone:
+			return nil
+		default:
+			return ctx.Err()
+		}
+	}
 }
 
 func (self *DeviceLocal) close() {
@@ -4521,6 +4625,7 @@ func (self *DeviceLocal) close() {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	self.closed = true
 	self.cancel()
 
 	// return the address to the pool only when it was drawn from it (i.e. the
@@ -4535,8 +4640,12 @@ func (self *DeviceLocal) close() {
 		self.providerContractStatsEventSub = nil
 	}
 	if self.provider != nil {
-		self.provider.Close()
+		provider := self.provider
+		provider.Close()
 		self.provider = nil
+		self.startLifecycleWorkerWithLock(func() {
+			_ = provider.CloseAndWait(context.Background())
+		})
 	}
 
 	if self.contractStatusSub != nil {
@@ -4560,23 +4669,25 @@ func (self *DeviceLocal) close() {
 		self.localUserNatSub()
 		self.localUserNatSub = nil
 	}
-	if self.remoteUserNatProviderLocalUserNat != nil {
-		self.remoteUserNatProviderLocalUserNat.Close()
-		self.remoteUserNatProviderLocalUserNat = nil
-	}
-	if self.providerPacketStatsSub != nil {
-		self.providerPacketStatsSub()
-		self.providerPacketStatsSub = nil
-	}
-	if self.remoteUserNatProvider != nil {
-		self.remoteUserNatProvider.Close()
-		self.remoteUserNatProvider = nil
-	}
+	self.closeRemoteUserNatProviderWithLock()
 
 	// self.localUserNat.Close()
 
 	if self.deviceLocalRpcManager != nil {
-		self.deviceLocalRpcManager.Close()
+		deviceLocalRpcManager := self.deviceLocalRpcManager
+		deviceLocalRpcManager.Close()
+		self.deviceLocalRpcManager = nil
+		self.startLifecycleWorkerWithLock(func() {
+			_ = deviceLocalRpcManager.CloseAndWait(context.Background())
+		})
+	}
+	if self.securityPolicyMonitor != nil {
+		securityPolicyMonitor := self.securityPolicyMonitor
+		securityPolicyMonitor.Close()
+		self.securityPolicyMonitor = nil
+		self.startLifecycleWorkerWithLock(func() {
+			_ = securityPolicyMonitor.CloseAndWait(context.Background())
+		})
 	}
 
 	if self.apiJwtRefreshSub != nil {
@@ -4621,6 +4732,9 @@ func (self *DeviceLocal) SetRpcServer(serverPem string, clientCertPem string, ho
 
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+	if self.closed {
+		return fmt.Errorf("device local is closed")
+	}
 
 	// idempotent: if the listener config is unchanged, do not rebind (which would
 	// drop live connections and force the remote to resync). re-applying the same
@@ -4641,7 +4755,11 @@ func (self *DeviceLocal) SetRpcServer(serverPem string, clientCertPem string, ho
 	// closing the old manager synchronously releases the previous listener's
 	// port before the new listener binds (which may be the same port)
 	if self.deviceLocalRpcManager != nil {
-		self.deviceLocalRpcManager.Close()
+		deviceLocalRpcManager := self.deviceLocalRpcManager
+		deviceLocalRpcManager.Close()
+		self.startLifecycleWorkerWithLock(func() {
+			_ = deviceLocalRpcManager.CloseAndWait(context.Background())
+		})
 	}
 	self.deviceLocalRpcManager = newDeviceLocalRpcManager(self.ctx, self, settings, listener)
 	self.rpcHostPort = hostPort
@@ -4660,6 +4778,9 @@ func (self *DeviceLocal) SetRpcServer(serverPem string, clientCertPem string, ho
 func (self *DeviceLocal) StartHostedRpc(listener DeviceRpcListener, deviceGeneration string) {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+	if self.closed {
+		return
+	}
 
 	settings := defaultDeviceRpcSettings()
 	settings.DisableLogging = self.settings.DisableLogging
@@ -4668,7 +4789,11 @@ func (self *DeviceLocal) StartHostedRpc(listener DeviceRpcListener, deviceGenera
 	settings.DeviceGeneration = deviceGeneration
 
 	if self.deviceLocalRpcManager != nil {
-		self.deviceLocalRpcManager.Close()
+		deviceLocalRpcManager := self.deviceLocalRpcManager
+		deviceLocalRpcManager.Close()
+		self.startLifecycleWorkerWithLock(func() {
+			_ = deviceLocalRpcManager.CloseAndWait(context.Background())
+		})
 	}
 	// see the companion convention note in device_rpc_transport.go
 	self.deviceLocalRpcManager = newDeviceLocalRpcManager(self.ctx, self, settings, listener.(deviceRpcListener))
@@ -4771,7 +4896,46 @@ func (self *WindowEvents) EvaluationFailedClientCount() int {
 // must be called with `stateLock`. tears down the client event subscriptions
 // and folds the client's final packet counters into the device accumulators
 // before closing it. the contracts die with the client
+func (self *DeviceLocal) startLifecycleWorkerWithLock(work func()) {
+	self.lifecycleWorkers.Add(1)
+	go connect.HandleError(func() {
+		defer self.lifecycleWorkers.Done()
+		work()
+	})
+}
+
+// Detaches the provider egress path before asynchronously joining both NAT
+// layers. The caller holds stateLock, so Close cannot start its Wait first.
+func (self *DeviceLocal) closeRemoteUserNatProviderWithLock() {
+	localUserNat := self.remoteUserNatProviderLocalUserNat
+	self.remoteUserNatProviderLocalUserNat = nil
+	provider := self.remoteUserNatProvider
+	self.remoteUserNatProvider = nil
+	if self.providerPacketStatsSub != nil {
+		self.providerPacketStatsSub()
+		self.providerPacketStatsSub = nil
+	}
+	if provider != nil {
+		addConnectPacketStats(&self.providerPacketStatsBase, provider.PacketStats())
+		provider.Close()
+	}
+	if localUserNat != nil {
+		localUserNat.Close()
+	}
+	if provider != nil || localUserNat != nil {
+		self.startLifecycleWorkerWithLock(func() {
+			if localUserNat != nil {
+				_ = localUserNat.CloseAndWait(context.Background())
+			}
+		})
+	}
+}
+
+// Detaches one destination generation and admits its complete asynchronous
+// retirement before the caller can publish a replacement or closed device.
 func (self *DeviceLocal) closeRemoteUserNatClientWithLock() {
+	ownedGenerator := self.ownedMultiClientGenerator
+	self.ownedMultiClientGenerator = nil
 	self.apiMultiClientGenerator = nil
 	if self.blockActionSub != nil {
 		self.blockActionSub()
@@ -4789,12 +4953,25 @@ func (self *DeviceLocal) closeRemoteUserNatClientWithLock() {
 		self.contractStatsEventSub()
 		self.contractStatsEventSub = nil
 	}
-	if self.remoteUserNatClient != nil {
-		if multi, ok := self.remoteUserNatClient.(*connect.RemoteUserNatMultiClient); ok {
+	remoteUserNatClient := self.remoteUserNatClient
+	self.remoteUserNatClient = nil
+	if remoteUserNatClient != nil {
+		if multi, ok := remoteUserNatClient.(*connect.RemoteUserNatMultiClient); ok {
 			addConnectPacketStats(&self.packetStatsBase, multi.PacketStats())
 		}
-		self.remoteUserNatClient.Close()
-		self.remoteUserNatClient = nil
+		remoteUserNatClient.Close()
+	}
+	if remoteUserNatClient != nil || ownedGenerator != nil {
+		self.startLifecycleWorkerWithLock(func() {
+			if joiningClient, ok := remoteUserNatClient.(interface {
+				CloseAndWait(context.Context) error
+			}); ok {
+				_ = joiningClient.CloseAndWait(context.Background())
+			}
+			if ownedGenerator != nil {
+				_ = ownedGenerator.CloseAndWait(context.Background())
+			}
+		})
 	}
 	self.contracts.clear()
 }

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -120,8 +122,9 @@ func ConnectLinkUrl(key *NetworkSpaceKey, values *NetworkSpaceValues, target str
 }
 
 type NetworkSpace struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 
 	key         NetworkSpaceKey
 	values      NetworkSpaceValues
@@ -257,7 +260,7 @@ func testing_newNetworkSpace(ctx context.Context) (networkSpace *NetworkSpace, b
 	// test invocation. Tie both test-only resources to the supplied lifetime.
 	context.AfterFunc(ctx, func() {
 		if networkSpace.asyncLocalState != nil {
-			networkSpace.asyncLocalState.Close()
+			_ = networkSpace.asyncLocalState.CloseAndWait(context.Background())
 		}
 		_ = os.RemoveAll(storagePath)
 	})
@@ -344,11 +347,10 @@ func NewNetworkSpaceWithUrls(
 }
 
 // NewUrlsNetworkSpace builds a storage-less NetworkSpace targeting explicit api
-// and platform urls. Used by the JS/wasm DeviceRemote, where the rpc path dials
-// the platform websocket directly (via the browser WebSocket dialer) and the
-// api/jwt is owned by the surrounding TypeScript layer; the NetworkSpace here
-// mainly carries the urls and a client strategy the device does not use for the
-// rpc connection.
+// and platform urls. Used by JS/wasm DeviceRemote constructors; their selected
+// rpc dialer (direct browser websocket or extension byte transport) is supplied
+// separately. The NetworkSpace mainly carries API state and a fallback client
+// strategy, which extension-backed remotes explicitly disable.
 func NewUrlsNetworkSpace(apiUrl string, platformUrl string) *NetworkSpace {
 	return Testing_NewNetworkSpaceWithUrls(
 		context.Background(),
@@ -487,7 +489,23 @@ func (self *NetworkSpace) restoreControlIpFamilyPolicy() bool {
 }
 
 func (self *NetworkSpace) close() {
-	self.cancel()
+	self.closeOnce.Do(func() {
+		self.cancel()
+		_ = self.api.CloseAndWait(context.Background())
+		if self.asyncLocalState != nil {
+			_ = self.asyncLocalState.CloseAndWait(context.Background())
+		}
+		self.clientStrategy.Close()
+	})
+}
+
+// Releases the API, local-state worker, and shared client strategy owned by an
+// explicitly constructed headless network space. Manager-owned spaces are
+// closed by their manager.
+//
+//gomobile:noexport
+func (self *NetworkSpace) Close() {
+	self.close()
 }
 
 func (self *NetworkSpace) ToJson() (string, error) {
@@ -533,6 +551,7 @@ type NetworkSpaceManager struct {
 	stateLock          sync.Mutex
 	networkSpaces      map[NetworkSpaceKey]*NetworkSpace
 	activeNetworkSpace *NetworkSpace
+	closed             bool
 
 	networkSpacesChangeListeners      *connect.CallbackList[NetworkSpacesChangeListener]
 	activeNetworkSpaceChangeListeners *connect.CallbackList[ActiveNetworkSpaceChangeListener]
@@ -556,11 +575,10 @@ type NetworkSpaceManager struct {
 //     persisted copy lives under each space's own local storage. `load`
 //     constructs every stored space before it selects the active one, so a
 //     per-construction restore hands the process whichever space came last in
-//     the stored slice. With a custom api host configured alongside the
-//     production one -- the case this branch exists for -- that is routinely
-//     the wrong space.
+//     the stored slice. With a second api host configured alongside the
+//     production one that is routinely the wrong space.
 //   - a runtime set is not undone. `updateNetworkSpace` rebuilds a space on
-//     every launch and on every custom-server import, so a per-construction
+//     every launch and on every space import, so a per-construction
 //     restore re-imposes the persisted value over one an embedder had just set
 //     through `SetControlIpFamilyPolicy`, with nothing in the logs to say why.
 //
@@ -572,15 +590,14 @@ type NetworkSpaceManager struct {
 //
 // The guard is spent only when a policy was ACTUALLY applied. A space with
 // nothing persisted applies nothing, so letting it spend the guard would let
-// it decide the process's policy by silence: with a custom api host
-// configured alongside the production one -- two spaces, the normal case on
-// this branch -- the bundled space with no policy is routinely the first one
-// the restore sees, and it would leave the space that does have one unable to
-// restore it for the rest of the session.
+// it decide the process's policy by silence: with a second api host
+// configured alongside the production one, the bundled space with no policy is
+// routinely the first one the restore sees, and it would leave the space that
+// does have one unable to restore it for the rest of the session.
 //
 // Once a policy IS applied the guard is closed for good, which is the half
 // this must not lose: `updateNetworkSpace` rebuilds a space on every launch
-// and every custom-server import, and a second apply there would re-impose the
+// and every space import, and a second apply there would re-impose the
 // persisted value over one an embedder had just set through
 // `SetControlIpFamilyPolicy`.
 func (self *NetworkSpaceManager) restoreControlIpFamilyPolicyOnce(networkSpace *NetworkSpace) {
@@ -656,46 +673,46 @@ func (self *NetworkSpaceManager) store() error {
 	return os.WriteFile(filepath.Join(self.storagePath, ".network_spaces"), networkSpaceManagerStateBytes, LocalStorageFilePermissions)
 }
 
-func (self *NetworkSpaceManager) load() (returnErr error) {
+func (self *NetworkSpaceManager) load() error {
 	if self.storagePath == "" {
 		return nil
 	}
-	func() {
+
+	networkSpaceManagerStateBytes, err := os.ReadFile(filepath.Join(self.storagePath, ".network_spaces"))
+	if err != nil {
+		return err
+	}
+	var storedState networkSpaceManagerState
+	if err := json.Unmarshal(networkSpaceManagerStateBytes, &storedState); err != nil {
+		return err
+	}
+
+	replacementNetworkSpaces := map[NetworkSpaceKey]*NetworkSpace{}
+	replacedNetworkSpaces := []*NetworkSpace{}
+	for _, networkSpaceState := range storedState.NetworkSpaces {
+		replacement := newNetworkSpace(
+			self.ctx,
+			networkSpaceState.Key,
+			networkSpaceState.Values,
+			self.envStoragePath(&networkSpaceState.Key),
+		)
+		if replaced := replacementNetworkSpaces[networkSpaceState.Key]; replaced != nil {
+			replacedNetworkSpaces = append(replacedNetworkSpaces, replaced)
+		}
+		replacementNetworkSpaces[networkSpaceState.Key] = replacement
+	}
+	var replacementActiveNetworkSpace *NetworkSpace
+	if storedState.Active != nil {
+		replacementActiveNetworkSpace = replacementNetworkSpaces[*storedState.Active]
+	}
+
+	previousNetworkSpaces := func() []*NetworkSpace {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 
-		networkSpaceManagerStateBytes, err := os.ReadFile(filepath.Join(self.storagePath, ".network_spaces"))
-		if err != nil {
-			returnErr = err
-			return
-		}
-
-		var networkSpaceManagerState networkSpaceManagerState
-		err = json.Unmarshal(networkSpaceManagerStateBytes, &networkSpaceManagerState)
-		if err != nil {
-			returnErr = err
-			return
-		}
-
-		for _, networkSpace := range self.networkSpaces {
-			networkSpace.close()
-		}
-		self.networkSpaces = map[NetworkSpaceKey]*NetworkSpace{}
-
-		for _, networkSpaceState := range networkSpaceManagerState.NetworkSpaces {
-			self.networkSpaces[networkSpaceState.Key] = newNetworkSpace(
-				self.ctx,
-				networkSpaceState.Key,
-				networkSpaceState.Values,
-				self.envStoragePath(&networkSpaceState.Key),
-			)
-		}
-		if networkSpaceManagerState.Active != nil {
-			if networkSpace, ok := self.networkSpaces[*networkSpaceManagerState.Active]; ok {
-				self.activeNetworkSpace = networkSpace
-			}
-			// else active key not found
-		}
+		previous := slices.Collect(maps.Values(self.networkSpaces))
+		self.networkSpaces = replacementNetworkSpaces
+		self.activeNetworkSpace = replacementActiveNetworkSpace
 
 		// AFTER the selection above, and still inside the manager constructor:
 		// no listener can be registered yet and no Device exists, so nothing
@@ -704,13 +721,15 @@ func (self *NetworkSpaceManager) load() (returnErr error) {
 		// the login call is the first request out, and for the user this
 		// setting exists for it is the call that hangs.
 		self.restoreControlIpFamilyPolicyOnce(self.activeNetworkSpace)
+
+		return previous
 	}()
-	if returnErr != nil {
-		return
+	for _, networkSpace := range append(previousNetworkSpaces, replacedNetworkSpaces...) {
+		networkSpace.close()
 	}
 
 	self.activeNetworkSpaceChanged(self.GetActiveNetworkSpace())
-	return
+	return nil
 }
 
 func (self *NetworkSpaceManager) envStoragePath(key *NetworkSpaceKey) string {
@@ -794,13 +813,16 @@ func (self *NetworkSpaceManager) SetActiveNetworkSpace(networkSpace *NetworkSpac
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 
+		if self.closed {
+			return
+		}
 		if self.activeNetworkSpace == networkSpace {
 			return
 		}
 
 		if networkSpace != nil {
-			if _, ok := self.networkSpaces[networkSpace.key]; !ok {
-				// does not exist
+			currentNetworkSpace, ok := self.networkSpaces[networkSpace.key]
+			if !ok || currentNetworkSpace != networkSpace {
 				return
 			}
 		}
@@ -871,20 +893,26 @@ func (self *NetworkSpaceManager) updateNetworkSpace(key *NetworkSpaceKey, callba
 
 	callback(&copyValues)
 
+	copyNetworkSpace := newNetworkSpace(self.ctx, *key, copyValues, self.envStoragePath(key))
 	activeSet := false
+	installed := false
+	var previousNetworkSpace *NetworkSpace
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 
-		copyNetworkSpace := newNetworkSpace(self.ctx, *key, copyValues, self.envStoragePath(key))
+		if self.closed {
+			return
+		}
 		if networkSpace, ok := self.networkSpaces[*key]; ok {
+			previousNetworkSpace = networkSpace
 			if self.activeNetworkSpace == networkSpace {
 				self.activeNetworkSpace = copyNetworkSpace
 				activeSet = true
 			}
-			networkSpace.close()
 		}
 		self.networkSpaces[*key] = copyNetworkSpace
+		installed = true
 
 		// only when this manager has no active space at all -- the ios packet
 		// tunnel extension, which imports its space and never selects one, and
@@ -892,11 +920,18 @@ func (self *NetworkSpaceManager) updateNetworkSpace(key *NetworkSpaceKey, callba
 		// the bundled space is created right here. With an active space
 		// selected the restore has already run against it and the once guard
 		// makes this a no-op, which is what stops every launch and every
-		// custom-server import from re-imposing a persisted policy.
+		// space import from re-imposing a persisted policy.
 		if self.activeNetworkSpace == nil {
 			self.restoreControlIpFamilyPolicyOnce(copyNetworkSpace)
 		}
 	}()
+	if !installed {
+		copyNetworkSpace.close()
+		return nil
+	}
+	if previousNetworkSpace != nil {
+		previousNetworkSpace.close()
+	}
 	self.store()
 	self.networkSpacesChanged()
 	if activeSet {
@@ -916,7 +951,8 @@ func (self *NetworkSpaceManager) RemoveNetworkSpace(networkSpace *NetworkSpace) 
 			return
 		}
 
-		if _, ok := self.networkSpaces[networkSpace.key]; !ok {
+		currentNetworkSpace, ok := self.networkSpaces[networkSpace.key]
+		if !ok || currentNetworkSpace != networkSpace {
 			return
 		}
 
@@ -925,6 +961,7 @@ func (self *NetworkSpaceManager) RemoveNetworkSpace(networkSpace *NetworkSpace) 
 	}()
 
 	if changed {
+		networkSpace.close()
 		self.store()
 		self.networkSpacesChanged()
 	}
@@ -933,6 +970,22 @@ func (self *NetworkSpaceManager) RemoveNetworkSpace(networkSpace *NetworkSpace) 
 
 func (self *NetworkSpaceManager) Close() {
 	self.cancel()
+	networkSpaces := func() []*NetworkSpace {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+
+		if self.closed {
+			return nil
+		}
+		self.closed = true
+		networkSpaces := slices.Collect(maps.Values(self.networkSpaces))
+		self.networkSpaces = map[NetworkSpaceKey]*NetworkSpace{}
+		self.activeNetworkSpace = nil
+		return networkSpaces
+	}()
+	for _, networkSpace := range networkSpaces {
+		networkSpace.close()
+	}
 }
 
 func (self *NetworkSpaceManager) ImportNetworkSpaceFromJson(networkSpaceJson string) (*NetworkSpace, error) {

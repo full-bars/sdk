@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,24 +19,34 @@ func TestDeviceLocalAppliesApiRefreshAndLogout(t *testing.T) {
 	refreshedJwt := testingRefreshableJwtWithMarker(t, "device-local-refreshed")
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
-	requests := make(chan string, 2)
-	var requestCount atomic.Int64
+	refreshedRequestStarted := make(chan struct{})
+	windowAuth := make(chan string, 1)
+	var firstStartedOnce sync.Once
+	var refreshedStartedOnce sync.Once
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestNumber := requestCount.Add(1)
-		requests <- r.Header.Get("Authorization")
+	ts := httptest.NewServer(testApiHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		switch requestNumber {
-		case 1:
-			close(firstStarted)
+		if r.URL.Path == "/network/auth-client" {
+			windowAuth <- r.Header.Get("Authorization")
+			fmt.Fprintf(w, `{"by_client_jwt":%q}`, refreshedJwt)
+			return
+		}
+		switch r.Header.Get("Authorization") {
+		case "Bearer " + initialJwt:
+			firstStartedOnce.Do(func() {
+				close(firstStarted)
+			})
 			<-releaseFirst
 			fmt.Fprintf(w, `{"by_jwt":%q}`, refreshedJwt)
-		case 2:
+		case "Bearer " + refreshedJwt:
+			refreshedStartedOnce.Do(func() {
+				close(refreshedRequestStarted)
+			})
 			fmt.Fprint(w, `{"error":{"message":"client no longer exists"}}`)
 		default:
-			http.Error(w, "unexpected refresh", http.StatusInternalServerError)
+			http.Error(w, "unexpected authorization", http.StatusBadRequest)
 		}
-	}))
+	})))
 	defer ts.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -85,6 +95,24 @@ func TestDeviceLocalAppliesApiRefreshAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer device.Close()
+	windowGenerator := connect.NewApiMultiClientGenerator(
+		ctx,
+		nil,
+		networkSpace.clientStrategy,
+		nil,
+		ts.URL,
+		initialJwt,
+		"ws://127.0.0.1:1",
+		"refresh-test",
+		"test",
+		"0.0.0",
+		nil,
+		connect.DefaultClientSettings,
+		connect.DefaultApiMultiClientGeneratorSettings(),
+	)
+	device.stateLock.Lock()
+	device.apiMultiClientGenerator = windowGenerator
+	device.stateLock.Unlock()
 
 	select {
 	case <-firstStarted:
@@ -106,9 +134,6 @@ func TestDeviceLocalAppliesApiRefreshAndLogout(t *testing.T) {
 	if got := receiveStringWithin(t, deviceRefreshed, "DeviceLocal did not publish the Api refresh"); got != refreshedJwt {
 		t.Fatalf("DeviceLocal refreshed JWT = %q, want %q", got, refreshedJwt)
 	}
-	if got := receiveStringWithin(t, requests, "DeviceLocal refresh request was not observed"); got != "Bearer "+initialJwt {
-		t.Fatalf("DeviceLocal refresh authorization = %q, want initial JWT", got)
-	}
 	if got := networkSpace.GetApi().GetByJwt(); got != refreshedJwt {
 		t.Fatalf("Api JWT = %q, want DeviceLocal refreshed JWT", got)
 	}
@@ -127,6 +152,17 @@ func TestDeviceLocalAppliesApiRefreshAndLogout(t *testing.T) {
 	if got := localState.GetInstanceId(); got == nil || got.Cmp(liveInstanceId) != 0 {
 		t.Fatalf("persisted instance_id after refresh = %v, want live %v", got, liveInstanceId)
 	}
+	if _, err := windowGenerator.NewClientArgsContext(ctx); err != nil {
+		t.Fatalf("mint client after device JWT refresh: %v", err)
+	}
+	select {
+	case authorization := <-windowAuth:
+		if authorization != "Bearer "+refreshedJwt {
+			t.Fatalf("window generator authorization did not rotate with device JWT")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("window generator did not authenticate a later client")
+	}
 
 	// A confirmed logical rejection is propagated through the same Api owner,
 	// clears persisted state, and preserves DeviceLocal's existing app-facing
@@ -135,12 +171,14 @@ func TestDeviceLocalAppliesApiRefreshAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
+	case <-refreshedRequestStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("DeviceLocal rejection request was not observed")
+	}
+	select {
 	case <-deviceLoggedOut:
 	case <-time.After(5 * time.Second):
 		t.Fatal("DeviceLocal did not publish Api logout")
-	}
-	if got := receiveStringWithin(t, requests, "DeviceLocal rejection request was not observed"); got != "Bearer "+refreshedJwt {
-		t.Fatalf("DeviceLocal rejection authorization = %q, want refreshed JWT", got)
 	}
 	if got := networkSpace.GetApi().GetByJwt(); got != "" {
 		t.Fatalf("Api JWT after rejection = %q, want empty", got)
@@ -178,24 +216,28 @@ func TestDeviceRemoteAppliesStandaloneApiRefreshAndLogout(t *testing.T) {
 	refreshedJwt := testingRefreshableJwtWithMarker(t, "device-remote-refreshed")
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
-	requests := make(chan string, 2)
-	var requestCount atomic.Int64
+	refreshedRequestStarted := make(chan struct{})
+	var firstStartedOnce sync.Once
+	var refreshedStartedOnce sync.Once
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestNumber := requestCount.Add(1)
-		requests <- r.Header.Get("Authorization")
+	ts := httptest.NewServer(testApiHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		switch requestNumber {
-		case 1:
-			close(firstStarted)
+		switch r.Header.Get("Authorization") {
+		case "Bearer " + initialJwt:
+			firstStartedOnce.Do(func() {
+				close(firstStarted)
+			})
 			<-releaseFirst
 			fmt.Fprintf(w, `{"by_jwt":%q}`, refreshedJwt)
-		case 2:
+		case "Bearer " + refreshedJwt:
+			refreshedStartedOnce.Do(func() {
+				close(refreshedRequestStarted)
+			})
 			http.Error(w, "not authorized", http.StatusUnauthorized)
 		default:
-			http.Error(w, "unexpected refresh", http.StatusInternalServerError)
+			http.Error(w, "unexpected authorization", http.StatusBadRequest)
 		}
-	}))
+	})))
 	defer ts.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -244,9 +286,6 @@ func TestDeviceRemoteAppliesStandaloneApiRefreshAndLogout(t *testing.T) {
 	if got := receiveStringWithin(t, deviceRefreshed, "DeviceRemote did not publish the Api refresh"); got != refreshedJwt {
 		t.Fatalf("DeviceRemote refreshed JWT = %q, want %q", got, refreshedJwt)
 	}
-	if got := receiveStringWithin(t, requests, "DeviceRemote refresh request was not observed"); got != "Bearer "+initialJwt {
-		t.Fatalf("DeviceRemote refresh authorization = %q, want initial JWT", got)
-	}
 	if got := networkSpace.GetApi().GetByJwt(); got != refreshedJwt {
 		t.Fatalf("Api JWT = %q, want DeviceRemote refreshed JWT", got)
 	}
@@ -261,12 +300,14 @@ func TestDeviceRemoteAppliesStandaloneApiRefreshAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
+	case <-refreshedRequestStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("DeviceRemote rejection request was not observed")
+	}
+	select {
 	case <-deviceLoggedOut:
 	case <-time.After(5 * time.Second):
 		t.Fatal("DeviceRemote did not publish Api logout")
-	}
-	if got := receiveStringWithin(t, requests, "DeviceRemote rejection request was not observed"); got != "Bearer "+refreshedJwt {
-		t.Fatalf("DeviceRemote rejection authorization = %q, want refreshed JWT", got)
 	}
 	if got := networkSpace.GetApi().GetByJwt(); got != "" {
 		t.Fatalf("Api JWT after rejection = %q, want empty", got)

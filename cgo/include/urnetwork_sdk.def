@@ -312,6 +312,7 @@ EXPORTS
 	urnet_device_local_get_provide_secret_keys
 	urnet_device_local_get_provide_tls_certificate_pem
 	urnet_device_local_get_provide_tls_private_key_pem
+	urnet_device_local_get_provider_connected
 	urnet_device_local_get_reliability_metrics
 	urnet_device_local_get_reliability_settings
 	urnet_device_local_key_material_get_client_key_seed
@@ -575,6 +576,7 @@ EXPORTS
 	urnet_network_name_validation_view_controller_network_check
 	urnet_network_name_validation_view_controller_start
 	urnet_network_name_validation_view_controller_stop
+	urnet_network_space_close
 	urnet_network_space_connect_link_url
 	urnet_network_space_get_api
 	urnet_network_space_get_api_url
@@ -643,6 +645,7 @@ EXPORTS
 	urnet_new_tunnel
 	urnet_new_urls_network_space
 	urnet_normal_env_name
+	urnet_order_connected_provider_locations
 	urnet_packet_batch_get
 	urnet_packet_batch_ip_protocol
 	urnet_packet_batch_ip_version

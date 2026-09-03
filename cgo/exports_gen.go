@@ -7398,6 +7398,17 @@ func urnet_device_local_get_provide_secret_keys(self C.uint64_t) *C.char {
 	return cJson(r0, "urnet_device_local_get_provide_secret_keys")
 }
 
+//export urnet_device_local_get_provider_connected
+func urnet_device_local_get_provider_connected(self C.uint64_t) C.bool {
+	defer cgoGuard("urnet_device_local_get_provider_connected")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_get_provider_connected")
+	if !ok {
+		return C.bool(false)
+	}
+	r0 := self_.GetProviderConnected()
+	return C.bool(r0)
+}
+
 //export urnet_device_local_get_reliability_metrics
 func urnet_device_local_get_reliability_metrics(self C.uint64_t) *C.char {
 	defer cgoGuard("urnet_device_local_get_reliability_metrics")
@@ -10283,6 +10294,16 @@ func urnet_network_name_validation_view_controller_stop(self C.uint64_t) {
 	self_.Stop()
 }
 
+//export urnet_network_space_close
+func urnet_network_space_close(self C.uint64_t) {
+	defer cgoGuard("urnet_network_space_close")
+	self_, ok := resolveHandle[*sdk.NetworkSpace](uint64(self), "urnet_network_space_close")
+	if !ok {
+		return
+	}
+	self_.Close()
+}
+
 //export urnet_network_space_connect_link_url
 func urnet_network_space_connect_link_url(self C.uint64_t, target *C.char) *C.char {
 	defer cgoGuard("urnet_network_space_connect_link_url")
@@ -11240,6 +11261,23 @@ func urnet_normal_env_name(envName *C.char) *C.char {
 	defer cgoGuard("urnet_normal_env_name")
 	r0 := sdk.NormalEnvName(goString(envName))
 	return cString(string(r0))
+}
+
+//export urnet_order_connected_provider_locations
+func urnet_order_connected_provider_locations(locations *C.char) *C.char {
+	defer cgoGuard("urnet_order_connected_provider_locations")
+	var locations_ *sdk.ConnectedProviderLocationList
+	if locations != nil {
+		locations_ = &sdk.ConnectedProviderLocationList{}
+		if !goJson(locations, locations_, "urnet_order_connected_provider_locations") {
+			return nil
+		}
+	}
+	r0 := sdk.OrderConnectedProviderLocations(locations_)
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_order_connected_provider_locations")
 }
 
 //export urnet_packet_batch_ip_protocol

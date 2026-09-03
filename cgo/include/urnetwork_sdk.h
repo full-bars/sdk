@@ -827,6 +827,7 @@ uint64_t urnet_device_local_get_key_material(uint64_t self);
 char* urnet_device_local_get_pinned_app_ids(uint64_t self);
 char* urnet_device_local_get_probe_results(uint64_t self);
 char* urnet_device_local_get_provide_secret_keys(uint64_t self);
+bool urnet_device_local_get_provider_connected(uint64_t self);
 char* urnet_device_local_get_reliability_metrics(uint64_t self);
 char* urnet_device_local_get_reliability_settings(uint64_t self);
 char* urnet_device_local_memory_used(uint64_t self);
@@ -1054,6 +1055,7 @@ void urnet_network_name_validation_view_controller_stop(uint64_t self);
 
 /* ----- NetworkSpace ----- */
 
+void urnet_network_space_close(uint64_t self);
 char* urnet_network_space_connect_link_url(uint64_t self, const char* target);
 uint64_t urnet_network_space_get_api(uint64_t self);
 char* urnet_network_space_get_api_url(uint64_t self);
@@ -1314,6 +1316,7 @@ char* urnet_new_transfer_path(const char* source_id, const char* destination_id,
 uint64_t urnet_new_tunnel(void);
 uint64_t urnet_new_urls_network_space(const char* api_url, const char* platform_url);
 char* urnet_normal_env_name(const char* env_name);
+char* urnet_order_connected_provider_locations(const char* locations_json);
 char* urnet_parse_checkout_redirect(const char* uri, char** out_error);
 char* urnet_parse_id(const char* src, char** out_error);
 int64_t urnet_points_to_nano_points(double points);
@@ -1924,6 +1927,7 @@ uint64_t urnet_new_io_loop(uint64_t device_local, int64_t fd, urnet_io_loop_done
  *   GeneratorFunc: any
  *   MultiClientIdentityStore: any
  *   ProviderDialContextSettings: any | null
+ *   DnsPumpHost: string
  *   EnableRpc: boolean
  *   KeyMaterial: DeviceLocalKeyMaterial | null
  *   DisableLogging: boolean
@@ -2047,6 +2051,7 @@ uint64_t urnet_new_io_loop(uint64_t device_local, int64_t fd, urnet_io_loop_done
  *   count: number
  *   exclude_client_ids: IdList | null
  *   rank_mode?: string
+ *   force_minimum?: boolean
  */
 
 /* FindProviders2Result (json):

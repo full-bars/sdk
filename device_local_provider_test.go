@@ -59,6 +59,7 @@ func TestDeviceLocalProviderMigrateKeepsOldOnTimeout(t *testing.T) {
 	defer client.Close()
 
 	clientStrategy := connect.NewClientStrategyWithDefaults(ctx)
+	defer clientStrategy.Close()
 	auth := &connect.ClientAuth{
 		ByJwt:      "test",
 		InstanceId: connect.NewId(),
@@ -199,6 +200,115 @@ func (self *fakeMigratablePlatformTransport) connect() {
 	self.mutex.Unlock()
 }
 
+// Provider readiness follows the live carrier generation and closes with the
+// provider/device. Construction of a disconnected transport is never ready.
+func TestDeviceLocalProviderConnectedTracksLiveCarrier(t *testing.T) {
+	auth := &connect.ClientAuth{
+		ByJwt:      "test",
+		InstanceId: connect.NewId(),
+		AppVersion: "0.0.0",
+	}
+	transport := newFakeMigratablePlatformTransport(auth, false)
+	provider := &deviceLocalProvider{platformTransport: transport}
+	device := &DeviceLocal{provider: provider}
+	if provider.IsConnected() || device.GetProviderConnected() {
+		t.Fatal("disconnected provider reported ready after construction")
+	}
+	transport.connect()
+	if !provider.IsConnected() || !device.GetProviderConnected() {
+		t.Fatal("connected provider did not report ready")
+	}
+	provider.stateLock.Lock()
+	provider.closed = true
+	provider.stateLock.Unlock()
+	if provider.IsConnected() || device.GetProviderConnected() {
+		t.Fatal("closed provider retained carrier readiness")
+	}
+	provider.stateLock.Lock()
+	provider.closed = false
+	provider.stateLock.Unlock()
+	device.stateLock.Lock()
+	device.closed = true
+	device.stateLock.Unlock()
+	if device.GetProviderConnected() {
+		t.Fatal("closed device retained provider readiness")
+	}
+}
+
+// Provider shutdown closes migration admission and waits for a replacement
+// constructor already admitted by a control callback. A late replacement may
+// never become current after the owner has published completion.
+func TestDeviceLocalProviderCloseAndWaitJoinsAdmittedMigration(t *testing.T) {
+	providerCtx, providerCancel := context.WithCancel(context.Background())
+	auth := &connect.ClientAuth{
+		ByJwt:      "test",
+		InstanceId: connect.NewId(),
+		AppVersion: "0.0.0",
+	}
+	oldTransport := newFakeMigratablePlatformTransport(auth, true)
+	replacementEntered := make(chan struct{})
+	replacementRelease := make(chan struct{})
+	replacement := newFakeMigratablePlatformTransport(auth, false)
+	provider := &deviceLocalProvider{
+		ctx:                       providerCtx,
+		cancel:                    providerCancel,
+		auth:                      auth,
+		platformTransport:         oldTransport,
+		platformTransportSettings: connect.DefaultPlatformTransportSettings(),
+		migrateConnectTimeout:     time.Hour,
+		migrateMaxScheduleDelay:   time.Hour,
+		newPlatformTransport: func(
+			*connect.ClientAuth,
+			connect.TransportMode,
+			*connect.PlatformTransportSettings,
+		) migratablePlatformTransport {
+			close(replacementEntered)
+			<-replacementRelease
+			return replacement
+		},
+	}
+	provider.requestPlatformTransportMigration(time.Now())
+	<-replacementEntered
+
+	closeResult := make(chan error, 1)
+	go func() {
+		closeResult <- provider.CloseAndWait(context.Background())
+	}()
+	<-providerCtx.Done()
+	select {
+	case err := <-closeResult:
+		t.Fatalf("provider close returned before admitted migration: %v", err)
+	default:
+	}
+	close(replacementRelease)
+	testCtx, testCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer testCancel()
+	select {
+	case <-testCtx.Done():
+		t.Fatal(testCtx.Err())
+	case err := <-closeResult:
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	provider.stateLock.Lock()
+	current := provider.platformTransport
+	provider.stateLock.Unlock()
+	if current != oldTransport {
+		t.Fatal("shutdown-time replacement became current")
+	}
+	oldTransport.mutex.Lock()
+	oldClosed := oldTransport.closed
+	oldTransport.mutex.Unlock()
+	replacement.mutex.Lock()
+	replacementClosed := replacement.closed
+	replacement.mutex.Unlock()
+	if !oldClosed || !replacementClosed {
+		t.Fatalf("transport closure old=%t replacement=%t", oldClosed, replacementClosed)
+	}
+}
+
 func TestDeviceLocalProviderMigrationReappliesRacingAuth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -209,7 +319,9 @@ func TestDeviceLocalProviderMigrationReappliesRacingAuth(t *testing.T) {
 		AppVersion: "0.0.0",
 	}
 	oldTransport := newFakeMigratablePlatformTransport(oldAuth, true)
-	oobApi := connect.NewBringYourApi(ctx, connect.NewClientStrategyWithDefaults(ctx), "http://unused.invalid")
+	clientStrategy := connect.NewClientStrategyWithDefaults(ctx)
+	defer clientStrategy.Close()
+	oobApi := connect.NewBringYourApi(ctx, clientStrategy, "http://unused.invalid")
 	oobApi.SetByJwt(oldAuth.ByJwt)
 	nextCreated := make(chan *fakeMigratablePlatformTransport, 1)
 	provider := &deviceLocalProvider{

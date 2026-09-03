@@ -24,8 +24,9 @@ type Api struct {
 	byJwt string
 	log   connect.Logger
 
-	httpPostRaw connect.HttpPostRawFunction
-	httpGetRaw  connect.HttpGetRawFunction
+	httpPostRaw       connect.HttpPostRawFunction
+	httpGetRaw        connect.HttpGetRawFunction
+	httpPostStreamRaw connect.HttpPostStreamRawFunction
 
 	jwtRefreshListeners *connect.CallbackList[JwtRefreshListener]
 	authLogoutListeners *connect.CallbackList[AuthLogoutListener]
@@ -76,6 +77,7 @@ func (self *Api) newSession(ctx context.Context) *Api {
 	session := newApi(ctx, self.clientStrategy, self.apiUrl)
 	session.setHttpPostRaw(self.getHttpPostRaw())
 	session.setHttpGetRaw(self.getHttpGetRaw())
+	session.setHttpPostStreamRaw(self.getHttpPostStreamRaw())
 	return session
 }
 
@@ -260,14 +262,49 @@ func (self *Api) getHttpGetRaw() connect.HttpGetRawFunction {
 func (self *Api) getHttpPostStreamRaw() connect.HttpPostStreamRawFunction {
 	self.mutex.Lock()
 	defer self.mutex.Unlock()
+	if self.httpPostStreamRaw != nil {
+		return self.httpPostStreamRaw
+	}
 
 	return func(ctx context.Context, requestUrl string, body io.Reader, byJwt string) ([]byte, error) {
 		return connect.HttpPostStreamWithStrategyRaw(ctx, requestUrl, body, byJwt)
 	}
 }
 
+func (self *Api) setHttpPostStreamRaw(httpPostStreamRaw connect.HttpPostStreamRawFunction) {
+	self.mutex.Lock()
+	defer self.mutex.Unlock()
+	self.httpPostStreamRaw = httpPostStreamRaw
+}
+
+// Requests cancellation without joining the refresh worker. This remains safe
+// from refresh/logout callbacks, which must not join their own worker.
 func (self *Api) Close() {
 	self.cancel()
+}
+
+// Joins the API-owned refresh worker after cancellation. External owners use
+// this before releasing a shared strategy; callbacks must use Close instead.
+//
+//gomobile:noexport
+func (self *Api) CloseAndWait(ctx context.Context) error {
+	self.Close()
+	select {
+	case <-self.tokenManager.done:
+		return nil
+	default:
+	}
+	select {
+	case <-self.tokenManager.done:
+		return nil
+	case <-ctx.Done():
+		select {
+		case <-self.tokenManager.done:
+			return nil
+		default:
+			return ctx.Err()
+		}
+	}
 }
 
 // ApiError represents a generic error response from the API
@@ -904,6 +941,7 @@ type FindProviders2Args struct {
 	Count            int               `json:"count"`
 	ExcludeClientIds *IdList           `json:"exclude_client_ids"`
 	RankMode         string            `json:"rank_mode,omitempty"`
+	ForceMinimum     bool              `json:"force_minimum,omitempty"`
 }
 
 type FindProviders2Result struct {

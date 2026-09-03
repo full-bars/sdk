@@ -1188,6 +1188,7 @@ struct DeviceLocalSettings {
 	nlohmann::json GeneratorFunc{};
 	nlohmann::json MultiClientIdentityStore{};
 	std::optional<nlohmann::json> ProviderDialContextSettings;
+	std::string DnsPumpHost{};
 	bool EnableRpc{};
 	std::optional<nlohmann::json> KeyMaterial;
 	bool DisableLogging{};
@@ -1307,6 +1308,7 @@ struct FindProviders2Args {
 	int64_t count{};
 	std::optional<IdList> exclude_client_ids;
 	std::optional<std::string> rank_mode;
+	std::optional<bool> force_minimum;
 };
 
 struct FindProviders2Result {
@@ -5574,6 +5576,7 @@ inline void to_json(nlohmann::json& j, const DeviceLocalSettings& v) {
 	if (v.ProviderDialContextSettings) {
 		j["ProviderDialContextSettings"] = *v.ProviderDialContextSettings;
 	}
+	j["DnsPumpHost"] = v.DnsPumpHost;
 	j["EnableRpc"] = v.EnableRpc;
 	if (v.KeyMaterial) {
 		j["KeyMaterial"] = *v.KeyMaterial;
@@ -5662,6 +5665,9 @@ inline void from_json(const nlohmann::json& j, DeviceLocalSettings& v) {
 		nlohmann::json tmp{};
 		it->get_to(tmp);
 		v.ProviderDialContextSettings = std::move(tmp);
+	}
+	if (auto it = j.find("DnsPumpHost"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DnsPumpHost);
 	}
 	if (auto it = j.find("EnableRpc"); it != j.end() && !it->is_null()) {
 		it->get_to(v.EnableRpc);
@@ -6188,6 +6194,9 @@ inline void to_json(nlohmann::json& j, const FindProviders2Args& v) {
 	if (v.rank_mode) {
 		j["rank_mode"] = *v.rank_mode;
 	}
+	if (v.force_minimum) {
+		j["force_minimum"] = *v.force_minimum;
+	}
 }
 inline void from_json(const nlohmann::json& j, FindProviders2Args& v) {
 	if (!j.is_object()) {
@@ -6210,6 +6219,11 @@ inline void from_json(const nlohmann::json& j, FindProviders2Args& v) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.rank_mode = std::move(tmp);
+	}
+	if (auto it = j.find("force_minimum"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.force_minimum = std::move(tmp);
 	}
 }
 
@@ -11526,6 +11540,7 @@ public:
 	std::optional<StringList> getPinnedAppIds() const;
 	std::optional<ProbeResultList> getProbeResults() const;
 	std::optional<ProvideSecretKeyList> getProvideSecretKeys() const;
+	bool getProviderConnected() const;
 	std::optional<ReliabilityMetrics> getReliabilityMetrics() const;
 	std::optional<ReliabilitySettings> getReliabilitySettings() const;
 	std::optional<DeviceLocalMemoryUsage> memoryUsed() const;
@@ -11806,6 +11821,7 @@ class NetworkSpace final : public detail::Handle {
 public:
 	NetworkSpace() = default;
 	explicit NetworkSpace(uint64_t h) : detail::Handle(h) {}
+	void close() const;
 	std::string connectLinkUrl(const std::string& target) const;
 	Api getApi() const;
 	std::string getApiUrl() const;
@@ -18838,6 +18854,10 @@ inline std::optional<ProvideSecretKeyList> DeviceLocal::getProvideSecretKeys() c
 	}
 	return detail::parseJson<ProvideSecretKeyList>(r_s->c_str());
 }
+inline bool DeviceLocal::getProviderConnected() const {
+	bool r = urnet_device_local_get_provider_connected(handle());
+	return r;
+}
 inline std::optional<ReliabilityMetrics> DeviceLocal::getReliabilityMetrics() const {
 	char* r_c = urnet_device_local_get_reliability_metrics(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -19955,6 +19975,9 @@ inline void NetworkNameValidationViewController::start() const {
 }
 inline void NetworkNameValidationViewController::stop() const {
 	urnet_network_name_validation_view_controller_stop(handle());
+}
+inline void NetworkSpace::close() const {
+	urnet_network_space_close(handle());
 }
 inline std::string NetworkSpace::connectLinkUrl(const std::string& target) const {
 	char* r_c = urnet_network_space_connect_link_url(handle(), target.c_str());
@@ -21224,6 +21247,20 @@ inline NetworkSpace newUrlsNetworkSpace(const std::string& api_url, const std::s
 inline std::string normalEnvName(const std::string& env_name) {
 	char* r_c = urnet_normal_env_name(env_name.c_str());
 	return detail::takeString(r_c);
+}
+inline std::optional<ConnectedProviderLocationList> orderConnectedProviderLocations(const std::optional<ConnectedProviderLocationList>& locations) {
+	std::string locations_json;
+	const char* locations_c = nullptr;
+	if (locations) {
+		locations_json = nlohmann::json(*locations).dump();
+		locations_c = locations_json.c_str();
+	}
+	char* r_c = urnet_order_connected_provider_locations(locations_c);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ConnectedProviderLocationList>(r_s->c_str());
 }
 inline std::optional<CheckoutRedirect> parseCheckoutRedirect(const std::string& uri) {
 	char* err_c = nullptr;
