@@ -84,6 +84,20 @@ func (self *StringList) Contains(v string) bool {
 	return slices.Contains(self.values, v)
 }
 
+type Int64List struct {
+	exportedList[int64]
+}
+
+func NewInt64List() *Int64List {
+	return &Int64List{
+		exportedList: *newExportedList[int64](),
+	}
+}
+
+func (self *Int64List) Contains(v int64) bool {
+	return slices.Contains(self.values, v)
+}
+
 type IdList struct {
 	exportedList[*Id]
 }
@@ -407,6 +421,16 @@ func NewRegionalDnsServerList() *RegionalDnsServerList {
 
 type LeaderboardEarnersList struct {
 	exportedList[*LeaderboardEarner]
+}
+
+type PointsLeaderboardRowList struct {
+	exportedList[*PointsLeaderboardRow]
+}
+
+func NewPointsLeaderboardRowList() *PointsLeaderboardRowList {
+	return &PointsLeaderboardRowList{
+		exportedList: *newExportedList[*PointsLeaderboardRow](),
+	}
 }
 
 type AccountPointsList struct {

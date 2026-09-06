@@ -17,6 +17,27 @@ import (
 
 var _ = unsafe.Pointer(nil)
 
+type cAdapterAccountEpochsCallback struct {
+	cbResult C.urnet_account_epochs_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterAccountEpochsCallback) Result(result *sdk.AccountEpochsResult, errParam error) {
+	defer cgoGuard("urnet_account_epochs_cb")
+	result_ := cJson(result, "urnet_account_epochs_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_account_epochs(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
 type cAdapterAccountPreferencesGetCallback struct {
 	cbResult C.urnet_account_preferences_get_cb
 	userData unsafe.Pointer
@@ -1122,6 +1143,27 @@ func (self *cAdapterGetPayoutWalletCallback) Result(result *sdk.GetPayoutWalletI
 	}
 }
 
+type cAdapterGetPointsLeaderboardCallback struct {
+	cbResult C.urnet_get_points_leaderboard_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterGetPointsLeaderboardCallback) Result(result *sdk.PointsLeaderboardResult, errParam error) {
+	defer cgoGuard("urnet_get_points_leaderboard_cb")
+	result_ := cJson(result, "urnet_get_points_leaderboard_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_get_points_leaderboard(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
 type cAdapterGetReferralNetworkCallback struct {
 	cbResult C.urnet_get_referral_network_cb
 	userData unsafe.Pointer
@@ -1567,6 +1609,16 @@ func (self *cAdapterPerformanceProfileChangeListener) PerformanceProfileChanged(
 	}
 }
 
+type cAdapterPointsLeaderboardListener struct {
+	cbPointsLeaderboardChanged C.urnet_points_leaderboard_cb
+	userData                   unsafe.Pointer
+}
+
+func (self *cAdapterPointsLeaderboardListener) PointsLeaderboardChanged() {
+	defer cgoGuard("urnet_points_leaderboard_cb")
+	C.urnet_invoke_points_leaderboard(self.cbPointsLeaderboardChanged, self.userData)
+}
+
 type cAdapterPostQuantumIdentityListener struct {
 	cbProviderIdentitiesChanged C.urnet_post_quantum_identity_cb
 	userData                    unsafe.Pointer
@@ -1840,6 +1892,27 @@ func (self *cAdapterRemoveAuthCallback) Result(result *sdk.RemoveAuthResult, err
 	}
 }
 
+type cAdapterRemoveNetworkClientCallback struct {
+	cbResult C.urnet_remove_network_client_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterRemoveNetworkClientCallback) Result(result *sdk.RemoveNetworkClientResult, errParam error) {
+	defer cgoGuard("urnet_remove_network_client_cb")
+	result_ := cJson(result, "urnet_remove_network_client_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_remove_network_client(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
 type cAdapterRemoveWalletCallback struct {
 	cbResult C.urnet_remove_wallet_cb
 	userData unsafe.Pointer
@@ -1916,6 +1989,27 @@ func (self *cAdapterSendFeedbackCallback) Result(result *sdk.FeedbackSendResult,
 	}
 }
 
+type cAdapterSetEmojiTagCallback struct {
+	cbResult C.urnet_set_emoji_tag_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSetEmojiTagCallback) Result(result *sdk.SetEmojiTagResult, errParam error) {
+	defer cgoGuard("urnet_set_emoji_tag_cb")
+	result_ := cJson(result, "urnet_set_emoji_tag_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_set_emoji_tag(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
 type cAdapterSetNetworkLeaderboardPublicCallback struct {
 	cbResult C.urnet_set_network_leaderboard_public_cb
 	userData unsafe.Pointer
@@ -1979,6 +2073,27 @@ func (self *cAdapterSetPayoutWalletCallback) Result(result *sdk.SetPayoutWalletR
 	}
 }
 
+type cAdapterSetPointsLeaderboardPublicCallback struct {
+	cbResult C.urnet_set_points_leaderboard_public_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSetPointsLeaderboardPublicCallback) Result(result *sdk.SetPointsLeaderboardPublicResult, errParam error) {
+	defer cgoGuard("urnet_set_points_leaderboard_public_cb")
+	result_ := cJson(result, "urnet_set_points_leaderboard_public_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_set_points_leaderboard_public(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
 type cAdapterSetupNewDeviceCallback struct {
 	cbSetupNewDevice C.urnet_setup_new_device_cb
 	userData         unsafe.Pointer
@@ -1993,6 +2108,222 @@ func (self *cAdapterSetupNewDeviceCallback) SetupNewDevice(device sdk.Device, pr
 		cStringFree(proxyConfigResult_)
 	}
 	return bool(r0_)
+}
+
+type cAdapterSnClaimCallback struct {
+	cbConfirmed C.urnet_sn_claim_confirmed_cb
+	cbDone      C.urnet_sn_claim_done_cb
+	cbFailed    C.urnet_sn_claim_failed_cb
+	cbSent      C.urnet_sn_claim_sent_cb
+	userData    unsafe.Pointer
+}
+
+func (self *cAdapterSnClaimCallback) Confirmed(epoch int64, txHash string, amountRao int64) {
+	defer cgoGuard("urnet_sn_claim_confirmed_cb")
+	txHash_ := cString(string(txHash))
+	C.urnet_invoke_sn_claim_confirmed(self.cbConfirmed, self.userData, C.int64_t(int64(epoch)), txHash_, C.int64_t(int64(amountRao)))
+	cStringFree(txHash_)
+}
+
+func (self *cAdapterSnClaimCallback) Done() {
+	defer cgoGuard("urnet_sn_claim_done_cb")
+	C.urnet_invoke_sn_claim_done(self.cbDone, self.userData)
+}
+
+func (self *cAdapterSnClaimCallback) Failed(epoch int64, message string) {
+	defer cgoGuard("urnet_sn_claim_failed_cb")
+	message_ := cString(string(message))
+	C.urnet_invoke_sn_claim_failed(self.cbFailed, self.userData, C.int64_t(int64(epoch)), message_)
+	cStringFree(message_)
+}
+
+func (self *cAdapterSnClaimCallback) Sent(epoch int64, txHash string) {
+	defer cgoGuard("urnet_sn_claim_sent_cb")
+	txHash_ := cString(string(txHash))
+	C.urnet_invoke_sn_claim_sent(self.cbSent, self.userData, C.int64_t(int64(epoch)), txHash_)
+	cStringFree(txHash_)
+}
+
+type cAdapterSnClaimsCallback struct {
+	cbResult C.urnet_sn_claims_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnClaimsCallback) Result(result *sdk.SnClaimsResult, errParam error) {
+	defer cgoGuard("urnet_sn_claims_cb")
+	result_ := cJson(result, "urnet_sn_claims_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_claims(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnConnectWalletCallback struct {
+	cbResult C.urnet_sn_connect_wallet_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnConnectWalletCallback) Result(result *sdk.SnConnectWalletResult, errParam error) {
+	defer cgoGuard("urnet_sn_connect_wallet_cb")
+	result_ := cJson(result, "urnet_sn_connect_wallet_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_connect_wallet(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnEpochCallback struct {
+	cbResult C.urnet_sn_epoch_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnEpochCallback) Result(result *sdk.SnEpochResult, errParam error) {
+	defer cgoGuard("urnet_sn_epoch_cb")
+	result_ := cJson(result, "urnet_sn_epoch_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_epoch(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnGasBalanceCallback struct {
+	cbResult C.urnet_sn_gas_balance_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnGasBalanceCallback) Result(result *sdk.SnGasBalanceResult, errParam error) {
+	defer cgoGuard("urnet_sn_gas_balance_cb")
+	result_ := cJson(result, "urnet_sn_gas_balance_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_gas_balance(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnGetWalletCallback struct {
+	cbResult C.urnet_sn_get_wallet_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnGetWalletCallback) Result(result *sdk.SnGetWalletResult, errParam error) {
+	defer cgoGuard("urnet_sn_get_wallet_cb")
+	result_ := cJson(result, "urnet_sn_get_wallet_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_get_wallet(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnHeadCallback struct {
+	cbResult C.urnet_sn_head_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnHeadCallback) Result(result *sdk.SnHeadResult, errParam error) {
+	defer cgoGuard("urnet_sn_head_cb")
+	result_ := cJson(result, "urnet_sn_head_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_head(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnSetWalletCallback struct {
+	cbResult C.urnet_sn_set_wallet_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnSetWalletCallback) Result(result *sdk.SnSetWalletResult, errParam error) {
+	defer cgoGuard("urnet_sn_set_wallet_cb")
+	result_ := cJson(result, "urnet_sn_set_wallet_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_set_wallet(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnValidateWalletCallback struct {
+	cbResult C.urnet_sn_validate_wallet_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnValidateWalletCallback) Result(result *sdk.SnValidateWalletResult, errParam error) {
+	defer cgoGuard("urnet_sn_validate_wallet_cb")
+	result_ := cJson(result, "urnet_sn_validate_wallet_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_validate_wallet(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnWalletChangeListener struct {
+	cbSnWalletChanged C.urnet_sn_wallet_change_cb
+	userData          unsafe.Pointer
+}
+
+func (self *cAdapterSnWalletChangeListener) SnWalletChanged(wallet *sdk.SnWallet) {
+	defer cgoGuard("urnet_sn_wallet_change_cb")
+	wallet_ := cJson(wallet, "urnet_sn_wallet_change_cb")
+	C.urnet_invoke_sn_wallet_change(self.cbSnWalletChanged, self.userData, wallet_)
+	if wallet_ != nil {
+		cStringFree(wallet_)
+	}
 }
 
 type cAdapterSolanaPaymentIntentCallback struct {
@@ -2615,6 +2946,27 @@ func urnet_account_view_controller_wallet_validate_address(self C.uint64_t, addr
 		callback_ = &cAdapterWalletValidateAddressCallback{cbResult: callback_result, userData: callback_user_data}
 	}
 	self_.WalletValidateAddress(goString(address), callback_)
+}
+
+//export urnet_alpha_from_rao
+func urnet_alpha_from_rao(rao C.int64_t) C.double {
+	defer cgoGuard("urnet_alpha_from_rao")
+	r0 := sdk.AlphaFromRao(int64(rao))
+	return C.double(r0)
+}
+
+//export urnet_api_account_epochs
+func urnet_api_account_epochs(self C.uint64_t, callback_result C.urnet_account_epochs_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_account_epochs")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_account_epochs")
+	if !ok {
+		return
+	}
+	var callback_ sdk.AccountEpochsCallback
+	if callback_result != nil {
+		callback_ = &cAdapterAccountEpochsCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.AccountEpochs(callback_)
 }
 
 //export urnet_api_account_preferences_get
@@ -3421,6 +3773,27 @@ func urnet_api_get_payout_wallet(self C.uint64_t, callback_result C.urnet_get_pa
 	self_.GetPayoutWallet(callback_)
 }
 
+//export urnet_api_get_points_leaderboard
+func urnet_api_get_points_leaderboard(self C.uint64_t, args *C.char, callback_result C.urnet_get_points_leaderboard_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_get_points_leaderboard")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_get_points_leaderboard")
+	if !ok {
+		return
+	}
+	var args_ *sdk.GetPointsLeaderboardArgs
+	if args != nil {
+		args_ = &sdk.GetPointsLeaderboardArgs{}
+		if !goJson(args, args_, "urnet_api_get_points_leaderboard") {
+			return
+		}
+	}
+	var callback_ sdk.GetPointsLeaderboardCallback
+	if callback_result != nil {
+		callback_ = &cAdapterGetPointsLeaderboardCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.GetPointsLeaderboard(args_, callback_)
+}
+
 //export urnet_api_get_provider_locations
 func urnet_api_get_provider_locations(self C.uint64_t, callback_result C.urnet_find_locations_cb, callback_user_data unsafe.Pointer) {
 	defer cgoGuard("urnet_api_get_provider_locations")
@@ -3691,6 +4064,52 @@ func urnet_api_remove_auth(self C.uint64_t, args *C.char, callback_result C.urne
 	self_.RemoveAuth(args_, callback_)
 }
 
+//export urnet_api_remove_network_client
+func urnet_api_remove_network_client(self C.uint64_t, args *C.char, callback_result C.urnet_remove_network_client_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_remove_network_client")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_remove_network_client")
+	if !ok {
+		return
+	}
+	var args_ *sdk.RemoveNetworkClientArgs
+	if args != nil {
+		args_ = &sdk.RemoveNetworkClientArgs{}
+		if !goJson(args, args_, "urnet_api_remove_network_client") {
+			return
+		}
+	}
+	var callback_ sdk.RemoveNetworkClientCallback
+	if callback_result != nil {
+		callback_ = &cAdapterRemoveNetworkClientCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.RemoveNetworkClient(args_, callback_)
+}
+
+//export urnet_api_remove_network_client_sync
+func urnet_api_remove_network_client_sync(self C.uint64_t, args *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_api_remove_network_client_sync")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_remove_network_client_sync")
+	if !ok {
+		return nil
+	}
+	var args_ *sdk.RemoveNetworkClientArgs
+	if args != nil {
+		args_ = &sdk.RemoveNetworkClientArgs{}
+		if !goJson(args, args_, "urnet_api_remove_network_client_sync") {
+			return nil
+		}
+	}
+	r0, err := self_.RemoveNetworkClientSync(args_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_api_remove_network_client_sync")
+}
+
 //export urnet_api_remove_wallet
 func urnet_api_remove_wallet(self C.uint64_t, removeWallet *C.char, callback_result C.urnet_remove_wallet_cb, callback_user_data unsafe.Pointer) {
 	defer cgoGuard("urnet_api_remove_wallet")
@@ -3751,6 +4170,27 @@ func urnet_api_set_by_jwt(self C.uint64_t, byJwt *C.char) {
 		return
 	}
 	self_.SetByJwt(goString(byJwt))
+}
+
+//export urnet_api_set_emoji_tag
+func urnet_api_set_emoji_tag(self C.uint64_t, args *C.char, callback_result C.urnet_set_emoji_tag_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_set_emoji_tag")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_set_emoji_tag")
+	if !ok {
+		return
+	}
+	var args_ *sdk.SetEmojiTagArgs
+	if args != nil {
+		args_ = &sdk.SetEmojiTagArgs{}
+		if !goJson(args, args_, "urnet_api_set_emoji_tag") {
+			return
+		}
+	}
+	var callback_ sdk.SetEmojiTagCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSetEmojiTagCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SetEmojiTag(args_, callback_)
 }
 
 //export urnet_api_set_network_leaderboard_public
@@ -3816,6 +4256,41 @@ func urnet_api_set_payout_wallet(self C.uint64_t, payoutWallet *C.char, callback
 	self_.SetPayoutWallet(payoutWallet_, callback_)
 }
 
+//export urnet_api_set_points_leaderboard_public
+func urnet_api_set_points_leaderboard_public(self C.uint64_t, args *C.char, callback_result C.urnet_set_points_leaderboard_public_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_set_points_leaderboard_public")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_set_points_leaderboard_public")
+	if !ok {
+		return
+	}
+	var args_ *sdk.SetPointsLeaderboardPublicArgs
+	if args != nil {
+		args_ = &sdk.SetPointsLeaderboardPublicArgs{}
+		if !goJson(args, args_, "urnet_api_set_points_leaderboard_public") {
+			return
+		}
+	}
+	var callback_ sdk.SetPointsLeaderboardPublicCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSetPointsLeaderboardPublicCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SetPointsLeaderboardPublic(args_, callback_)
+}
+
+//export urnet_api_sn_epoch
+func urnet_api_sn_epoch(self C.uint64_t, callback_result C.urnet_sn_epoch_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_epoch")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_epoch")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnEpochCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnEpochCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnEpoch(callback_)
+}
+
 //export urnet_api_sn_epoch_sync
 func urnet_api_sn_epoch_sync(self C.uint64_t, outError **C.char) *C.char {
 	defer cgoGuard("urnet_api_sn_epoch_sync")
@@ -3832,6 +4307,34 @@ func urnet_api_sn_epoch_sync(self C.uint64_t, outError **C.char) *C.char {
 		return nil
 	}
 	return cJson(r0, "urnet_api_sn_epoch_sync")
+}
+
+//export urnet_api_sn_get_wallet
+func urnet_api_sn_get_wallet(self C.uint64_t, callback_result C.urnet_sn_get_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_get_wallet")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_get_wallet")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnGetWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnGetWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnGetWallet(callback_)
+}
+
+//export urnet_api_sn_head
+func urnet_api_sn_head(self C.uint64_t, callback_result C.urnet_sn_head_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_head")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_head")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnHeadCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnHeadCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnHead(callback_)
 }
 
 //export urnet_api_sn_pool_claim_sync
@@ -3859,6 +4362,27 @@ func urnet_api_sn_pool_claim_sync(self C.uint64_t, args *C.char, outError **C.ch
 	return cJson(r0, "urnet_api_sn_pool_claim_sync")
 }
 
+//export urnet_api_sn_set_wallet
+func urnet_api_sn_set_wallet(self C.uint64_t, args *C.char, callback_result C.urnet_sn_set_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_set_wallet")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_set_wallet")
+	if !ok {
+		return
+	}
+	var args_ *sdk.SnSetWalletArgs
+	if args != nil {
+		args_ = &sdk.SnSetWalletArgs{}
+		if !goJson(args, args_, "urnet_api_sn_set_wallet") {
+			return
+		}
+	}
+	var callback_ sdk.SnSetWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnSetWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnSetWallet(args_, callback_)
+}
+
 //export urnet_api_sn_set_wallet_sync
 func urnet_api_sn_set_wallet_sync(self C.uint64_t, args *C.char, outError **C.char) *C.char {
 	defer cgoGuard("urnet_api_sn_set_wallet_sync")
@@ -3882,6 +4406,20 @@ func urnet_api_sn_set_wallet_sync(self C.uint64_t, args *C.char, outError **C.ch
 		return nil
 	}
 	return cJson(r0, "urnet_api_sn_set_wallet_sync")
+}
+
+//export urnet_api_sn_validate_wallet
+func urnet_api_sn_validate_wallet(self C.uint64_t, address *C.char, callback_result C.urnet_sn_validate_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_validate_wallet")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_validate_wallet")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnValidateWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnValidateWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnValidateWallet(goString(address), callback_)
 }
 
 //export urnet_api_start_jwt_refresh
@@ -4648,6 +5186,69 @@ func urnet_collapse_host_names_list(hosts *C.char) *C.char {
 	return cJson(r0, "urnet_collapse_host_names_list")
 }
 
+//export urnet_compare_points_leaderboard_keys
+func urnet_compare_points_leaderboard_keys(sort *C.char, a *C.char, b *C.char) C.int64_t {
+	defer cgoGuard("urnet_compare_points_leaderboard_keys")
+	var a_ *sdk.PointsLeaderboardKey
+	if a != nil {
+		a_ = &sdk.PointsLeaderboardKey{}
+		if !goJson(a, a_, "urnet_compare_points_leaderboard_keys") {
+			return 0
+		}
+	}
+	var b_ *sdk.PointsLeaderboardKey
+	if b != nil {
+		b_ = &sdk.PointsLeaderboardKey{}
+		if !goJson(b, b_, "urnet_compare_points_leaderboard_keys") {
+			return 0
+		}
+	}
+	r0 := sdk.ComparePointsLeaderboardKeys(goString(sort), a_, b_)
+	return C.int64_t(r0)
+}
+
+//export urnet_compare_points_leaderboard_rows
+func urnet_compare_points_leaderboard_rows(sort *C.char, a *C.char, b *C.char) C.int64_t {
+	defer cgoGuard("urnet_compare_points_leaderboard_rows")
+	var a_ *sdk.PointsLeaderboardRow
+	if a != nil {
+		a_ = &sdk.PointsLeaderboardRow{}
+		if !goJson(a, a_, "urnet_compare_points_leaderboard_rows") {
+			return 0
+		}
+	}
+	var b_ *sdk.PointsLeaderboardRow
+	if b != nil {
+		b_ = &sdk.PointsLeaderboardRow{}
+		if !goJson(b, b_, "urnet_compare_points_leaderboard_rows") {
+			return 0
+		}
+	}
+	r0 := sdk.ComparePointsLeaderboardRows(goString(sort), a_, b_)
+	return C.int64_t(r0)
+}
+
+//export urnet_compare_points_leaderboard_values
+func urnet_compare_points_leaderboard_values(sort *C.char, a *C.char, b *C.char) C.int64_t {
+	defer cgoGuard("urnet_compare_points_leaderboard_values")
+	var a_ *sdk.PointsLeaderboardKey
+	if a != nil {
+		a_ = &sdk.PointsLeaderboardKey{}
+		if !goJson(a, a_, "urnet_compare_points_leaderboard_values") {
+			return 0
+		}
+	}
+	var b_ *sdk.PointsLeaderboardKey
+	if b != nil {
+		b_ = &sdk.PointsLeaderboardKey{}
+		if !goJson(b, b_, "urnet_compare_points_leaderboard_values") {
+			return 0
+		}
+	}
+	r0 := sdk.ComparePointsLeaderboardValues(goString(sort), a_, b_)
+	return C.int64_t(r0)
+}
+
 //export urnet_connect_grid_get_height
 func urnet_connect_grid_get_height(self C.uint64_t) C.int64_t {
 	defer cgoGuard("urnet_connect_grid_get_height")
@@ -5240,6 +5841,16 @@ func urnet_default_proxy_device_settings() *C.char {
 		return nil
 	}
 	return cJson(r0, "urnet_default_proxy_device_settings")
+}
+
+//export urnet_default_sn_chain_settings
+func urnet_default_sn_chain_settings() *C.char {
+	defer cgoGuard("urnet_default_sn_chain_settings")
+	r0 := sdk.DefaultSnChainSettings()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_default_sn_chain_settings")
 }
 
 //export urnet_default_transport_mode_priority
@@ -7116,6 +7727,31 @@ func urnet_device_local_add_receive_packets(self C.uint64_t, receivePackets_rece
 	return C.uint64_t(newHandle(r0))
 }
 
+//export urnet_device_local_add_sn_wallet_change_listener
+func urnet_device_local_add_sn_wallet_change_listener(self C.uint64_t, listener_sn_wallet_changed C.urnet_sn_wallet_change_cb, listener_user_data unsafe.Pointer) C.uint64_t {
+	defer cgoGuard("urnet_device_local_add_sn_wallet_change_listener")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_add_sn_wallet_change_listener")
+	if !ok {
+		return 0
+	}
+	var listener_ sdk.SnWalletChangeListener
+	if listener_sn_wallet_changed != nil {
+		listener_ = &cAdapterSnWalletChangeListener{cbSnWalletChanged: listener_sn_wallet_changed, userData: listener_user_data}
+	}
+	r0 := self_.AddSnWalletChangeListener(listener_)
+	return C.uint64_t(newHandle(r0))
+}
+
+//export urnet_device_local_clear_sn_wallet_cache
+func urnet_device_local_clear_sn_wallet_cache(self C.uint64_t) {
+	defer cgoGuard("urnet_device_local_clear_sn_wallet_cache")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_clear_sn_wallet_cache")
+	if !ok {
+		return
+	}
+	self_.ClearSnWalletCache()
+}
+
 //export urnet_device_local_close_block_action_view_controller
 func urnet_device_local_close_block_action_view_controller(self C.uint64_t, vc C.uint64_t) {
 	defer cgoGuard("urnet_device_local_close_block_action_view_controller")
@@ -7242,6 +7878,24 @@ func urnet_device_local_close_peer_view_controller(self C.uint64_t, vc C.uint64_
 	self_.ClosePeerViewController(vc_)
 }
 
+//export urnet_device_local_close_points_leaderboard_view_controller
+func urnet_device_local_close_points_leaderboard_view_controller(self C.uint64_t, vc C.uint64_t) {
+	defer cgoGuard("urnet_device_local_close_points_leaderboard_view_controller")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_close_points_leaderboard_view_controller")
+	if !ok {
+		return
+	}
+	var vc_ *sdk.PointsLeaderboardViewController
+	if vc != 0 {
+		var ok bool
+		vc_, ok = resolveHandle[*sdk.PointsLeaderboardViewController](uint64(vc), "urnet_device_local_close_points_leaderboard_view_controller")
+		if !ok {
+			return
+		}
+	}
+	self_.ClosePointsLeaderboardViewController(vc_)
+}
+
 //export urnet_device_local_close_post_quantum_identity_view_controller
 func urnet_device_local_close_post_quantum_identity_view_controller(self C.uint64_t, vc C.uint64_t) {
 	defer cgoGuard("urnet_device_local_close_post_quantum_identity_view_controller")
@@ -7290,6 +7944,20 @@ func urnet_device_local_close_view_controller(self C.uint64_t, vc_close C.urnet_
 		vc_ = &cAdapterViewController{cbClose: vc_close, cbStart: vc_start, cbStop: vc_stop, userData: vc_user_data}
 	}
 	self_.CloseViewController(vc_)
+}
+
+//export urnet_device_local_connect_sn_wallet
+func urnet_device_local_connect_sn_wallet(self C.uint64_t, coldkeySs58 *C.char, signature *C.char, message *C.char, callback_result C.urnet_sn_connect_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_local_connect_sn_wallet")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_connect_sn_wallet")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnConnectWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnConnectWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.ConnectSnWallet(goString(coldkeySs58), goString(signature), goString(message), callback_)
 }
 
 //export urnet_device_local_drop_exit
@@ -7435,6 +8103,59 @@ func urnet_device_local_get_reliability_settings(self C.uint64_t) *C.char {
 		return nil
 	}
 	return cJson(r0, "urnet_device_local_get_reliability_settings")
+}
+
+//export urnet_device_local_get_sn_chain_settings
+func urnet_device_local_get_sn_chain_settings(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_local_get_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_get_sn_chain_settings")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnChainSettings()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_local_get_sn_chain_settings")
+}
+
+//export urnet_device_local_get_sn_client_key
+func urnet_device_local_get_sn_client_key(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_local_get_sn_client_key")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_get_sn_client_key")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnClientKey()
+	return cString(string(r0))
+}
+
+//export urnet_device_local_get_sn_gas_key
+func urnet_device_local_get_sn_gas_key(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_local_get_sn_gas_key")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_get_sn_gas_key")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnGasKey()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_local_get_sn_gas_key")
+}
+
+//export urnet_device_local_get_sn_wallet
+func urnet_device_local_get_sn_wallet(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_local_get_sn_wallet")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_get_sn_wallet")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnWallet()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_local_get_sn_wallet")
 }
 
 //export urnet_device_local_memory_used
@@ -7644,6 +8365,20 @@ func urnet_device_local_open_peer_view_controller(self C.uint64_t) C.uint64_t {
 		return 0
 	}
 	r0 := self_.OpenPeerViewController()
+	if r0 == nil {
+		return 0
+	}
+	return C.uint64_t(newHandle(r0))
+}
+
+//export urnet_device_local_open_points_leaderboard_view_controller
+func urnet_device_local_open_points_leaderboard_view_controller(self C.uint64_t) C.uint64_t {
+	defer cgoGuard("urnet_device_local_open_points_leaderboard_view_controller")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_open_points_leaderboard_view_controller")
+	if !ok {
+		return 0
+	}
+	r0 := self_.OpenPointsLeaderboardViewController()
 	if r0 == nil {
 		return 0
 	}
@@ -7906,6 +8641,28 @@ func urnet_device_local_set_rpc_server(self C.uint64_t, serverPem *C.char, clien
 	return C.bool(true)
 }
 
+//export urnet_device_local_set_sn_chain_settings
+func urnet_device_local_set_sn_chain_settings(self C.uint64_t, settings *C.char, outError **C.char) C.bool {
+	defer cgoGuard("urnet_device_local_set_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_set_sn_chain_settings")
+	if !ok {
+		return C.bool(false)
+	}
+	var settings_ *sdk.SnChainSettings
+	if settings != nil {
+		settings_ = &sdk.SnChainSettings{}
+		if !goJson(settings, settings_, "urnet_device_local_set_sn_chain_settings") {
+			return C.bool(false)
+		}
+	}
+	err := self_.SetSnChainSettings(settings_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return C.bool(false)
+	}
+	return C.bool(true)
+}
+
 //export urnet_device_local_set_tunnel_dns_setting
 func urnet_device_local_set_tunnel_dns_setting(self C.uint64_t, setting *C.char) {
 	defer cgoGuard("urnet_device_local_set_tunnel_dns_setting")
@@ -7933,6 +8690,21 @@ func urnet_device_local_shuffle_exits(self C.uint64_t) {
 	self_.ShuffleExits()
 }
 
+//export urnet_device_local_sign_sn_fleet_binding
+func urnet_device_local_sign_sn_fleet_binding(self C.uint64_t, bindingJson *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_device_local_sign_sn_fleet_binding")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sign_sn_fleet_binding")
+	if !ok {
+		return nil
+	}
+	r0, err := self_.SignSnFleetBinding(goString(bindingJson))
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	return cString(string(r0))
+}
+
 //export urnet_device_local_simulate_network_change
 func urnet_device_local_simulate_network_change(self C.uint64_t) {
 	defer cgoGuard("urnet_device_local_simulate_network_change")
@@ -7941,6 +8713,80 @@ func urnet_device_local_simulate_network_change(self C.uint64_t) {
 		return
 	}
 	self_.SimulateNetworkChange()
+}
+
+//export urnet_device_local_sn_claim
+func urnet_device_local_sn_claim(self C.uint64_t, epochs *C.char, callback_confirmed C.urnet_sn_claim_confirmed_cb, callback_done C.urnet_sn_claim_done_cb, callback_failed C.urnet_sn_claim_failed_cb, callback_sent C.urnet_sn_claim_sent_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_local_sn_claim")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sn_claim")
+	if !ok {
+		return
+	}
+	var epochs_ *sdk.Int64List
+	if epochs != nil {
+		epochs_ = &sdk.Int64List{}
+		if !goJson(epochs, epochs_, "urnet_device_local_sn_claim") {
+			return
+		}
+	}
+	var callback_ sdk.SnClaimCallback
+	if callback_confirmed != nil {
+		callback_ = &cAdapterSnClaimCallback{cbConfirmed: callback_confirmed, cbDone: callback_done, cbFailed: callback_failed, cbSent: callback_sent, userData: callback_user_data}
+	}
+	self_.SnClaim(epochs_, callback_)
+}
+
+//export urnet_device_local_sn_claim_transactions
+func urnet_device_local_sn_claim_transactions(self C.uint64_t, epochs *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_device_local_sn_claim_transactions")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sn_claim_transactions")
+	if !ok {
+		return nil
+	}
+	var epochs_ *sdk.Int64List
+	if epochs != nil {
+		epochs_ = &sdk.Int64List{}
+		if !goJson(epochs, epochs_, "urnet_device_local_sn_claim_transactions") {
+			return nil
+		}
+	}
+	r0, err := self_.SnClaimTransactions(epochs_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_local_sn_claim_transactions")
+}
+
+//export urnet_device_local_sn_claims
+func urnet_device_local_sn_claims(self C.uint64_t, callback_result C.urnet_sn_claims_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_local_sn_claims")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sn_claims")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnClaimsCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnClaimsCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnClaims(callback_)
+}
+
+//export urnet_device_local_sn_gas_balance
+func urnet_device_local_sn_gas_balance(self C.uint64_t, callback_result C.urnet_sn_gas_balance_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_local_sn_gas_balance")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sn_gas_balance")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnGasBalanceCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnGasBalanceCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnGasBalance(callback_)
 }
 
 //export urnet_device_local_stall_exit
@@ -7980,6 +8826,34 @@ func urnet_device_local_stop_probe_suite(self C.uint64_t) {
 		return
 	}
 	self_.StopProbeSuite()
+}
+
+//export urnet_device_local_sync_sn_chain_settings
+func urnet_device_local_sync_sn_chain_settings(self C.uint64_t, callback_result C.urnet_sn_epoch_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_local_sync_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sync_sn_chain_settings")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnEpochCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnEpochCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SyncSnChainSettings(callback_)
+}
+
+//export urnet_device_local_sync_sn_wallet
+func urnet_device_local_sync_sn_wallet(self C.uint64_t, callback_result C.urnet_sn_get_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_local_sync_sn_wallet")
+	self_, ok := resolveHandle[*sdk.DeviceLocal](uint64(self), "urnet_device_local_sync_sn_wallet")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnGetWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnGetWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SyncSnWallet(callback_)
 }
 
 //export urnet_device_local_take_memory_samples_json
@@ -8085,6 +8959,31 @@ func urnet_device_remote_add_remote_change_listener(self C.uint64_t, listener_re
 	}
 	r0 := self_.AddRemoteChangeListener(listener_)
 	return C.uint64_t(newHandle(r0))
+}
+
+//export urnet_device_remote_add_sn_wallet_change_listener
+func urnet_device_remote_add_sn_wallet_change_listener(self C.uint64_t, listener_sn_wallet_changed C.urnet_sn_wallet_change_cb, listener_user_data unsafe.Pointer) C.uint64_t {
+	defer cgoGuard("urnet_device_remote_add_sn_wallet_change_listener")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_add_sn_wallet_change_listener")
+	if !ok {
+		return 0
+	}
+	var listener_ sdk.SnWalletChangeListener
+	if listener_sn_wallet_changed != nil {
+		listener_ = &cAdapterSnWalletChangeListener{cbSnWalletChanged: listener_sn_wallet_changed, userData: listener_user_data}
+	}
+	r0 := self_.AddSnWalletChangeListener(listener_)
+	return C.uint64_t(newHandle(r0))
+}
+
+//export urnet_device_remote_clear_sn_wallet_cache
+func urnet_device_remote_clear_sn_wallet_cache(self C.uint64_t) {
+	defer cgoGuard("urnet_device_remote_clear_sn_wallet_cache")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_clear_sn_wallet_cache")
+	if !ok {
+		return
+	}
+	self_.ClearSnWalletCache()
 }
 
 //export urnet_device_remote_close_block_action_view_controller
@@ -8213,6 +9112,24 @@ func urnet_device_remote_close_peer_view_controller(self C.uint64_t, vc C.uint64
 	self_.ClosePeerViewController(vc_)
 }
 
+//export urnet_device_remote_close_points_leaderboard_view_controller
+func urnet_device_remote_close_points_leaderboard_view_controller(self C.uint64_t, vc C.uint64_t) {
+	defer cgoGuard("urnet_device_remote_close_points_leaderboard_view_controller")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_close_points_leaderboard_view_controller")
+	if !ok {
+		return
+	}
+	var vc_ *sdk.PointsLeaderboardViewController
+	if vc != 0 {
+		var ok bool
+		vc_, ok = resolveHandle[*sdk.PointsLeaderboardViewController](uint64(vc), "urnet_device_remote_close_points_leaderboard_view_controller")
+		if !ok {
+			return
+		}
+	}
+	self_.ClosePointsLeaderboardViewController(vc_)
+}
+
 //export urnet_device_remote_close_post_quantum_identity_view_controller
 func urnet_device_remote_close_post_quantum_identity_view_controller(self C.uint64_t, vc C.uint64_t) {
 	defer cgoGuard("urnet_device_remote_close_post_quantum_identity_view_controller")
@@ -8261,6 +9178,20 @@ func urnet_device_remote_close_view_controller(self C.uint64_t, vc_close C.urnet
 		vc_ = &cAdapterViewController{cbClose: vc_close, cbStart: vc_start, cbStop: vc_stop, userData: vc_user_data}
 	}
 	self_.CloseViewController(vc_)
+}
+
+//export urnet_device_remote_connect_sn_wallet
+func urnet_device_remote_connect_sn_wallet(self C.uint64_t, coldkeySs58 *C.char, signature *C.char, message *C.char, callback_result C.urnet_sn_connect_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_remote_connect_sn_wallet")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_connect_sn_wallet")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnConnectWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnConnectWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.ConnectSnWallet(goString(coldkeySs58), goString(signature), goString(message), callback_)
 }
 
 //export urnet_device_remote_drop_exit
@@ -8353,6 +9284,59 @@ func urnet_device_remote_get_remote_connected(self C.uint64_t) C.bool {
 	}
 	r0 := self_.GetRemoteConnected()
 	return C.bool(r0)
+}
+
+//export urnet_device_remote_get_sn_chain_settings
+func urnet_device_remote_get_sn_chain_settings(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_remote_get_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_get_sn_chain_settings")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnChainSettings()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_remote_get_sn_chain_settings")
+}
+
+//export urnet_device_remote_get_sn_client_key
+func urnet_device_remote_get_sn_client_key(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_remote_get_sn_client_key")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_get_sn_client_key")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnClientKey()
+	return cString(string(r0))
+}
+
+//export urnet_device_remote_get_sn_gas_key
+func urnet_device_remote_get_sn_gas_key(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_remote_get_sn_gas_key")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_get_sn_gas_key")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnGasKey()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_remote_get_sn_gas_key")
+}
+
+//export urnet_device_remote_get_sn_wallet
+func urnet_device_remote_get_sn_wallet(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_remote_get_sn_wallet")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_get_sn_wallet")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnWallet()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_remote_get_sn_wallet")
 }
 
 //export urnet_device_remote_get_sync_error
@@ -8545,6 +9529,20 @@ func urnet_device_remote_open_peer_view_controller(self C.uint64_t) C.uint64_t {
 	return C.uint64_t(newHandle(r0))
 }
 
+//export urnet_device_remote_open_points_leaderboard_view_controller
+func urnet_device_remote_open_points_leaderboard_view_controller(self C.uint64_t) C.uint64_t {
+	defer cgoGuard("urnet_device_remote_open_points_leaderboard_view_controller")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_open_points_leaderboard_view_controller")
+	if !ok {
+		return 0
+	}
+	r0 := self_.OpenPointsLeaderboardViewController()
+	if r0 == nil {
+		return 0
+	}
+	return C.uint64_t(newHandle(r0))
+}
+
 //export urnet_device_remote_open_post_quantum_identity_view_controller
 func urnet_device_remote_open_post_quantum_identity_view_controller(self C.uint64_t) C.uint64_t {
 	defer cgoGuard("urnet_device_remote_open_post_quantum_identity_view_controller")
@@ -8717,6 +9715,28 @@ func urnet_device_remote_set_rpc_server(self C.uint64_t, clientPem *C.char, serv
 	return C.bool(true)
 }
 
+//export urnet_device_remote_set_sn_chain_settings
+func urnet_device_remote_set_sn_chain_settings(self C.uint64_t, settings *C.char, outError **C.char) C.bool {
+	defer cgoGuard("urnet_device_remote_set_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_set_sn_chain_settings")
+	if !ok {
+		return C.bool(false)
+	}
+	var settings_ *sdk.SnChainSettings
+	if settings != nil {
+		settings_ = &sdk.SnChainSettings{}
+		if !goJson(settings, settings_, "urnet_device_remote_set_sn_chain_settings") {
+			return C.bool(false)
+		}
+	}
+	err := self_.SetSnChainSettings(settings_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return C.bool(false)
+	}
+	return C.bool(true)
+}
+
 //export urnet_device_remote_shuffle_exits
 func urnet_device_remote_shuffle_exits(self C.uint64_t) {
 	defer cgoGuard("urnet_device_remote_shuffle_exits")
@@ -8727,6 +9747,21 @@ func urnet_device_remote_shuffle_exits(self C.uint64_t) {
 	self_.ShuffleExits()
 }
 
+//export urnet_device_remote_sign_sn_fleet_binding
+func urnet_device_remote_sign_sn_fleet_binding(self C.uint64_t, bindingJson *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_device_remote_sign_sn_fleet_binding")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sign_sn_fleet_binding")
+	if !ok {
+		return nil
+	}
+	r0, err := self_.SignSnFleetBinding(goString(bindingJson))
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	return cString(string(r0))
+}
+
 //export urnet_device_remote_simulate_network_change
 func urnet_device_remote_simulate_network_change(self C.uint64_t) {
 	defer cgoGuard("urnet_device_remote_simulate_network_change")
@@ -8735,6 +9770,80 @@ func urnet_device_remote_simulate_network_change(self C.uint64_t) {
 		return
 	}
 	self_.SimulateNetworkChange()
+}
+
+//export urnet_device_remote_sn_claim
+func urnet_device_remote_sn_claim(self C.uint64_t, epochs *C.char, callback_confirmed C.urnet_sn_claim_confirmed_cb, callback_done C.urnet_sn_claim_done_cb, callback_failed C.urnet_sn_claim_failed_cb, callback_sent C.urnet_sn_claim_sent_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_remote_sn_claim")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sn_claim")
+	if !ok {
+		return
+	}
+	var epochs_ *sdk.Int64List
+	if epochs != nil {
+		epochs_ = &sdk.Int64List{}
+		if !goJson(epochs, epochs_, "urnet_device_remote_sn_claim") {
+			return
+		}
+	}
+	var callback_ sdk.SnClaimCallback
+	if callback_confirmed != nil {
+		callback_ = &cAdapterSnClaimCallback{cbConfirmed: callback_confirmed, cbDone: callback_done, cbFailed: callback_failed, cbSent: callback_sent, userData: callback_user_data}
+	}
+	self_.SnClaim(epochs_, callback_)
+}
+
+//export urnet_device_remote_sn_claim_transactions
+func urnet_device_remote_sn_claim_transactions(self C.uint64_t, epochs *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_device_remote_sn_claim_transactions")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sn_claim_transactions")
+	if !ok {
+		return nil
+	}
+	var epochs_ *sdk.Int64List
+	if epochs != nil {
+		epochs_ = &sdk.Int64List{}
+		if !goJson(epochs, epochs_, "urnet_device_remote_sn_claim_transactions") {
+			return nil
+		}
+	}
+	r0, err := self_.SnClaimTransactions(epochs_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_remote_sn_claim_transactions")
+}
+
+//export urnet_device_remote_sn_claims
+func urnet_device_remote_sn_claims(self C.uint64_t, callback_result C.urnet_sn_claims_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_remote_sn_claims")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sn_claims")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnClaimsCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnClaimsCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnClaims(callback_)
+}
+
+//export urnet_device_remote_sn_gas_balance
+func urnet_device_remote_sn_gas_balance(self C.uint64_t, callback_result C.urnet_sn_gas_balance_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_remote_sn_gas_balance")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sn_gas_balance")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnGasBalanceCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnGasBalanceCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnGasBalance(callback_)
 }
 
 //export urnet_device_remote_stall_exit
@@ -8784,6 +9893,34 @@ func urnet_device_remote_sync(self C.uint64_t) {
 		return
 	}
 	self_.Sync()
+}
+
+//export urnet_device_remote_sync_sn_chain_settings
+func urnet_device_remote_sync_sn_chain_settings(self C.uint64_t, callback_result C.urnet_sn_epoch_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_remote_sync_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sync_sn_chain_settings")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnEpochCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnEpochCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SyncSnChainSettings(callback_)
+}
+
+//export urnet_device_remote_sync_sn_wallet
+func urnet_device_remote_sync_sn_wallet(self C.uint64_t, callback_result C.urnet_sn_get_wallet_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_device_remote_sync_sn_wallet")
+	self_, ok := resolveHandle[*sdk.DeviceRemote](uint64(self), "urnet_device_remote_sync_sn_wallet")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnGetWalletCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnGetWalletCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SyncSnWallet(callback_)
 }
 
 //export urnet_device_rpc_key_material_get_client_cert_pem
@@ -9000,6 +10137,13 @@ func urnet_encrypt_data(data *C.uint8_t, data_len C.int32_t, nonceBase58 *C.char
 	return cString(string(r0))
 }
 
+//export urnet_evm_mirror_ss58
+func urnet_evm_mirror_ss58(address *C.char) *C.char {
+	defer cgoGuard("urnet_evm_mirror_ss58")
+	r0 := sdk.EvmMirrorSs58(goString(address))
+	return cString(string(r0))
+}
+
 //export urnet_export_diagnostic_bundle
 func urnet_export_diagnostic_bundle(destPath *C.char, opts *C.char, outError **C.char) *C.char {
 	defer cgoGuard("urnet_export_diagnostic_bundle")
@@ -9080,6 +10224,41 @@ func urnet_feedback_view_controller_stop(self C.uint64_t) {
 func urnet_flush_glog() {
 	defer cgoGuard("urnet_flush_glog")
 	sdk.FlushGlog()
+}
+
+//export urnet_format_alpha
+func urnet_format_alpha(rao C.int64_t) *C.char {
+	defer cgoGuard("urnet_format_alpha")
+	r0 := sdk.FormatAlpha(int64(rao))
+	return cString(string(r0))
+}
+
+//export urnet_format_alpha_amount
+func urnet_format_alpha_amount(rao C.int64_t) *C.char {
+	defer cgoGuard("urnet_format_alpha_amount")
+	r0 := sdk.FormatAlphaAmount(int64(rao))
+	return cString(string(r0))
+}
+
+//export urnet_format_points
+func urnet_format_points(points C.double) *C.char {
+	defer cgoGuard("urnet_format_points")
+	r0 := sdk.FormatPoints(float64(points))
+	return cString(string(r0))
+}
+
+//export urnet_format_rank
+func urnet_format_rank(rank C.int64_t) *C.char {
+	defer cgoGuard("urnet_format_rank")
+	r0 := sdk.FormatRank(int64(rank))
+	return cString(string(r0))
+}
+
+//export urnet_format_share_bps
+func urnet_format_share_bps(shareBps C.int64_t) *C.char {
+	defer cgoGuard("urnet_format_share_bps")
+	r0 := sdk.FormatShareBps(int64(shareBps))
+	return cString(string(r0))
 }
 
 //export urnet_free_memory
@@ -9289,6 +10468,13 @@ func urnet_is_balance_code_format_valid(secret *C.char) C.bool {
 func urnet_is_checkout_redirect(uri *C.char) C.bool {
 	defer cgoGuard("urnet_is_checkout_redirect")
 	r0 := sdk.IsCheckoutRedirect(goString(uri))
+	return C.bool(r0)
+}
+
+//export urnet_is_points_leaderboard_sort
+func urnet_is_points_leaderboard_sort(sort *C.char) C.bool {
+	defer cgoGuard("urnet_is_points_leaderboard_sort")
+	r0 := sdk.IsPointsLeaderboardSort(goString(sort))
 	return C.bool(r0)
 }
 
@@ -9591,6 +10777,34 @@ func urnet_local_state_get_routing_tier(self C.uint64_t) C.int64_t {
 	}
 	r0 := self_.GetRoutingTier()
 	return C.int64_t(r0)
+}
+
+//export urnet_local_state_get_sn_chain_settings
+func urnet_local_state_get_sn_chain_settings(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_local_state_get_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.LocalState](uint64(self), "urnet_local_state_get_sn_chain_settings")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnChainSettings()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_local_state_get_sn_chain_settings")
+}
+
+//export urnet_local_state_get_sn_wallet
+func urnet_local_state_get_sn_wallet(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_local_state_get_sn_wallet")
+	self_, ok := resolveHandle[*sdk.LocalState](uint64(self), "urnet_local_state_get_sn_wallet")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSnWallet()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_local_state_get_sn_wallet")
 }
 
 //export urnet_local_state_get_transport_settings
@@ -10061,6 +11275,50 @@ func urnet_local_state_set_routing_tier(self C.uint64_t, tier C.int64_t, outErro
 		return C.bool(false)
 	}
 	err := self_.SetRoutingTier(int(int64(tier)))
+	if err != nil {
+		setErrorOut(outError, err)
+		return C.bool(false)
+	}
+	return C.bool(true)
+}
+
+//export urnet_local_state_set_sn_chain_settings
+func urnet_local_state_set_sn_chain_settings(self C.uint64_t, settings *C.char, outError **C.char) C.bool {
+	defer cgoGuard("urnet_local_state_set_sn_chain_settings")
+	self_, ok := resolveHandle[*sdk.LocalState](uint64(self), "urnet_local_state_set_sn_chain_settings")
+	if !ok {
+		return C.bool(false)
+	}
+	var settings_ *sdk.SnChainSettings
+	if settings != nil {
+		settings_ = &sdk.SnChainSettings{}
+		if !goJson(settings, settings_, "urnet_local_state_set_sn_chain_settings") {
+			return C.bool(false)
+		}
+	}
+	err := self_.SetSnChainSettings(settings_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return C.bool(false)
+	}
+	return C.bool(true)
+}
+
+//export urnet_local_state_set_sn_wallet
+func urnet_local_state_set_sn_wallet(self C.uint64_t, wallet *C.char, outError **C.char) C.bool {
+	defer cgoGuard("urnet_local_state_set_sn_wallet")
+	self_, ok := resolveHandle[*sdk.LocalState](uint64(self), "urnet_local_state_set_sn_wallet")
+	if !ok {
+		return C.bool(false)
+	}
+	var wallet_ *sdk.SnWallet
+	if wallet != nil {
+		wallet_ = &sdk.SnWallet{}
+		if !goJson(wallet, wallet_, "urnet_local_state_set_sn_wallet") {
+			return C.bool(false)
+		}
+	}
+	err := self_.SetSnWallet(wallet_)
 	if err != nil {
 		setErrorOut(outError, err)
 		return C.bool(false)
@@ -11201,6 +12459,16 @@ func urnet_new_proxy_device_with_defaults(proxyConfig *C.char, setupNewDeviceCal
 	return C.uint64_t(newHandle(r0))
 }
 
+//export urnet_new_sn_chain_settings
+func urnet_new_sn_chain_settings() *C.char {
+	defer cgoGuard("urnet_new_sn_chain_settings")
+	r0 := sdk.NewSnChainSettings()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_new_sn_chain_settings")
+}
+
 //export urnet_new_subscription_balance_view_controller
 func urnet_new_subscription_balance_view_controller(api C.uint64_t) C.uint64_t {
 	defer cgoGuard("urnet_new_subscription_balance_view_controller")
@@ -11413,6 +12681,214 @@ func urnet_peer_view_controller_start(self C.uint64_t) {
 func urnet_peer_view_controller_stop(self C.uint64_t) {
 	defer cgoGuard("urnet_peer_view_controller_stop")
 	self_, ok := resolveHandle[*sdk.PeerViewController](uint64(self), "urnet_peer_view_controller_stop")
+	if !ok {
+		return
+	}
+	self_.Stop()
+}
+
+//export urnet_points_leaderboard_key_of
+func urnet_points_leaderboard_key_of(row *C.char) *C.char {
+	defer cgoGuard("urnet_points_leaderboard_key_of")
+	var row_ *sdk.PointsLeaderboardRow
+	if row != nil {
+		row_ = &sdk.PointsLeaderboardRow{}
+		if !goJson(row, row_, "urnet_points_leaderboard_key_of") {
+			return nil
+		}
+	}
+	r0 := sdk.PointsLeaderboardKeyOf(row_)
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_points_leaderboard_key_of")
+}
+
+//export urnet_points_leaderboard_view_controller_add_points_leaderboard_listener
+func urnet_points_leaderboard_view_controller_add_points_leaderboard_listener(self C.uint64_t, listener_points_leaderboard_changed C.urnet_points_leaderboard_cb, listener_user_data unsafe.Pointer) C.uint64_t {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_add_points_leaderboard_listener")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_add_points_leaderboard_listener")
+	if !ok {
+		return 0
+	}
+	var listener_ sdk.PointsLeaderboardListener
+	if listener_points_leaderboard_changed != nil {
+		listener_ = &cAdapterPointsLeaderboardListener{cbPointsLeaderboardChanged: listener_points_leaderboard_changed, userData: listener_user_data}
+	}
+	r0 := self_.AddPointsLeaderboardListener(listener_)
+	return C.uint64_t(newHandle(r0))
+}
+
+//export urnet_points_leaderboard_view_controller_close
+func urnet_points_leaderboard_view_controller_close(self C.uint64_t) {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_close")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_close")
+	if !ok {
+		return
+	}
+	self_.Close()
+}
+
+//export urnet_points_leaderboard_view_controller_get_error_message
+func urnet_points_leaderboard_view_controller_get_error_message(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_error_message")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_error_message")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetErrorMessage()
+	return cString(string(r0))
+}
+
+//export urnet_points_leaderboard_view_controller_get_latest_epoch
+func urnet_points_leaderboard_view_controller_get_latest_epoch(self C.uint64_t) C.int64_t {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_latest_epoch")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_latest_epoch")
+	if !ok {
+		return 0
+	}
+	r0 := self_.GetLatestEpoch()
+	return C.int64_t(r0)
+}
+
+//export urnet_points_leaderboard_view_controller_get_me
+func urnet_points_leaderboard_view_controller_get_me(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_me")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_me")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetMe()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_points_leaderboard_view_controller_get_me")
+}
+
+//export urnet_points_leaderboard_view_controller_get_row_count
+func urnet_points_leaderboard_view_controller_get_row_count(self C.uint64_t) C.int64_t {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_row_count")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_row_count")
+	if !ok {
+		return 0
+	}
+	r0 := self_.GetRowCount()
+	return C.int64_t(r0)
+}
+
+//export urnet_points_leaderboard_view_controller_get_rows
+func urnet_points_leaderboard_view_controller_get_rows(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_rows")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_rows")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetRows()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_points_leaderboard_view_controller_get_rows")
+}
+
+//export urnet_points_leaderboard_view_controller_get_snapshot_time
+func urnet_points_leaderboard_view_controller_get_snapshot_time(self C.uint64_t) C.int64_t {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_snapshot_time")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_snapshot_time")
+	if !ok {
+		return 0
+	}
+	r0 := self_.GetSnapshotTime()
+	return cTime(r0)
+}
+
+//export urnet_points_leaderboard_view_controller_get_sort
+func urnet_points_leaderboard_view_controller_get_sort(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_sort")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_sort")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetSort()
+	return cString(string(r0))
+}
+
+//export urnet_points_leaderboard_view_controller_get_total_ranked
+func urnet_points_leaderboard_view_controller_get_total_ranked(self C.uint64_t) C.int64_t {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_get_total_ranked")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_get_total_ranked")
+	if !ok {
+		return 0
+	}
+	r0 := self_.GetTotalRanked()
+	return C.int64_t(r0)
+}
+
+//export urnet_points_leaderboard_view_controller_is_end_reached
+func urnet_points_leaderboard_view_controller_is_end_reached(self C.uint64_t) C.bool {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_is_end_reached")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_is_end_reached")
+	if !ok {
+		return C.bool(false)
+	}
+	r0 := self_.IsEndReached()
+	return C.bool(r0)
+}
+
+//export urnet_points_leaderboard_view_controller_is_loading
+func urnet_points_leaderboard_view_controller_is_loading(self C.uint64_t) C.bool {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_is_loading")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_is_loading")
+	if !ok {
+		return C.bool(false)
+	}
+	r0 := self_.IsLoading()
+	return C.bool(r0)
+}
+
+//export urnet_points_leaderboard_view_controller_load_more
+func urnet_points_leaderboard_view_controller_load_more(self C.uint64_t) {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_load_more")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_load_more")
+	if !ok {
+		return
+	}
+	self_.LoadMore()
+}
+
+//export urnet_points_leaderboard_view_controller_refresh
+func urnet_points_leaderboard_view_controller_refresh(self C.uint64_t) {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_refresh")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_refresh")
+	if !ok {
+		return
+	}
+	self_.Refresh()
+}
+
+//export urnet_points_leaderboard_view_controller_set_sort
+func urnet_points_leaderboard_view_controller_set_sort(self C.uint64_t, sort *C.char) {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_set_sort")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_set_sort")
+	if !ok {
+		return
+	}
+	self_.SetSort(goString(sort))
+}
+
+//export urnet_points_leaderboard_view_controller_start
+func urnet_points_leaderboard_view_controller_start(self C.uint64_t) {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_start")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_start")
+	if !ok {
+		return
+	}
+	self_.Start()
+}
+
+//export urnet_points_leaderboard_view_controller_stop
+func urnet_points_leaderboard_view_controller_stop(self C.uint64_t) {
+	defer cgoGuard("urnet_points_leaderboard_view_controller_stop")
+	self_, ok := resolveHandle[*sdk.PointsLeaderboardViewController](uint64(self), "urnet_points_leaderboard_view_controller_stop")
 	if !ok {
 		return
 	}
@@ -11741,6 +13217,20 @@ func urnet_referral_code_view_controller_close(self C.uint64_t) {
 	self_.Close()
 }
 
+//export urnet_referral_code_view_controller_get_referral_code_result
+func urnet_referral_code_view_controller_get_referral_code_result(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_referral_code_view_controller_get_referral_code_result")
+	self_, ok := resolveHandle[*sdk.ReferralCodeViewController](uint64(self), "urnet_referral_code_view_controller_get_referral_code_result")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetReferralCodeResult()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_referral_code_view_controller_get_referral_code_result")
+}
+
 //export urnet_referral_code_view_controller_start
 func urnet_referral_code_view_controller_start(self C.uint64_t) {
 	defer cgoGuard("urnet_referral_code_view_controller_start")
@@ -11853,6 +13343,103 @@ func urnet_set_memory_profile_rate(byteCount C.int64_t) {
 func urnet_set_message_pool_memory_targets(packetPoolByteCount C.int64_t, largeObjectPoolByteCount C.int64_t) {
 	defer cgoGuard("urnet_set_message_pool_memory_targets")
 	sdk.SetMessagePoolMemoryTargets(int64(packetPoolByteCount), int64(largeObjectPoolByteCount))
+}
+
+//export urnet_short_ss58
+func urnet_short_ss58(address *C.char) *C.char {
+	defer cgoGuard("urnet_short_ss58")
+	r0 := sdk.ShortSs58(goString(address))
+	return cString(string(r0))
+}
+
+//export urnet_sn_claim_transactions_for
+func urnet_sn_claim_transactions_for(settings *C.char, coldkeySs58 *C.char, epochs *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_sn_claim_transactions_for")
+	var settings_ *sdk.SnChainSettings
+	if settings != nil {
+		settings_ = &sdk.SnChainSettings{}
+		if !goJson(settings, settings_, "urnet_sn_claim_transactions_for") {
+			return nil
+		}
+	}
+	var epochs_ *sdk.Int64List
+	if epochs != nil {
+		epochs_ = &sdk.Int64List{}
+		if !goJson(epochs, epochs_, "urnet_sn_claim_transactions_for") {
+			return nil
+		}
+	}
+	r0, err := sdk.SnClaimTransactionsFor(settings_, goString(coldkeySs58), epochs_)
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_sn_claim_transactions_for")
+}
+
+//export urnet_sn_claims_for
+func urnet_sn_claims_for(settings *C.char, coldkeySs58 *C.char, fromEpoch C.int64_t, callback_result C.urnet_sn_claims_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_sn_claims_for")
+	var settings_ *sdk.SnChainSettings
+	if settings != nil {
+		settings_ = &sdk.SnChainSettings{}
+		if !goJson(settings, settings_, "urnet_sn_claims_for") {
+			return
+		}
+	}
+	var callback_ sdk.SnClaimsCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnClaimsCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	sdk.SnClaimsFor(settings_, goString(coldkeySs58), int64(fromEpoch), callback_)
+}
+
+//export urnet_sn_fleet_binding_digest
+func urnet_sn_fleet_binding_digest(bindingJson *C.char, outError **C.char) *C.char {
+	defer cgoGuard("urnet_sn_fleet_binding_digest")
+	r0, err := sdk.SnFleetBindingDigest(goString(bindingJson))
+	if err != nil {
+		setErrorOut(outError, err)
+		return nil
+	}
+	return cString(string(r0))
+}
+
+//export urnet_sn_gas_balance_for
+func urnet_sn_gas_balance_for(settings *C.char, address *C.char, callback_result C.urnet_sn_gas_balance_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_sn_gas_balance_for")
+	var settings_ *sdk.SnChainSettings
+	if settings != nil {
+		settings_ = &sdk.SnChainSettings{}
+		if !goJson(settings, settings_, "urnet_sn_gas_balance_for") {
+			return
+		}
+	}
+	var callback_ sdk.SnGasBalanceCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnGasBalanceCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	sdk.SnGasBalanceFor(settings_, goString(address), callback_)
+}
+
+//export urnet_sn_payout_leaf_hex
+func urnet_sn_payout_leaf_hex(coldkeySs58 *C.char, shareBps C.int64_t) *C.char {
+	defer cgoGuard("urnet_sn_payout_leaf_hex")
+	r0 := sdk.SnPayoutLeafHex(goString(coldkeySs58), int64(shareBps))
+	return cString(string(r0))
+}
+
+//export urnet_sn_testnet_chain_settings
+func urnet_sn_testnet_chain_settings() *C.char {
+	defer cgoGuard("urnet_sn_testnet_chain_settings")
+	r0 := sdk.SnTestnetChainSettings()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_sn_testnet_chain_settings")
 }
 
 //export urnet_sub_close
@@ -12191,6 +13778,13 @@ func urnet_subscription_balance_view_controller_stop(self C.uint64_t) {
 	self_.Stop()
 }
 
+//export urnet_suggest_emoji_tag
+func urnet_suggest_emoji_tag(count C.int64_t) *C.char {
+	defer cgoGuard("urnet_suggest_emoji_tag")
+	r0 := sdk.SuggestEmojiTag(int(int64(count)))
+	return cString(string(r0))
+}
+
 //export urnet_transport_settings_auto_modes
 func urnet_transport_settings_auto_modes(settings *C.char) *C.char {
 	defer cgoGuard("urnet_transport_settings_auto_modes")
@@ -12322,6 +13916,37 @@ func urnet_usd_to_nano_cents(usd C.double) C.int64_t {
 	defer cgoGuard("urnet_usd_to_nano_cents")
 	r0 := sdk.UsdToNanoCents(float64(usd))
 	return C.int64_t(r0)
+}
+
+//export urnet_validate_emoji_tag
+func urnet_validate_emoji_tag(tag *C.char) *C.char {
+	defer cgoGuard("urnet_validate_emoji_tag")
+	r0 := sdk.ValidateEmojiTag(goString(tag))
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_validate_emoji_tag")
+}
+
+//export urnet_validate_ss58
+func urnet_validate_ss58(address *C.char) C.bool {
+	defer cgoGuard("urnet_validate_ss58")
+	r0 := sdk.ValidateSs58(goString(address))
+	return C.bool(r0)
+}
+
+//export urnet_verify_payout_proof_hex
+func urnet_verify_payout_proof_hex(rootHex *C.char, leafHex *C.char, proofHex *C.char) C.bool {
+	defer cgoGuard("urnet_verify_payout_proof_hex")
+	var proofHex_ *sdk.StringList
+	if proofHex != nil {
+		proofHex_ = &sdk.StringList{}
+		if !goJson(proofHex, proofHex_, "urnet_verify_payout_proof_hex") {
+			return C.bool(false)
+		}
+	}
+	r0 := sdk.VerifyPayoutProofHex(goString(rootHex), goString(leafHex), proofHex_)
+	return C.bool(r0)
 }
 
 //export urnet_wallet_view_controller_add_account_wallets_listener

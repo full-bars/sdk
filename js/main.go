@@ -180,6 +180,38 @@ func FilteredLocationsFromResult(this js.Value, args []js.Value) any {
 	return jsFilteredLocations(sdk.GetFilteredLocationsFromResult(&result, filter))
 }
 
+// NewLocationsViewController(apiUrl, platformUrl, byJwt) opens the SAME
+// LocationsViewController a DeviceRemote exposes (openLocationsViewController),
+// over the network space api alone: no device, no device-rpc. It exists so a
+// browser tab that is signed in but has no device plane yet (the extension is
+// not installed or not attached) renders the location chooser from the sdk's
+// grouping and ordering, exactly like android/apple, instead of a REST list in
+// server order. The result has the LocationsViewController shape
+// (getFilteredLocations / filterLocations / addFilteredLocationsListener /
+// start / close); close() releases it.
+func NewLocationsViewController(this js.Value, args []js.Value) any {
+	if len(args) < 3 {
+		return js.ValueOf(map[string]any{
+			"error": "apiUrl, platformUrl and byJwt are required",
+		})
+	}
+	apiUrl := args[0].String()
+	platformUrl := args[1].String()
+	byJwt := args[2].String()
+
+	networkSpace := sdk.NewUrlsNetworkSpace(apiUrl, platformUrl)
+	api := networkSpace.GetApi()
+	api.SetByJwt(byJwt)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	vc := sdk.NewLocationsViewControllerWithApi(ctx, api)
+	return jsLocationsViewController(vc, func() {
+		vc.Close()
+		cancel()
+		networkSpace.Close()
+	})
+}
+
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -192,6 +224,27 @@ func main() {
 	js.Global().Set("URnetworkNewPlatformDeviceRemote", js.FuncOf(NewPlatformDeviceRemote))
 	js.Global().Set("URnetworkNewExtensionDeviceRemote", js.FuncOf(NewExtensionDeviceRemote))
 	js.Global().Set("URnetworkFilteredLocationsFromResult", js.FuncOf(FilteredLocationsFromResult))
+	js.Global().Set("URnetworkNewLocationsViewController", js.FuncOf(NewLocationsViewController))
+	js.Global().Set("URnetworkNewAccountHost", js.FuncOf(NewAccountHost))
+	// ColorHex(code): the sdk palette color for a code the page already holds
+	// (a country code, or a bare location / client id), no "#"
+	js.Global().Set("URnetworkColorHex", js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) < 1 || args[0].Type() != js.TypeString {
+			return js.ValueOf("")
+		}
+		return js.ValueOf(sdk.GetColorHex(args[0].String()))
+	}))
+	// ValidateEmojiTag(tag): the emoji-tag rules the server enforces, for an
+	// editor with no host or device yet
+	js.Global().Set("URnetworkValidateEmojiTag", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return jsJson(sdk.ValidateEmojiTag(stringArg(args, 0)))
+	}))
+	// SuggestEmojiTag(count): a random tag of 1–3 distinct emoji to prefill
+	// the editor with (count 0 or omitted picks the length at random)
+	js.Global().Set("URnetworkSuggestEmojiTag", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return js.ValueOf(sdk.SuggestEmojiTag(int(int64Arg(args, 0))))
+	}))
+	registerSnExports()
 
 	select {
 	case <-ctx.Done():

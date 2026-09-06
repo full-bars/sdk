@@ -5,6 +5,7 @@ go 1.26.5
 require github.com/urnetwork/sdk v0.0.0
 
 require (
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -26,6 +27,7 @@ require (
 	github.com/pion/turn/v5 v5.0.12 // indirect
 	github.com/pion/webrtc/v4 v4.2.18 // indirect
 	github.com/quic-go/quic-go v0.61.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/urnetwork/connect v0.0.0 // indirect
 	github.com/urnetwork/glog v0.0.0 // indirect
 	github.com/urnetwork/goidenticons v0.0.0 // indirect
@@ -53,3 +55,8 @@ replace github.com/urnetwork/connect => ../../connect
 replace github.com/urnetwork/glog => ../../glog
 
 replace github.com/urnetwork/goidenticons => ../../goidenticons
+
+tool (
+	golang.org/x/mobile/cmd/gobind
+	golang.org/x/mobile/cmd/gomobile
+)

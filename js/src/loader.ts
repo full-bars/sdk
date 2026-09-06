@@ -6,6 +6,9 @@ declare global {
     URnetworkNewProxyDeviceWithDefaults: any;
     URnetworkNewPlatformDeviceRemote: any;
     URnetworkNewExtensionDeviceRemote: any;
+    URnetworkNewLocationsViewController: any;
+    URnetworkNewAccountHost: any;
+    URnetworkColorHex: any;
     URnetworkClose: any;
   }
 }
@@ -111,6 +114,9 @@ export function getWasmGlobals() {
     // a hosted DeviceLocal, reached over the proxy host's device-rpc websocket
     URnetworkNewPlatformDeviceRemote: window.URnetworkNewPlatformDeviceRemote,
     URnetworkNewExtensionDeviceRemote: window.URnetworkNewExtensionDeviceRemote,
+    URnetworkNewLocationsViewController: window.URnetworkNewLocationsViewController,
+    URnetworkNewAccountHost: window.URnetworkNewAccountHost,
+    URnetworkColorHex: window.URnetworkColorHex,
     URnetworkClose: window.URnetworkClose,
   };
 }

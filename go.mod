@@ -3,6 +3,7 @@ module github.com/urnetwork/sdk
 go 1.26.5
 
 require (
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/gorilla/websocket v1.5.3
@@ -33,6 +34,7 @@ require (
 	github.com/pion/turn/v5 v5.0.12 // indirect
 	github.com/pion/webrtc/v4 v4.2.18 // indirect
 	github.com/quic-go/quic-go v0.61.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
 	golang.org/x/image v0.44.0 // indirect

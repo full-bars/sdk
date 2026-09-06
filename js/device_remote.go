@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"syscall/js"
 
@@ -51,6 +52,8 @@ func jsConnectLocation(location *sdk.ConnectLocation) js.Value {
 		"locationType":  string(location.LocationType),
 		"countryCode":   location.CountryCode,
 		"providerCount": location.ProviderCount,
+		// the dot color, from the sdk palette (no "#"); "" for best available
+		"colorHex": location.ColorHex(),
 	}
 	if location.ConnectLocationId != nil {
 		// the composite id, the one to hand back to the sdk
@@ -76,31 +79,8 @@ func jsNetworkPeers(networkPeers *sdk.NetworkPeers) js.Value {
 	if networkPeers == nil {
 		return js.Null()
 	}
-	connected := []any{}
-	if networkPeers.Connected != nil {
-		for i := 0; i < networkPeers.Connected.Len(); i += 1 {
-			peer := networkPeers.Connected.Get(i)
-			roles := []any{}
-			if peer.Roles != nil {
-				for j := 0; j < peer.Roles.Len(); j += 1 {
-					roles = append(roles, peer.Roles.Get(j))
-				}
-			}
-			m := map[string]any{
-				"provideEnabled": peer.ProvideEnabled,
-				"principal":      peer.Principal,
-				"deviceName":     peer.DeviceName,
-				"deviceSpec":     peer.DeviceSpec,
-				"roles":          roles,
-			}
-			if peer.ClientId != nil {
-				m["clientId"] = peer.ClientId.String()
-			}
-			connected = append(connected, m)
-		}
-	}
 	return js.ValueOf(map[string]any{
-		"connected":         connected,
+		"connected":         jsNetworkPeerList(networkPeers.Connected),
 		"disconnectedCount": networkPeers.DisconnectedCount,
 	})
 }
@@ -126,6 +106,9 @@ func jsConnectedProviderLocation(location *sdk.ConnectedProviderLocation) js.Val
 		"hasRegionCoordinates": location.HasRegionCoordinates,
 		"hasCityCoordinates":   location.HasCityCoordinates,
 		"connectedSinceMillis": location.ConnectedSinceMillis,
+		// the dot color from the sdk palette: the country's when the location
+		// is known, else the stable per-client color
+		"colorHex": location.ColorHex(),
 	}
 	if location.ClientId != nil {
 		m["clientId"] = location.ClientId.String()
@@ -169,6 +152,12 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 	})
 	m["getSyncError"] = js.FuncOf(func(this js.Value, args []js.Value) any {
 		return js.ValueOf(device.GetSyncError())
+	})
+	// suggestEmojiTag(count): synchronous; a random tag of 1–3 distinct emoji
+	// to prefill the emoji-tag editor with (count 0 or omitted picks the
+	// length at random). Pure; no device state involved.
+	m["suggestEmojiTag"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		return js.ValueOf(sdk.SuggestEmojiTag(int(int64Arg(args, 0))))
 	})
 
 	// offline
@@ -450,6 +439,18 @@ func jsDeviceRemote(device *sdk.DeviceRemote) js.Value {
 		vc := device.OpenDevicesViewController()
 		return jsDevicesViewController(vc, func() {
 			device.CloseDevicesViewController(vc)
+		})
+	})
+	m["openPointsLeaderboardViewController"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		vc := device.OpenPointsLeaderboardViewController()
+		return jsPointsLeaderboardViewController(vc, func() {
+			device.ClosePointsLeaderboardViewController(vc)
+		})
+	})
+	m["openPeerViewController"] = js.FuncOf(func(this js.Value, args []js.Value) any {
+		vc := device.OpenPeerViewController()
+		return jsPeerViewController(vc, func() {
+			device.ClosePeerViewController(vc)
 		})
 	})
 	m["openProviderLocationsViewController"] = js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -770,7 +771,21 @@ func parseConnectLocation(v js.Value) *sdk.ConnectLocation {
 	return location
 }
 
+// parseConnectLocationId accepts both id forms a page can hold: the bare
+// location id the settings doc and the extension carry, and the composite
+// ConnectLocationId json the sdk hands out (jsConnectLocation's
+// connectLocationId), which is the only form that names a location GROUP or a
+// device. Before this the composite form failed ParseId and the pick was
+// silently dropped.
 func parseConnectLocationId(s string) (*sdk.ConnectLocationId, error) {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "{") {
+		var id sdk.ConnectLocationId
+		if err := json.Unmarshal([]byte(s), &id); err != nil {
+			return nil, err
+		}
+		return &id, nil
+	}
 	id, err := sdk.ParseId(s)
 	if err != nil {
 		return nil, err

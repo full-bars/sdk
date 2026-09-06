@@ -78,10 +78,18 @@ export interface ConnectLocationSpec {
 
 export interface ConnectLocationInfo {
   connectLocationId?: string;
+  /** the bare id, exactly one of these is set (a country/region/city, a
+   * location group, or a device) */
+  locationId?: string;
+  locationGroupId?: string;
+  clientId?: string;
+  bestAvailable?: boolean;
   name: string;
   locationType: string;
   countryCode: string;
   providerCount: number;
+  /** the dot color from the sdk palette (hex, no "#"); "" for best available */
+  colorHex: string;
 }
 
 export interface NetworkPeerInfo {
@@ -91,6 +99,8 @@ export interface NetworkPeerInfo {
   deviceName: string;
   deviceSpec: string;
   roles: string[];
+  /** the stable per-client dot color from the sdk palette (hex, no "#") */
+  colorHex: string;
 }
 
 export interface NetworkPeersInfo {
@@ -127,6 +137,9 @@ export interface ConnectedProviderLocationInfo {
   hasRegionCoordinates: boolean;
   hasCityCoordinates: boolean;
   connectedSinceMillis: number;
+  /** the dot color from the sdk palette (hex, no "#"): the country's when the
+   * location is known, else the stable per-client color */
+  colorHex: string;
 }
 
 /** Listener adders return an unsubscribe function. */
@@ -149,6 +162,8 @@ export interface DeviceRemote {
   getRemoteConnected(): boolean;
   /** Last explicit RPC sync refusal; empty while pending or after success. */
   getSyncError(): string;
+  /** A random tag of 1–3 distinct emoji to prefill the emoji-tag editor with; count 0 or omitted picks the length at random. */
+  suggestEmojiTag(count?: number): string;
 
   // offline / tunnel
   getOffline(): boolean;
@@ -229,6 +244,8 @@ export interface DeviceRemote {
   openBlockActionViewController(): BlockActionViewController;
   openLocationsViewController(): LocationsViewController;
   openDevicesViewController(): DevicesViewController;
+  openPointsLeaderboardViewController(): PointsLeaderboardViewController;
+  openPeerViewController(): PeerViewController;
   openProviderLocationsViewController(): ProviderLocationsViewController;
 }
 
@@ -513,6 +530,86 @@ export interface DevicesViewController {
 }
 
 /**
+ * PointsLeaderboardRow — one ranked network on the all-time points
+ * leaderboard (android/POINTSLEADERBOARD.md), in the server's snake_case with
+ * the sdk's preformatted text beside the raw values. `display_name` is the
+ * network name, or "" when `anonymous` — render your localized "Anonymous";
+ * `emoji_tag` shows either way. Ranks are competition ranks (0 = not ranked).
+ */
+export interface PointsLeaderboardRow {
+  network_id: string;
+  network_name?: string;
+  emoji_tag?: string;
+  anonymous: boolean;
+  total_points: number;
+  blocks_with_points: number;
+  streak: number;
+  longest_streak: number;
+  rank_points: number;
+  rank_blocks: number;
+  rank_streak: number;
+  display_name?: string;
+  total_points_text?: string;
+  blocks_with_points_text?: string;
+  streak_text?: string;
+  longest_streak_text?: string;
+  rank_points_text?: string;
+  rank_blocks_text?: string;
+  rank_streak_text?: string;
+}
+
+/** The caller's own row plus its opt-in state. */
+export interface PointsLeaderboardMe extends PointsLeaderboardRow {
+  points_leaderboard_public: boolean;
+}
+
+export type PointsLeaderboardSort = "points" | "blocks" | "streak";
+
+/**
+ * EmojiTagValidation — validateEmojiTag's verdict: `normalized` is the tag to
+ * send; `reason` is "" | "empty" | "too_many" | "not_emoji" (localize by it,
+ * `message` is the English fallback).
+ */
+export interface EmojiTagValidation {
+  ok: boolean;
+  count: number;
+  normalized: string;
+  reason: "" | "empty" | "too_many" | "not_emoji";
+  message: string;
+}
+
+/**
+ * PointsLeaderboardViewController — the all-time points leaderboard. It owns
+ * the sort, the pages and the paging state; render `getRows()` in order and
+ * call `loadMore()` when the list nears its end. The listener fires on every
+ * state change (a page landed, loading toggled, the sort switched, an error,
+ * `me` updated); read the state back through the getters. `refresh()` keeps
+ * the rows until the new first page lands. Never sort, rank or page yourself.
+ */
+export interface PointsLeaderboardViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  getSort(): PointsLeaderboardSort;
+  setSort(sort: PointsLeaderboardSort): void;
+  loadMore(): void;
+  refresh(): void;
+
+  getRows(): PointsLeaderboardRow[];
+  getRowCount(): number;
+  isLoading(): boolean;
+  isEndReached(): boolean;
+  getMe(): PointsLeaderboardMe | null;
+  getErrorMessage(): string;
+  getTotalRanked(): number;
+  getLatestEpoch(): number;
+  getSnapshotTime(): string | null;
+
+  addPointsLeaderboardListener(cb: () => void): Unsubscribe;
+}
+
+/**
  * ProviderLocationsViewController — the provider-locations screen's display
  * order, selection and scroll wheel, shared by every URnetwork app so they all
  * read and traverse the globe identically.
@@ -619,6 +716,220 @@ export interface DeviceRpcTransport {
 }
 
 /** Options for the extension-routed DeviceRemote used by ur.io. */
+/** api-only LocationsViewController: the same browse controller a device
+ * exposes, opened over the network space api for a host with no device yet */
+export interface LocationsViewControllerOptions {
+  apiUrl: string;
+  platformUrl: string;
+  byJwt: string;
+}
+
+/**
+ * PeerViewController — the connectable peers: ONLY the connected peers that
+ * provide (the sdk's filter, shared by every app). `getConnectedCount` is all
+ * connected peers, providing or not ("N devices online"). The listener
+ * delivers the current connectable list.
+ */
+export interface PeerViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  getPeers(): NetworkPeerInfo[];
+  getPeerCount(): number;
+  getConnectedCount(): number;
+
+  addPeersListener(cb: (peers: NetworkPeerInfo[]) => void): Unsubscribe;
+}
+
+/** AccountPreferencesViewController — the product-updates preference. */
+export interface AccountPreferencesViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  getAllowProductUpdates(): boolean;
+  updateAllowProductUpdates(allow: boolean): void;
+  addAllowProductUpdatesListener(cb: (allow: boolean) => void): Unsubscribe;
+}
+
+/** the profile, through the sdk NetworkUser's json tags */
+export interface NetworkUserInfo {
+  userId?: string;
+  user_name: string;
+  user_auth?: string;
+  verified: boolean;
+  auth_type: string;
+  network_name: string;
+  wallet_address?: string;
+  auth_types?: string[];
+}
+
+/**
+ * NetworkUserViewController — the profile: fetch, the cached user, rename with
+ * success / error / in-flight listeners.
+ */
+export interface NetworkUserViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  fetchNetworkUser(): void;
+  getNetworkUser(): NetworkUserInfo | null;
+  updateNetworkUser(networkName: string): void;
+
+  addNetworkUserListener(cb: () => void): Unsubscribe;
+  addIsLoadingListener(cb: (loading: boolean) => void): Unsubscribe;
+  addNetworkUserUpdateErrorListener(cb: (message: string) => void): Unsubscribe;
+  addNetworkUserUpdateSuccessListener(cb: () => void): Unsubscribe;
+  addIsUpdatingListener(cb: (updating: boolean) => void): Unsubscribe;
+}
+
+/** FeedbackViewController — send feedback (message + star count). */
+export interface FeedbackViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  sendFeedback(message: string, starCount: number): void;
+  addIsSendingFeedbackListener(cb: (sending: boolean) => void): Unsubscribe;
+}
+
+/** the referral code result through its json tags */
+export interface ReferralCodeInfo {
+  referral_code?: string;
+  total_referrals: number;
+  max_referrals: number;
+  bonus_per_referral_bytes: number;
+  referred_bonus_bytes: number;
+  bonus_period_seconds: number;
+  error?: { message: string };
+}
+
+/**
+ * ReferralCodeViewController — the network's referral code and its terms.
+ * `getReferralCode` is null until the first fetch lands; the listener carries
+ * the code string.
+ */
+export interface ReferralCodeViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  getReferralCode(): ReferralCodeInfo | null;
+  addReferralCodeListener(cb: (code: string) => void): Unsubscribe;
+}
+
+export interface SubscriptionInfo {
+  subscription_id?: string;
+  store: string;
+  plan: string;
+}
+
+export type PurchaseConfirmationState =
+  | "idle"
+  | "waiting_for_confirmation"
+  | "confirmed"
+  | "confirmation_gave_up";
+
+/**
+ * SubscriptionBalanceViewController — balance, plan and the purchase
+ * confirmation state machine (background poll, confirmation poll with a
+ * budget that pauses while backgrounded, jwt reconciliation). Byte counts
+ * are numbers; the platform owns the jwt refresh and calls `jwtRefreshed`.
+ */
+export interface SubscriptionBalanceViewController {
+  close(): void;
+  start(): void;
+  stop(): void;
+
+  getIsPro(): boolean;
+  getIsGuest(): boolean;
+  getIsLoaded(): boolean;
+  getStartBalanceByteCount(): number;
+  getAvailableByteCount(): number;
+  getPendingByteCount(): number;
+  getUsedBalanceByteCount(): number;
+  getCurrentSubscription(): SubscriptionInfo | null;
+  getSubscriptions(): SubscriptionInfo[];
+  getCurrentStore(): string;
+  getPurchaseConfirmationState(): PurchaseConfirmationState;
+  getConfirmationBudgetRemainingMillis(): number;
+
+  refresh(): void;
+  setForeground(foreground: boolean): void;
+  startPurchaseConfirmation(): void;
+  clearPurchaseConfirmation(): void;
+  jwtRefreshed(): void;
+
+  getBackgroundPollIntervalMillis(): number;
+  setBackgroundPollIntervalMillis(millis: number): void;
+  getConfirmationPollIntervalMillis(): number;
+  setConfirmationPollIntervalMillis(millis: number): void;
+  getConfirmationBudgetMillis(): number;
+  setConfirmationBudgetMillis(millis: number): void;
+
+  addSubscriptionBalanceChangeListener(cb: () => void): Unsubscribe;
+  addSubscriptionJwtOutOfSyncListener(cb: (serverIsPro: boolean) => void): Unsubscribe;
+  addPurchaseConfirmationListener(cb: (state: PurchaseConfirmationState) => void): Unsubscribe;
+}
+
+export interface AccountHostOptions {
+  apiUrl: string;
+  platformUrl: string;
+  byJwt: string;
+}
+
+/**
+ * AccountHost — the sdk for a signed-in page with no device: the network space
+ * api plus the api-only view controllers the account screens are built on.
+ * Openers return the same objects a DeviceRemote's openers return. The api
+ * methods resolve with the sdk result through its json tags (the API's own
+ * snake_case field names) and reject with an Error carrying the sdk message.
+ * `close()` releases the host; close the controllers it opened first.
+ */
+export interface AccountHost {
+  setByJwt(byJwt: string): void;
+  getByJwt(): string;
+  close(): void;
+
+  openLocationsViewController(): LocationsViewController;
+  openDevicesViewController(): DevicesViewController;
+  openAccountPreferencesViewController(): AccountPreferencesViewController;
+  openNetworkUserViewController(): NetworkUserViewController;
+  openFeedbackViewController(): FeedbackViewController;
+  openReferralCodeViewController(): ReferralCodeViewController;
+  openSubscriptionBalanceViewController(): SubscriptionBalanceViewController;
+  openPointsLeaderboardViewController(): PointsLeaderboardViewController;
+
+  getNetworkClients(): Promise<any>;
+  removeNetworkClient(clientId: string): Promise<any>;
+  getNetworkReferralCode(): Promise<ReferralCodeInfo>;
+  validateReferralCode(code: string): Promise<any>;
+  setNetworkReferral(code: string): Promise<any>;
+  getReferralNetwork(): Promise<any>;
+  unlinkReferralNetwork(): Promise<any>;
+  authCodeCreate(uses: number, durationMinutes: number): Promise<any>;
+  networkDelete(): Promise<any>;
+  getLeaderboard(): Promise<any>;
+  /** One page of the all-time points leaderboard (public; the jwt only adds `me`). */
+  getPointsLeaderboard(sort: PointsLeaderboardSort, cursor?: string, limit?: number): Promise<any>;
+  setPointsLeaderboardPublic(isPublic: boolean): Promise<any>;
+  /** Validate with validateEmojiTag first and send `normalized`; "" clears the tag. */
+  setEmojiTag(emojiTag: string): Promise<any>;
+  validateEmojiTag(emojiTag: string): EmojiTagValidation;
+  /** A random tag of 1–3 distinct emoji to prefill the editor with; count 0 or omitted picks the length at random. */
+  suggestEmojiTag(count?: number): string;
+  getNetworkLeaderboardRanking(): Promise<any>;
+  setNetworkLeaderboardPublic(isPublic: boolean): Promise<any>;
+  getNetworkReliability(): Promise<any>;
+  getNetworkRedeemedBalanceCodes(): Promise<any>;
+  redeemBalanceCode(secret: string): Promise<any>;
+  checkBalanceCode(secret: string): Promise<any>;
+  subscriptionBalance(): Promise<any>;
+  getNetworkUser(): Promise<any>;
+}
+
 export interface ExtensionDeviceRemoteOptions {
   apiUrl: string;
   platformUrl: string;

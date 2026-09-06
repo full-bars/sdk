@@ -80,6 +80,9 @@ type NetworkSpaceValues struct {
 	ApiUrl      string `json:"api_url,omitempty"`
 	PlatformUrl string `json:"platform_url,omitempty"`
 
+	// UR protocol chain overrides (vault, coordinator, operator id, rpc)
+	SnChain *SnChainSettings `json:"sn_chain,omitempty"`
+
 	// custom extender
 	// this overrides any auto discovered extenders
 	NetExtender              *NetExtender              `json:"net_extender,omitempty"`
@@ -108,6 +111,20 @@ func ServiceUrl(key *NetworkSpaceKey, values *NetworkSpaceValues, scheme string,
 	}
 
 	return serviceUrl
+}
+
+// networkSpaceDohDomains returns every service namespace owned by a network
+// space. During a hostname migration both namespaces remain protected because
+// persisted URLs and in-flight clients can legitimately use either one.
+func networkSpaceDohDomains(key *NetworkSpaceKey, values *NetworkSpaceValues) []string {
+	domains := make([]string, 0, 2)
+	if hostName := strings.TrimSpace(key.HostName); hostName != "" {
+		domains = append(domains, hostName)
+	}
+	if migrationHostName := strings.TrimSpace(values.MigrationHostName); migrationHostName != "" {
+		domains = append(domains, migrationHostName)
+	}
+	return domains
 }
 
 func ConnectLinkUrl(key *NetworkSpaceKey, values *NetworkSpaceValues, target string) string {
@@ -178,6 +195,7 @@ func newNetworkSpaceWithConnectSettings(
 	clientStrategySettings.Log = connectSettings.Log
 	clientStrategySettings.ExposeServerIps = values.NetExposeServerIps
 	clientStrategySettings.ExposeServerHostNames = values.NetExposeServerHostNames
+	clientStrategySettings.InternalDohDomains = networkSpaceDohDomains(&key, &values)
 
 	clientStrategy := connect.NewClientStrategy(cancelCtx, clientStrategySettings)
 

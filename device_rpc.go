@@ -275,6 +275,7 @@ type DeviceRemote struct {
 	allowForegroundChangeListeners           map[connect.Id]AllowForegroundChangeListener
 	canReferChangeListeners                  map[connect.Id]CanReferChangeListener
 	provideModeChangeListeners               map[connect.Id]ProvideModeChangeListener
+	sn                                       *deviceSn
 	provideChangeListeners                   map[connect.Id]ProvideChangeListener
 	provideControlModeChangeListeners        map[connect.Id]ProvideControlModeChangeListener
 	performanceProfileChangeListeners        map[connect.Id]PerformanceProfileChangeListener
@@ -470,6 +471,7 @@ func newDeviceRemoteWithOverrides(
 		allowForegroundChangeListeners:           map[connect.Id]AllowForegroundChangeListener{},
 		canReferChangeListeners:                  map[connect.Id]CanReferChangeListener{},
 		provideModeChangeListeners:               map[connect.Id]ProvideModeChangeListener{},
+		sn:                                       newDeviceSn(),
 		provideChangeListeners:                   map[connect.Id]ProvideChangeListener{},
 		provideControlModeChangeListeners:        map[connect.Id]ProvideControlModeChangeListener{},
 		performanceProfileChangeListeners:        map[connect.Id]PerformanceProfileChangeListener{},
@@ -676,6 +678,51 @@ func (self *DeviceRemote) restoreSyncState(syncState DeviceRemoteState) {
 	self.state = syncState
 }
 
+// deviceRpcAttemptErrorResult reduces transport errors to a fixed vocabulary.
+// The browser/extension side can retain this one marker per attempt without
+// copying endpoint credentials, addresses, or raw error text into diagnostics.
+func deviceRpcAttemptErrorResult(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return "eof"
+	}
+	if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe) {
+		return "closed"
+	}
+	var rpcError rpc.ServerError
+	if errors.As(err, &rpcError) {
+		return "rpc-error"
+	}
+	var networkError net.Error
+	if errors.As(err, &networkError) && networkError.Timeout() {
+		return "timeout"
+	}
+	return "transport-error"
+}
+
+func deviceRpcSyncRejectionResult(syncError string) string {
+	switch {
+	case strings.HasPrefix(syncError, "device rpc version mismatch:"):
+		return "version-rejected"
+	case strings.HasPrefix(syncError, "device instance mismatch:"):
+		return "instance-rejected"
+	default:
+		return "rejected"
+	}
+}
+
+func logDeviceRpcAttempt(log connect.Logger, stage string, result string) {
+	log.Infof("[drpc-attempt] endpoint=remote stage=%s result=%s", stage, result)
+}
+
 func (self *DeviceRemote) run() {
 	for {
 		// Rate-limit local reconnects: ensure at least RpcReconnectTimeout
@@ -702,9 +749,11 @@ func (self *DeviceRemote) run() {
 			}
 			forwardConn, reverseConn, err := dialer.Dial(handleCtx)
 			if err != nil {
+				logDeviceRpcAttempt(self.log, "dial", deviceRpcAttemptErrorResult(err))
 				return
 			}
 			if forwardConn == nil || reverseConn == nil {
+				logDeviceRpcAttempt(self.log, "dial", "invalid-transport")
 				if forwardConn != nil {
 					forwardConn.Close()
 				}
@@ -716,6 +765,7 @@ func (self *DeviceRemote) run() {
 			defer reverseConn.Close()
 			select {
 			case <-handleCtx.Done():
+				logDeviceRpcAttempt(self.log, "dial", "canceled")
 				forwardConn.Close()
 				return
 			default:
@@ -753,9 +803,11 @@ func (self *DeviceRemote) run() {
 				func() { service.Close() },
 			)
 			if err != nil {
+				logDeviceRpcAttempt(self.log, "sync", deviceRpcAttemptErrorResult(err))
 				return
 			}
 			if syncResponse.Error != "" {
+				logDeviceRpcAttempt(self.log, "sync", deviceRpcSyncRejectionResult(syncResponse.Error))
 				self.log.Infof("Sync error: %s", syncResponse.Error)
 				func() {
 					self.stateLock.Lock()
@@ -769,6 +821,7 @@ func (self *DeviceRemote) run() {
 			deviceRemoteRpc := newDeviceRemoteRpc(handleCtx, self)
 			server := rpc.NewServer()
 			if err := server.Register(deviceRemoteRpc); err != nil {
+				logDeviceRpcAttempt(self.log, "sync-reverse", "setup-error")
 				self.log.Errorf("[dr]register reverse rpc: %v", err)
 				return
 			}
@@ -798,6 +851,7 @@ func (self *DeviceRemote) run() {
 				"DeviceLocalRpc.SyncReverse",
 				func() { service.Close() },
 			); err != nil {
+				logDeviceRpcAttempt(self.log, "sync-reverse", deviceRpcAttemptErrorResult(err))
 				return
 			}
 
@@ -832,10 +886,19 @@ func (self *DeviceRemote) run() {
 			restoreState = false
 			synced = true
 
+			if !self.settings.BrowserStateOnly || self.settings.RequireRemoteApi {
+				// The API switched from its pre-service direct fallback to this
+				// published RPC generation. Wake only a refresh that failed across
+				// that transition; healthy reconnects must not create auth traffic.
+				// Ordinary BrowserStateOnly remotes keep using their direct API path,
+				// so their RPC service is not an API-transport transition.
+				self.GetApi().remoteTransportAvailable()
+			}
 			self.remoteChanged(true)
 			if deviceRecreated {
 				self.deviceRecreated()
 			}
+			logDeviceRpcAttempt(self.log, "active", "ok")
 			self.log.Infof("[dr]sync done")
 
 			if pendingState {
