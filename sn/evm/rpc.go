@@ -8,12 +8,91 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 )
+
+// snRpcTransport is a shared transport for EVM JSON-RPC calls.  It clones
+// http.DefaultTransport when it is the standard *http.Transport (preserving
+// proxy, HTTP/2, idle-conn and TLS defaults) and overrides the dialer with
+// a short timeout and aggressive Happy-Eyeballs fallback so Android's
+// blackholed IPv6 route does not starve the request budget.
+//
+// A custom resolver forces pure-Go DNS over IPv4 so the DNS query itself
+// does not attempt the broken v6 path.
+var snRpcTransport = func() *http.Transport {
+	dialer := &net.Dialer{
+		Timeout:       10 * time.Second,
+		KeepAlive:     30 * time.Second,
+		FallbackDelay: 100 * time.Millisecond,
+	}
+	// Force DNS over IPv4 using well-known public resolvers so the
+	// query never hits the system's v6-only DNS server (common on
+	// Android with broken HE/tailscale tunnels).  The Dial func
+	// receives the system's configured server address; we discard it
+	// and connect to hardcoded IPv4 addresses instead.
+	ipv4DNS := []string{"9.9.9.9:53", "1.1.1.1:53", "8.8.8.8:53"}
+	dnsIdx := 0
+	v4Resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			// Round-robin through hardcoded v4 DNS servers,
+			// ignoring the system-supplied address.
+			addr := ipv4DNS[dnsIdx%len(ipv4DNS)]
+			dnsIdx++
+			return dialer.DialContext(ctx, "tcp4", addr)
+		},
+	}
+	// dialAndResolve wraps the dialer so every host lookup goes through
+	// v4Resolver (IPv4-only DNS) and every TCP connection uses the short
+	// timeout + Happy Eyeballs fallback.
+	dialAndResolve := func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		addrs, err := v4Resolver.LookupHost(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		// Try each resolved address; fall back to the dialer's default
+		// (which still has FallbackDelay for Happy Eyeballs).
+		var lastErr error
+		for _, addr := range addrs {
+			conn, err := dialer.DialContext(ctx, "tcp4", net.JoinHostPort(addr, port))
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			return conn, nil
+		}
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return dialer.DialContext(ctx, "tcp4", address)
+	}
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		t := dt.Clone()
+		t.DialContext = dialAndResolve
+		return t
+	}
+	// Fallback: build a default-shaped transport explicitly so we never
+	// panic on a replaced DefaultTransport.
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialAndResolve,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}()
 
 // ErrUnreachable wraps transport failures on every configured endpoint.
 var ErrUnreachable = errors.New("chain rpc unreachable")
@@ -77,9 +156,13 @@ func NewClient(urls []string, timeout time.Duration) *Client {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
+	log.Printf("[evm-rpc] NewClient urls=%v timeout=%v transport=v4-happy-eyeballs", urls, timeout)
 	return &Client{
 		urls: append([]string(nil), urls...),
-		http: &http.Client{Timeout: timeout},
+		http: &http.Client{
+			Timeout:   timeout,
+			Transport: snRpcTransport,
+		},
 	}
 }
 
