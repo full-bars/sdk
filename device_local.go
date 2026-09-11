@@ -2222,10 +2222,8 @@ func (self *DeviceLocal) updateContractStatus(contractStatus *connect.ContractSt
 				switch *contractStatus.Error {
 				case protocol.ContractError_InsufficientBalance:
 					netContractStatus.InsufficientBalance = true
-					self.log.Infof("[contract]error insufficent balance\n")
 				case protocol.ContractError_NoPermission:
 					netContractStatus.NoPermission = true
-					self.log.Infof("[contract]error no permission\n")
 				}
 			} else {
 				// reset the error state
@@ -2238,6 +2236,16 @@ func (self *DeviceLocal) updateContractStatus(contractStatus *connect.ContractSt
 		}
 
 		if self.netContractStatus == nil || *self.netContractStatus != *netContractStatus {
+			// Log on state transition only — the old loop logged for every
+			// individual update, which generated 130K+ lines per session for
+			// persistent NoPermission rejections. Log once when the aggregate
+			// state actually changes.
+			if netContractStatus.NoPermission {
+				self.log.Infof("[contract]error no permission\n")
+			}
+			if netContractStatus.InsufficientBalance {
+				self.log.Infof("[contract]error insufficient balance\n")
+			}
 			self.netContractStatus = netContractStatus
 			event = true
 		}
