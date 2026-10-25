@@ -87,13 +87,22 @@ type deviceLocalProvider struct {
 	platformUrl            string
 	// platformUrlV4 and platformUrlV6 are the family-pinned urls (IPV6.md
 	// A2, A9). Empty disables that pinned transport, and with both empty the
-	// group is the legacy single transport.
-	platformUrlV4             string
-	platformUrlV6             string
-	platformTransportSettings *connect.PlatformTransportSettings
-	targetMode                connect.TransportMode
-	modePreferences           map[connect.TransportMode]int
-	transportPolicyVersion    uint64
+	// group is the legacy single transport (a group of one standby), unless
+	// disablePlatformFamilyTransports makes it a plain transport.
+	platformUrlV4 string
+	platformUrlV6 string
+	// disablePlatformFamilyTransports is DeviceLocalSettings'
+	// DisablePlatformFamilyTransports, fixed at construction. When set, the
+	// family urls above are blank and every generation (construction, a
+	// provide-mode flip, a drain or move migration) is one plain
+	// connect.PlatformTransport rather than a family group. A space that
+	// simply derives no family urls (an ip literal, a custom host) leaves it
+	// unset and keeps the legacy group of one standby.
+	disablePlatformFamilyTransports bool
+	platformTransportSettings       *connect.PlatformTransportSettings
+	targetMode                      connect.TransportMode
+	modePreferences                 map[connect.TransportMode]int
+	transportPolicyVersion          uint64
 	// the client limit hold every transport generation shares, carried to
 	// each through its settings. Immutable after construction.
 	clientLimitBackoff *connect.ClientLimitBackoff
@@ -350,26 +359,27 @@ func newDeviceLocalProviderWithOverrides(
 		appVersion: appVersion,
 		instanceId: instanceId,
 
-		networkSpace:              networkSpace,
-		api:                       providerApi,
-		dialContextSettings:       dialContextSettings,
-		clientStrategy:            clientStrategy,
-		clientStrategySettings:    networkSpace.derivedClientStrategySettings(),
-		platformUrl:               networkSpace.platformUrl,
-		platformUrlV4:             familyPlatformUrlV4,
-		platformUrlV6:             familyPlatformUrlV6,
-		platformTransportSettings: platformTransportSettings,
-		targetMode:                targetMode,
-		modePreferences:           maps.Clone(modePreferences),
-		transportPolicyVersion:    1,
-		clientLimitBackoff:        clientLimitBackoff,
-		migrateConnectTimeout:     migrateSettings.MigrateConnectTimeout,
-		migrateMaxScheduleDelay:   migrateSettings.MigrateMaxScheduleDelay,
-		residentMoveTracker:       residentMoveTracker,
-		auth:                      auth,
-		resendQueueBudget:         resendQueueBudget,
-		receiveQueueBudget:        receiveQueueBudget,
-		platformTransportMonitor:  connect.NewMonitor(),
+		networkSpace:                    networkSpace,
+		api:                             providerApi,
+		dialContextSettings:             dialContextSettings,
+		clientStrategy:                  clientStrategy,
+		clientStrategySettings:          networkSpace.derivedClientStrategySettings(),
+		platformUrl:                     networkSpace.platformUrl,
+		platformUrlV4:                   familyPlatformUrlV4,
+		platformUrlV6:                   familyPlatformUrlV6,
+		disablePlatformFamilyTransports: disablePlatformFamilyTransports,
+		platformTransportSettings:       platformTransportSettings,
+		targetMode:                      targetMode,
+		modePreferences:                 maps.Clone(modePreferences),
+		transportPolicyVersion:          1,
+		clientLimitBackoff:              clientLimitBackoff,
+		migrateConnectTimeout:           migrateSettings.MigrateConnectTimeout,
+		migrateMaxScheduleDelay:         migrateSettings.MigrateMaxScheduleDelay,
+		residentMoveTracker:             residentMoveTracker,
+		auth:                            auth,
+		resendQueueBudget:               resendQueueBudget,
+		receiveQueueBudget:              receiveQueueBudget,
+		platformTransportMonitor:        connect.NewMonitor(),
 	}
 	// the provider proves both address families through its family-pinned
 	// transports (IPV6.md A1, A4); nothing else runs on the provider yet, so
@@ -528,17 +538,23 @@ func (self *deviceLocalProvider) newProviderPlatformTransport(
 		clientStrategySettings = connect.DefaultClientStrategySettings()
 	}
 	strategy := self.standbyClientStrategy(clientStrategySettings)
-	if self.platformUrlV4 == "" && self.platformUrlV6 == "" {
-		// No family urls: the caller asked for one family-agnostic transport,
-		// which is 3.23's shape for a proxied identity. It must be a plain
+	if self.disablePlatformFamilyTransports {
+		// The embedder asked for one family-agnostic transport (the family
+		// urls are blank too), which is 3.23's shape for a proxied identity.
+		// The flag, not the blank urls, decides: a space that derives no
+		// family urls on its own keeps the legacy group of one standby, so
+		// no app's transport or status readout changes. It must be a plain
 		// transport and not a group wrapping only the standby, or the group's
 		// watcher goroutines and its standby delay exist for a decision with
 		// nothing to decide.
 		//
 		// The strategy stays the standby's: it is the direct one for a public
 		// provider, so the platform sees the provider's own address rather
-		// than a VLESS or extender path (the review's J4 rule), and it keeps
-		// the injected proxy dial.
+		// than a VLESS or extender path (EXTENDER.md J4). At family 0
+		// connect.NewDirectClientStrategy drops ProxySettings, extenders and
+		// VLESS but keeps ConnectSettings.DialContextSettings, which is where
+		// an embedder's injected proxy dial lives (the miner's proxied slot
+		// wraps its SOCKS dial there).
 		standbySettings := *settings
 		standbySettings.IpFamily = 0
 		// no pinned transports exist, so nothing holds the single one back:

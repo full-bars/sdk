@@ -653,11 +653,14 @@ type DeviceLocalSettings struct {
 	// one transport per proxy and a whole-process RSS an order of magnitude
 	// below the miner's.
 	//
-	// With the family urls blank the provider builds the legacy single
-	// transport, so the setting has to be read at construction time and
-	// survive every rebuild: provide-mode flips and platform drain migrations
-	// build a new generation from the same provider, and a setting applied
-	// once after construction would be lost on the first rebuild.
+	// The provider reads it once at construction, blanks its family urls and
+	// keeps the setting in its own state, so it survives every rebuild:
+	// provide-mode flips and platform drain or move migrations build a new
+	// generation from the same provider, and a setting applied once after
+	// construction would be lost on the first rebuild. The strategy is the
+	// standby's (direct for a public provider), so H1+ and the injected
+	// proxy dial reach the single transport exactly as they reached the
+	// group's standby.
 	DisablePlatformFamilyTransports bool
 	// DefaultProvideExtender is the provider extender setting of F3 this
 	// device uses until the user sets one: while the space's local state
