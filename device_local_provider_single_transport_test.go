@@ -8,9 +8,7 @@ package sdk
 // not the host's own route.
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/urnetwork/connect"
 )
@@ -20,10 +18,10 @@ import (
 // transport construction already reads as "legacy single transport".
 func TestProviderFamilyUrlsAppliesTheSetting(t *testing.T) {
 	for _, c := range []struct {
-		name     string
-		disable  bool
-		wantV4   string
-		wantV6   string
+		name    string
+		disable bool
+		wantV4  string
+		wantV6  string
 	}{
 		{"default keeps both pins", false, "wss://connect-v4.invalid", "wss://connect-v6.invalid"},
 		{"setting blanks both", true, "", ""},
@@ -133,47 +131,29 @@ func TestSingleTransportStatusReadersDoNotPanic(t *testing.T) {
 	}
 }
 
-// TestSingleTransportKeepsH1PlusReachable is the H1+ acceptance check the plan
-// requires (operator: H1+ is important). H1+ is switched inside the strategy's
-// H1 dial, not in the pinned transports, so the single transport must pass the
-// same strategy through. The check here is structural: the transport the
-// provider builds is driven by the provider's own strategy, which is the one
-// carrying the H1+ flag, and no group or pinned strategy sits between them.
-func TestSingleTransportKeepsH1PlusReachable(t *testing.T) {
+// TestSingleTransportRunsItsOwnH1Dial is a structural check, not an H1+ test.
+//
+// H1+ is switched inside the strategy's H1 dial, which PlatformTransport makes
+// for itself; the group never carried the flag. No seam exposes a transport's
+// settings, so what can be asserted here is only that the provider builds a
+// transport that dials rather than a group that delegates. The H1+ proof is the
+// expression at connect transport.go:2443-2449 (at pin 49d75e264480), which
+// reads the transport's own settings, quoted in the pull request.
+func TestSingleTransportRunsItsOwnH1Dial(t *testing.T) {
 	provider := newTestFamilyProvider(t, "", "")
-	// The provider's own client strategy is the one the H1 dial consults for
-	// the H1+ switch; the standby helper returns it for a non-public provider.
-	strategy := provider.standbyClientStrategy(provider.clientStrategySettings)
-	if strategy == nil {
-		t.Fatal("no strategy for the single transport; H1+ could not be switched")
-	}
-	if strategy != provider.clientStrategy && provider.clientStrategy != nil {
-		// The standby helper may derive a direct strategy, which is expected for
-		// a public provider; the assertion that matters is that the derivation
-		// carries the same H1+ settings object.
-		t.Logf("single transport uses a derived direct strategy (%p), provider strategy is %p", strategy, provider.clientStrategy)
-	}
 	transport := provider.newProviderPlatformTransport(
 		provider.auth,
 		provider.targetMode,
 		connect.DefaultPlatformTransportSettings(),
 	)
 	defer waitTransportDone(t, transport)
-	// A plain transport runs its modes itself, so the H1 dial (and with it the
-	// H1+ upgrade) is the transport's own path rather than a pinned child's.
-	if _, ok := transport.(*connect.PlatformTransport); !ok {
+	plain, ok := transport.(*connect.PlatformTransport)
+	if !ok {
 		t.Fatalf("transport %T does not run its own H1 dial", transport)
 	}
-}
-
-// settleGoroutines is a deterministic helper for goroutine assertions elsewhere:
-// it gives the runtime a bounded number of scheduler turns, never a sleep, and
-// is not used to assert counts here.
-func settleGoroutines(ctx context.Context) {
-	for i := 0; i < 4; i++ {
-		_ = time.Now()
-		if ctx.Err() != nil {
-			return
-		}
+	// IpFamily comes from the settings the transport was built with: 0 is the
+	// family-agnostic copy the provider hands over, not a pinned child's.
+	if plain.IpFamily() != 0 {
+		t.Fatalf("transport pinned to family %d, want the agnostic 0", plain.IpFamily())
 	}
 }

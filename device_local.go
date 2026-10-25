@@ -650,8 +650,7 @@ type DeviceLocalSettings struct {
 	// connection, not the host's own route. 3.23 gates the group the same way
 	// (provider/family_transport.go, useFamilyTransports: only the direct
 	// identity gets the group), which is why a production 3.23 provider runs
-	// one transport per proxy and a whole-process RSS an order of magnitude
-	// below the miner's.
+	// one transport per proxy.
 	//
 	// With the family urls blank the provider builds the legacy single
 	// transport, so the setting has to be read at construction time and
