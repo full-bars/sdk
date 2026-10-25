@@ -639,6 +639,25 @@ type DeviceLocalSettings struct {
 	// switch: off, the role never runs, whatever the user's provider extender
 	// setting of F3 says (DefaultProvideExtender has the whole order).
 	ProvideExtenderEnabled bool
+	// DisablePlatformFamilyTransports gives this provider ONE family-agnostic
+	// platform transport instead of the v4-pinned, v6-pinned and standby
+	// group. Default off, so every app and the miner's direct identity keep
+	// the group.
+	//
+	// It exists for an embedder that runs many providers behind proxies in one
+	// process. A pinned transport dials directly from the host, so behind a
+	// SOCKS proxy a pinned v6 transport can only fail: the proxy carries the
+	// connection, not the host's own route. 3.23 gates the group the same way
+	// (provider/family_transport.go, useFamilyTransports: only the direct
+	// identity gets the group), which is why a production 3.23 provider runs
+	// one transport per proxy.
+	//
+	// With the family urls blank the provider builds the legacy single
+	// transport, so the setting has to be read at construction time and
+	// survive every rebuild: provide-mode flips and platform drain migrations
+	// build a new generation from the same provider, and a setting applied
+	// once after construction would be lost on the first rebuild.
+	DisablePlatformFamilyTransports bool
 	// DefaultProvideExtender is the provider extender setting of F3 this
 	// device uses until the user sets one: while the space's local state
 	// stores no `.provide_extender`, and, on a space that keeps no local
@@ -1647,6 +1666,7 @@ func newDeviceLocalWithOverridesForPlatform(
 			settings.DnsPumpHost,
 			transferMemory,
 			moveDecline.hook(),
+			settings.DisablePlatformFamilyTransports,
 			api,
 		)
 		if err != nil {
