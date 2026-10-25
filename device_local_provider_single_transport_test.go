@@ -51,12 +51,17 @@ func TestProviderWithNoFamilyUrlsBuildsOnePlainTransport(t *testing.T) {
 	if _, ok := transport.(*connect.FamilyPlatformTransportGroup); ok {
 		t.Fatal("built a family group with no family urls; the group exists to arbitrate pins that do not exist")
 	}
-	plain, ok := transport.(*connect.PlatformTransport)
+	// the generation is the agnostic transport alone: the optional v6 pin
+	// (device_local_provider_ipv6_pin.go) is off by default
+	plain, ok := transport.(*providerPlainTransport)
 	if !ok {
-		t.Fatalf("transport is %T, want a plain *connect.PlatformTransport", transport)
+		t.Fatalf("transport is %T, want a plain generation", transport)
 	}
-	if plain.IpFamily() != 0 {
-		t.Fatalf("plain transport pinned to family %d, want 0 (family-agnostic)", plain.IpFamily())
+	if n := len(plain.Transports()); n != 1 {
+		t.Fatalf("plain generation runs %d transports, want 1", n)
+	}
+	if plain.agnostic.IpFamily() != 0 {
+		t.Fatalf("plain transport pinned to family %d, want 0 (family-agnostic)", plain.agnostic.IpFamily())
 	}
 }
 
@@ -147,13 +152,13 @@ func TestSingleTransportRunsItsOwnH1Dial(t *testing.T) {
 		connect.DefaultPlatformTransportSettings(),
 	)
 	defer waitTransportDone(t, transport)
-	plain, ok := transport.(*connect.PlatformTransport)
+	plain, ok := transport.(*providerPlainTransport)
 	if !ok {
 		t.Fatalf("transport %T does not run its own H1 dial", transport)
 	}
 	// IpFamily comes from the settings the transport was built with: 0 is the
 	// family-agnostic copy the provider hands over, not a pinned child's.
-	if plain.IpFamily() != 0 {
-		t.Fatalf("transport pinned to family %d, want the agnostic 0", plain.IpFamily())
+	if plain.agnostic.IpFamily() != 0 {
+		t.Fatalf("transport pinned to family %d, want the agnostic 0", plain.agnostic.IpFamily())
 	}
 }
