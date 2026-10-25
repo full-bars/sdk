@@ -88,8 +88,13 @@ type deviceLocalProvider struct {
 	// platformUrlV4 and platformUrlV6 are the family-pinned urls (IPV6.md
 	// A2, A9). Empty disables that pinned transport, and with both empty the
 	// group is the legacy single transport.
-	platformUrlV4             string
-	platformUrlV6             string
+	platformUrlV4 string
+	platformUrlV6 string
+	// pinnedIpv6PlatformUrl is the space's v6 url, kept even when the family
+	// urls are blanked, for the optional v6 pin of a provider that runs one
+	// family-agnostic transport (device_local_provider_ipv6_pin.go). Empty
+	// when the space has none, which leaves the pin unbuildable.
+	pinnedIpv6PlatformUrl     string
 	platformTransportSettings *connect.PlatformTransportSettings
 	targetMode                connect.TransportMode
 	modePreferences           map[connect.TransportMode]int
@@ -133,6 +138,9 @@ type deviceLocalProvider struct {
 	// the provide mode is then. It is always taken before stateLock and
 	// never held by anything the space calls.
 	attestorLock sync.Mutex
+	// pinnedIpv6Lock serializes bringing the v6 pin in line with the wanted
+	// state (reconcilePinnedIpv6). It is always taken before stateLock.
+	pinnedIpv6Lock sync.Mutex
 
 	stateLock sync.Mutex
 	// the extender role while it runs (G2), nil while provide or the setting
@@ -158,6 +166,12 @@ type deviceLocalProvider struct {
 	// the device's effective provide mode, which decides whether the standby
 	// dials direct (J4). The device hands it over on every change.
 	provideMode ProvideMode
+	// whether a provider that runs one family-agnostic transport also runs
+	// the v6 pin, and who hears the pin's dials
+	// (device_local_provider_ipv6_pin.go). Provider state, so it survives
+	// every transport generation. Default off.
+	pinnedIpv6Enabled      bool
+	pinnedIpv6DialObserver PinnedIpv6DialObserver
 	// the direct-only standby strategy of a public provider (J4), built on
 	// the first public transport generation, reused by every later one, and
 	// closed with the provider. It outlives a flip back to a non-public mode
@@ -358,6 +372,7 @@ func newDeviceLocalProviderWithOverrides(
 		platformUrl:               networkSpace.platformUrl,
 		platformUrlV4:             familyPlatformUrlV4,
 		platformUrlV6:             familyPlatformUrlV6,
+		pinnedIpv6PlatformUrl:     providerPinnedIpv6PlatformUrl(networkSpace.GetPlatformUrlV6(), disablePlatformFamilyTransports),
 		platformTransportSettings: platformTransportSettings,
 		targetMode:                targetMode,
 		modePreferences:           maps.Clone(modePreferences),
@@ -514,6 +529,16 @@ func providerFamilyUrls(platformUrlV4 string, platformUrlV6 string, disableFamil
 	return platformUrlV4, platformUrlV6
 }
 
+// providerPinnedIpv6PlatformUrl is the url the optional v6 pin dials. Only a
+// provider that runs one family-agnostic transport has the optional pin; the
+// family group dials its own v6 transport.
+func providerPinnedIpv6PlatformUrl(platformUrlV6 string, disableFamilyTransports bool) string {
+	if !disableFamilyTransports {
+		return ""
+	}
+	return platformUrlV6
+}
+
 // newProviderPlatformTransport builds the provider's transport group: the
 // v4 and v6 pinned transports when the network space derives family urls,
 // plus the family-agnostic standby. Both construction and migration build
@@ -544,7 +569,7 @@ func (self *deviceLocalProvider) newProviderPlatformTransport(
 		// no pinned transports exist, so nothing holds the single one back:
 		// the group's standby starts enabled on exactly this rule.
 		standbySettings.StartDisabled = false
-		return connect.NewPlatformTransportWithTargetMode(
+		plain := newProviderPlainTransport(connect.NewPlatformTransportWithTargetMode(
 			self.client.Ctx(),
 			strategy,
 			self.client.RouteManager(),
@@ -552,7 +577,15 @@ func (self *deviceLocalProvider) newProviderPlatformTransport(
 			auth,
 			targetMode,
 			&standbySettings,
-		)
+		))
+		// a generation built while the v6 pin is wanted carries it from the
+		// start; one built before a change is corrected at its install
+		if self.pinnedIpv6Wanted() {
+			if pin := self.newProviderIpv6Pin(plain, auth, settings, clientStrategySettings); pin != nil {
+				plain.attachPin(pin)
+			}
+		}
+		return plain
 	}
 	return connect.NewFamilyPlatformTransportGroup(
 		self.client.Ctx(),
@@ -574,24 +607,48 @@ func (self *deviceLocalProvider) newProviderPlatformTransport(
 // counterpart; across a group and a single transport the standby, which is
 // the family-agnostic carrier a policy replacement is bounded by, stands in
 // for the group. Unknown (test) transports never force break-before-make.
+//
+// A plain generation (providerPlainTransport) stands in through its
+// family-agnostic transport, and when both sides carry the optional v6 pin the
+// pins are paired too, as the group pairs its own.
 func canMakeBeforeBreak(next migratablePlatformTransport, previous migratablePlatformTransport) bool {
-	switch nextTransport := next.(type) {
-	case *connect.FamilyPlatformTransportGroup:
-		switch previousTransport := previous.(type) {
-		case *connect.FamilyPlatformTransportGroup:
-			return nextTransport.CanMakeBeforeBreakFrom(previousTransport)
-		case *connect.PlatformTransport:
-			return nextTransport.StandbyTransport().CanMakeBeforeBreakFrom(previousTransport)
+	if nextGroup, ok := next.(*connect.FamilyPlatformTransportGroup); ok {
+		if previousGroup, ok := previous.(*connect.FamilyPlatformTransportGroup); ok {
+			return nextGroup.CanMakeBeforeBreakFrom(previousGroup)
 		}
-	case *connect.PlatformTransport:
-		switch previousTransport := previous.(type) {
-		case *connect.PlatformTransport:
-			return nextTransport.CanMakeBeforeBreakFrom(previousTransport)
-		case *connect.FamilyPlatformTransportGroup:
-			return nextTransport.CanMakeBeforeBreakFrom(previousTransport.StandbyTransport())
+	}
+	nextAgnostic := providerAgnosticTransport(next)
+	previousAgnostic := providerAgnosticTransport(previous)
+	if nextAgnostic == nil || previousAgnostic == nil {
+		return true
+	}
+	if !nextAgnostic.CanMakeBeforeBreakFrom(previousAgnostic) {
+		return false
+	}
+	nextPlain, nextOk := next.(*providerPlainTransport)
+	previousPlain, previousOk := previous.(*providerPlainTransport)
+	if nextOk && previousOk {
+		nextPin, previousPin := nextPlain.Ipv6Transport(), previousPlain.Ipv6Transport()
+		if nextPin != nil && previousPin != nil && !nextPin.CanMakeBeforeBreakFrom(previousPin) {
+			return false
 		}
 	}
 	return true
+}
+
+// providerAgnosticTransport is the family-agnostic carrier a policy
+// replacement is bounded by: the group's standby, a plain generation's
+// agnostic transport, or the transport itself. Nil for a test seam.
+func providerAgnosticTransport(transport migratablePlatformTransport) *connect.PlatformTransport {
+	switch v := transport.(type) {
+	case *connect.FamilyPlatformTransportGroup:
+		return v.StandbyTransport()
+	case *providerPlainTransport:
+		return v.agnostic
+	case *connect.PlatformTransport:
+		return v
+	}
+	return nil
 }
 
 // familyTransportStatus is the per-family readout of the current transport
@@ -607,6 +664,18 @@ func (self *deviceLocalProvider) familyTransportStatus() *ProviderFamilyTranspor
 	}
 	if group, ok := platformTransport.(*connect.FamilyPlatformTransportGroup); ok {
 		return newProviderFamilyTransportStatus(group.Status())
+	}
+	if plain, ok := platformTransport.(*providerPlainTransport); ok {
+		if pin := plain.Ipv6Transport(); pin != nil {
+			// the agnostic transport reads as the always-active standby, as a
+			// legacy single transport does, and the pin as the v6 transport
+			return newProviderFamilyTransportStatus(connect.FamilyPlatformTransportGroupStatus{
+				HasIpv6:       true,
+				Ipv6:          pin.State(),
+				Standby:       plain.agnostic.State(),
+				StandbyActive: true,
+			})
+		}
 	}
 	return legacyProviderFamilyTransportStatus(platformTransport.IsConnected())
 }
@@ -733,6 +802,10 @@ func providerResidentMoveTransports(transport migratablePlatformTransport) []con
 			moveTransports = append(moveTransports, platformTransport)
 		}
 		return moveTransports
+	case *providerPlainTransport:
+		// the move is planned over the agnostic transport alone; the optional
+		// v6 pin takes no part in a move's dial and redials by name
+		return []connect.ResidentMoveTransport{v.agnostic}
 	case connect.ResidentMoveTransport:
 		return []connect.ResidentMoveTransport{v}
 	default:
@@ -986,22 +1059,30 @@ func (self *deviceLocalProvider) migratePlatformTransportWithPolicy(migration de
 		return policyVersion
 	}
 	installNext := func() (migratablePlatformTransport, bool) {
-		self.stateLock.Lock()
-		defer self.stateLock.Unlock()
-		if self.closed {
-			return nil, false
-		}
-		// Token refresh can race replacement construction/connection. Reapply
-		// the current immutable auth while holding the same lock used by
-		// SetByJwt and the swap; a later refresh therefore updates next, while
-		// an earlier one cannot be overwritten by the captured stale auth.
-		if authVersion != self.authVersion {
-			next.SetAuth(self.auth)
-		}
-		previous := self.platformTransport
-		self.platformTransport = next
-		self.platformTransportChangedWithLock()
-		return previous, true
+		var pinCorrection pinnedIpv6Correction
+		previous, installed := func() (migratablePlatformTransport, bool) {
+			self.stateLock.Lock()
+			defer self.stateLock.Unlock()
+			if self.closed {
+				return nil, false
+			}
+			// Token refresh can race replacement construction/connection. Reapply
+			// the current immutable auth while holding the same lock used by
+			// SetByJwt and the swap; a later refresh therefore updates next, while
+			// an earlier one cannot be overwritten by the captured stale auth.
+			if authVersion != self.authVersion {
+				next.SetAuth(self.auth)
+			}
+			previous := self.platformTransport
+			self.platformTransport = next
+			self.platformTransportChangedWithLock()
+			// next was built for the v6 pin's wanted state at its build; a
+			// change since then is corrected in this same scope
+			pinCorrection = self.pinnedIpv6CorrectionWithLock(next)
+			return previous, true
+		}()
+		pinCorrection.apply(self)
+		return previous, installed
 	}
 
 	connectTimeout := self.migrateConnectTimeout
