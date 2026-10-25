@@ -740,6 +740,7 @@ func newNetworkSpaceWithConnectSettingsAndApiAlt(
 		&values,
 		role,
 		clientStrategy,
+		clientStrategySettings,
 		extenderDirectory,
 		apiUrl,
 		clientStrategySettings.Log,
@@ -823,6 +824,14 @@ func SetExtenderNetworkClientEnabled(enabled bool) bool {
 // needs a live client never resolves or dials anything.
 var extenderNetworkClientConfigure func(settings *connect.ExtenderNetworkClientSettings)
 
+// Reports whether the settings a space was built from opt it out of the
+// extender network: no network client and no gossip node. A direct-only
+// embedder (the miner's proxy slots) sets it; the zero value keeps every
+// space on the network.
+func extenderNetworkOptedOut(clientStrategySettings *connect.ClientStrategySettings) bool {
+	return clientStrategySettings != nil && clientStrategySettings.DisableExtenderNetwork
+}
+
 // The space's extender network client (E3), or nil when there is nothing for
 // it to do. It runs only for a space whose extender dns name is a real dns
 // name: a derived name under a single-label host such as `test` or `custom`
@@ -834,11 +843,14 @@ func newSpaceExtenderNetworkClient(
 	values *NetworkSpaceValues,
 	role string,
 	clientStrategy *connect.ClientStrategy,
+	clientStrategySettings *connect.ClientStrategySettings,
 	directory *connect.ExtenderDirectory,
 	apiUrl string,
 	log connect.Logger,
 ) *connect.ExtenderNetworkClient {
-	if extenderNetworkClientDisabled.Load() || !extenderNetworkClientRuns(key, values) {
+	if extenderNetworkClientDisabled.Load() ||
+		extenderNetworkOptedOut(clientStrategySettings) ||
+		!extenderNetworkClientRuns(key, values) {
 		return nil
 	}
 	return connect.NewExtenderNetworkClient(
@@ -999,6 +1011,7 @@ func (self *NetworkSpace) restartExtenderNetwork(resetId string) {
 			&current,
 			role,
 			self.clientStrategy,
+			self.clientStrategySettings,
 			self.extenderDirectory,
 			self.apiUrl,
 			self.logger(),
@@ -1347,6 +1360,7 @@ func NewNetworkSpaceWithUrls(
 			&values,
 			role,
 			clientStrategy,
+			clientStrategySettings,
 			extenderDirectory,
 			values.ApiUrl,
 			log,

@@ -111,7 +111,7 @@ func newSpaceExtenderNodeWithRole(
 	if !extenderNodeEnabled {
 		return nil
 	}
-	if directory == nil || !extenderNetworkClientRuns(key, values) {
+	if directory == nil || extenderNetworkOptedOut(clientStrategySettings) || !extenderNetworkClientRuns(key, values) {
 		return nil
 	}
 	// read only here, so a space that runs no node never creates an identity
