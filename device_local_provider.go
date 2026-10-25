@@ -213,6 +213,7 @@ func newDeviceLocalProviderWithOverrides(
 	dnsPumpHost string,
 	transferMemory *deviceLocalTransferMemory,
 	moveDecline func() bool,
+	disablePlatformFamilyTransports bool,
 	sessionApis ...*Api,
 ) (*deviceLocalProvider, error) {
 	providerApi := networkSpace.GetApi()
@@ -327,6 +328,18 @@ func newDeviceLocalProviderWithOverrides(
 	platformTransportSettings.ResidentMoveTracker = residentMoveTracker
 	migrateSettings := connect.DefaultApiMultiClientGeneratorSettings()
 
+	// One family-agnostic transport when the embedder asked for it. Empty
+	// family urls are exactly what the transport construction reads as "the
+	// legacy single transport" (see the field comment), so the decision is
+	// made here, once, and every generation built from this provider inherits
+	// it: a provide-mode flip or a drain migration calls
+	// newProviderPlatformTransport again and must not re-derive the urls.
+	familyPlatformUrlV4, familyPlatformUrlV6 := providerFamilyUrls(
+		networkSpace.GetPlatformUrlV4(),
+		networkSpace.GetPlatformUrlV6(),
+		disablePlatformFamilyTransports,
+	)
+
 	provider := &deviceLocalProvider{
 		ctx:          providerCtx,
 		cancel:       providerCancel,
@@ -343,8 +356,8 @@ func newDeviceLocalProviderWithOverrides(
 		clientStrategy:            clientStrategy,
 		clientStrategySettings:    networkSpace.derivedClientStrategySettings(),
 		platformUrl:               networkSpace.platformUrl,
-		platformUrlV4:             networkSpace.GetPlatformUrlV4(),
-		platformUrlV6:             networkSpace.GetPlatformUrlV6(),
+		platformUrlV4:             familyPlatformUrlV4,
+		platformUrlV6:             familyPlatformUrlV6,
 		platformTransportSettings: platformTransportSettings,
 		targetMode:                targetMode,
 		modePreferences:           maps.Clone(modePreferences),
@@ -489,6 +502,18 @@ func (self *deviceLocalProvider) clientLimitStatus() (connect.ClientLimitStatus,
 	return self.clientLimitBackoff.Get()
 }
 
+// providerFamilyUrls is the one place the single-transport setting is applied
+// to the family urls. Empty urls are what every transport construction reads as
+// "legacy single transport", so blanking them here covers the first generation
+// and every rebuild alike, and the decision is a pure function of the setting
+// rather than a mutation applied once after construction.
+func providerFamilyUrls(platformUrlV4 string, platformUrlV6 string, disableFamilyTransports bool) (string, string) {
+	if disableFamilyTransports {
+		return "", ""
+	}
+	return platformUrlV4, platformUrlV6
+}
+
 // newProviderPlatformTransport builds the provider's transport group: the
 // v4 and v6 pinned transports when the network space derives family urls,
 // plus the family-agnostic standby. Both construction and migration build
@@ -502,10 +527,37 @@ func (self *deviceLocalProvider) newProviderPlatformTransport(
 	if clientStrategySettings == nil {
 		clientStrategySettings = connect.DefaultClientStrategySettings()
 	}
+	strategy := self.standbyClientStrategy(clientStrategySettings)
+	if self.platformUrlV4 == "" && self.platformUrlV6 == "" {
+		// No family urls: the caller asked for one family-agnostic transport,
+		// which is 3.23's shape for a proxied identity. It must be a plain
+		// transport and not a group wrapping only the standby, or the group's
+		// watcher goroutines and its standby delay exist for a decision with
+		// nothing to decide.
+		//
+		// The strategy stays the standby's: it is the direct one for a public
+		// provider, so the platform sees the provider's own address rather
+		// than a VLESS or extender path (the review's J4 rule), and it keeps
+		// the injected proxy dial.
+		standbySettings := *settings
+		standbySettings.IpFamily = 0
+		// no pinned transports exist, so nothing holds the single one back:
+		// the group's standby starts enabled on exactly this rule.
+		standbySettings.StartDisabled = false
+		return connect.NewPlatformTransportWithTargetMode(
+			self.client.Ctx(),
+			strategy,
+			self.client.RouteManager(),
+			self.platformUrl,
+			auth,
+			targetMode,
+			&standbySettings,
+		)
+	}
 	return connect.NewFamilyPlatformTransportGroup(
 		self.client.Ctx(),
 		clientStrategySettings,
-		self.standbyClientStrategy(clientStrategySettings),
+		strategy,
 		self.client.RouteManager(),
 		self.platformUrl,
 		self.platformUrlV4,
