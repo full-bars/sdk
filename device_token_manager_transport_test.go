@@ -43,7 +43,7 @@ func (self *testingRemoteTransportListener) RemoteChanged(remoteConnected bool) 
 // Infof forwards attempt counting and exposes the post-success schedule edge.
 func (self *testingTokenManagerTransportLogger) Infof(format string, args ...any) {
 	self.countingLogger.Infof(format, args...)
-	if strings.Contains(format, "[api-token]waiting") {
+	if strings.Contains(format, "waiting %.2fs to refresh the jwt") {
 		self.scheduledOnce.Do(func() {
 			close(self.scheduled)
 		})
@@ -53,7 +53,7 @@ func (self *testingTokenManagerTransportLogger) Infof(format string, args ...any
 // Errorf counts refresh request errors so deliberate supersession cannot hide
 // behind an otherwise successful retry.
 func (self *testingTokenManagerTransportLogger) Errorf(format string, args ...any) {
-	if strings.Contains(format, "[api-token]failed to refresh JWT:") {
+	if strings.Contains(format, "failed to refresh JWT:") {
 		self.requestErrors.Add(1)
 	}
 }

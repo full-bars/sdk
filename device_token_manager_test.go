@@ -429,3 +429,30 @@ func TestApiTokenManagerRunLogsOutOnceAtStart(t *testing.T) {
 	connect.AssertEqual(t, requestCount.Load(), settledRequestCount)
 	connect.AssertEqual(t, logoutCount.Load(), int64(1))
 }
+
+// Every [api-token] line is attributable to one client. The tag comes from the
+// bearer's own claims, and a legacy token without them produces no tag rather
+// than a fabricated id.
+func TestApiTokenManagerClientTag(t *testing.T) {
+	manager, api, closeFunc := testingNewTokenManager(
+		t,
+		t.Context(),
+		"https://refresh.example",
+		func(string) {},
+		func() error { return nil },
+	)
+	t.Cleanup(closeFunc)
+
+	identity, ok := parseClientJwtIdentity(api.GetByJwt())
+	if !ok {
+		t.Fatal("fixture bearer carries no client identity claims")
+	}
+	if got, want := manager.clientTag(), " client="+identity.clientId; got != want {
+		t.Fatalf("clientTag() = %q, want %q", got, want)
+	}
+
+	api.SetByJwt("legacy-bearer-without-claims")
+	if got := manager.clientTag(); got != "" {
+		t.Fatalf("legacy bearer produced tag %q, want empty", got)
+	}
+}

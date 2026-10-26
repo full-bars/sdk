@@ -136,6 +136,18 @@ func (self *apiTokenManager) Wait() {
 	<-self.done
 }
 
+// clientTag names the client a token line belongs to. The bearer carries the
+// identity claims, so the tag needs no extra plumbing and no second source of
+// truth; a legacy or test token without them yields an empty tag rather than a
+// fabricated id.
+func (self *apiTokenManager) clientTag() string {
+	identity, ok := parseClientJwtIdentity(self.api.GetByJwt())
+	if !ok {
+		return ""
+	}
+	return " client=" + identity.clientId
+}
+
 // jwtCanRefresh is intentionally an unverified parse. It is only a local
 // scheduling predicate; /auth/refresh performs the authoritative signature,
 // claims, active-client, and network-ownership checks.
@@ -390,8 +402,8 @@ func (self *apiTokenManager) run() {
 
 		if 0 < refreshTimeout {
 			self.api.logger().Infof(
-				"[api-token]waiting %.2fs to refresh the jwt",
-				float64(refreshTimeout/time.Millisecond)/1000.0,
+				"[api-token]%s waiting %.2fs to refresh the jwt",
+				self.clientTag(), float64(refreshTimeout/time.Millisecond)/1000.0,
 			)
 			timer := time.NewTimer(refreshTimeout)
 			select {
@@ -429,7 +441,7 @@ func (self *apiTokenManager) run() {
 
 		for {
 			attempt := self.beginRefreshAttempt()
-			self.api.logger().Infof("[api-token]refreshing the jwt now")
+			self.api.logger().Infof("[api-token]%s refreshing the jwt now", self.clientTag())
 			outcome := self.refreshTokenWithContext(attempt.ctx, byJwt)
 			superseded := self.finishRefreshAttempt(attempt)
 			if outcome.loggedOut || outcome.stale || outcome.err == nil {
@@ -453,7 +465,7 @@ func (self *apiTokenManager) run() {
 			}
 
 			if outcome.logRequestError {
-				self.api.logger().Errorf("[api-token]failed to refresh JWT: %v", outcome.err)
+				self.api.logger().Errorf("[api-token]%s failed to refresh JWT: %v", self.clientTag(), outcome.err)
 			}
 			transportRetryPending := self.markRefreshFailed(attempt.transportGeneration)
 
@@ -482,8 +494,8 @@ func (self *apiTokenManager) run() {
 
 			randomTimeout := self.nextRetryTimeout()
 			self.api.logger().Infof(
-				"[api-token]jwt refresh failed. Will retry in %.2fs. err = %s",
-				float64(randomTimeout/time.Millisecond)/1000.0,
+				"[api-token]%s jwt refresh failed. Will retry in %.2fs. err = %s",
+				self.clientTag(), float64(randomTimeout/time.Millisecond)/1000.0,
 				outcome.err,
 			)
 
@@ -526,7 +538,7 @@ func (self *apiTokenManager) run() {
 func (self *apiTokenManager) refreshToken(byJwt string) (loggedOut bool, stale bool, returnErr error) {
 	outcome := self.refreshTokenWithContext(self.ctx, byJwt)
 	if outcome.logRequestError {
-		self.api.logger().Errorf("[api-token]failed to refresh JWT: %v", outcome.err)
+		self.api.logger().Errorf("[api-token]%s failed to refresh JWT: %v", self.clientTag(), outcome.err)
 	}
 	return outcome.loggedOut, outcome.stale, outcome.err
 }
@@ -547,7 +559,7 @@ func (self *apiTokenManager) refreshTokenWithContext(ctx context.Context, byJwt 
 		// Its structured code is the logout's cause.
 		var statusErr *connect.HttpStatusError
 		if ConfirmedClientRefreshRejection(err) {
-			self.api.logger().Errorf("[api-token]jwt rejected by the api (%d): logging out", http.StatusUnauthorized)
+			self.api.logger().Errorf("[api-token]%s jwt rejected by the api (%d): logging out", self.clientTag(), http.StatusUnauthorized)
 			if self.api.rejectByJwt(byJwt, confirmedRejectionCause(err), authGeneration) {
 				return apiTokenRefreshOutcome{loggedOut: true}
 			} else {
@@ -572,7 +584,7 @@ func (self *apiTokenManager) refreshTokenWithContext(ctx context.Context, byJwt 
 	if result.Error != nil {
 		// not an api error, but a token refresh error -- for example, the client
 		// no longer exists. A refusal in a result carries no cause.
-		self.api.logger().Errorf("[api-token]failed to refresh JWT: %v", result.Error.Message)
+		self.api.logger().Errorf("[api-token]%s failed to refresh JWT: %v", self.clientTag(), result.Error.Message)
 		if self.api.rejectByJwt(byJwt, "", authGeneration) {
 			return apiTokenRefreshOutcome{loggedOut: true}
 		} else {
@@ -592,7 +604,7 @@ func (self *apiTokenManager) refreshTokenWithContext(ctx context.Context, byJwt 
 	if !self.api.setRefreshedByJwt(byJwt, result.ByJwt, authGeneration) {
 		return apiTokenRefreshOutcome{stale: true}
 	}
-	self.api.logger().Infof("[api-token]successfully refreshed JWT")
+	self.api.logger().Infof("[api-token]%s successfully refreshed JWT", self.clientTag())
 	return apiTokenRefreshOutcome{}
 }
 
