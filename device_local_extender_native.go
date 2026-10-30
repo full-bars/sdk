@@ -223,6 +223,22 @@ func newDeviceLocalExtender(
 	return self, nil
 }
 
+// extenderStrategyRequestTimeout returns the request budget the extender's
+// direct strategy must allow. The strategy caps every request at its own
+// timeout, so a cap below the activation's budget tears the activation down
+// mid-probe, and the operator still spends the caller's budget on a request
+// whose answer nobody reads. A zero or negative activation budget means the
+// activator's own default. The strategy's larger timeout is never lowered.
+func extenderStrategyRequestTimeout(activationTimeout time.Duration, strategyTimeout time.Duration) time.Duration {
+	if activationTimeout <= 0 {
+		activationTimeout = connect.DefaultExtenderActivatorSettings().RequestTimeout
+	}
+	if strategyTimeout < activationTimeout {
+		return activationTimeout
+	}
+	return strategyTimeout
+}
+
 // Builds and starts what the role serves with, on the tcp 443 listener it
 // already holds (G2): the direct strategy, the gossip listener and feed
 // server, the space's node in the extender role, the server on the held tcp
@@ -237,6 +253,19 @@ func (self *deviceLocalExtender) startServing(tcpListener net.Listener) {
 	strategySettings := settings.ClientStrategySettings
 	if strategySettings == nil {
 		strategySettings = connect.DefaultClientStrategySettings()
+	}
+	// The strategy caps every request at its own RequestTimeout, and that cap
+	// wins over the longer budget the activator sets. The operator needs the
+	// longer one: it probes the carrier and the forward, which can take ten
+	// seconds on their own, before it looks up the location, writes the rows
+	// and signs the record. Under the fifteen second default the activation is
+	// torn down mid-probe, the client never reads the answer, and the probe
+	// still spends the caller's budget. This strategy also carries the role's
+	// hello, ping and measurement requests, so they inherit the longer cap too.
+	if timeout := extenderStrategyRequestTimeout(settings.RequestTimeout, strategySettings.ConnectSettings.RequestTimeout); timeout != strategySettings.ConnectSettings.RequestTimeout {
+		copied := *strategySettings
+		copied.ConnectSettings.RequestTimeout = timeout
+		strategySettings = &copied
 	}
 	self.clientStrategy = connect.NewDirectClientStrategy(self.ctx, strategySettings, 0)
 
