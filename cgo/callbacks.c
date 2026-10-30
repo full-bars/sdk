@@ -713,6 +713,14 @@ void urnet_invoke_sn_set_wallet(urnet_sn_set_wallet_cb cb, void* user_data, cons
 	cb(user_data, result_json, err_param);
 }
 
+void urnet_invoke_sn_top(urnet_sn_top_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_top_me(urnet_sn_top_me_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
 void urnet_invoke_sn_validate_wallet(urnet_sn_validate_wallet_cb cb, void* user_data, const char* result_json, const char* err_param) {
 	cb(user_data, result_json, err_param);
 }
@@ -775,6 +783,10 @@ void urnet_invoke_subscription_jwt_out_of_sync(urnet_subscription_jwt_out_of_syn
 
 void urnet_invoke_throughput(urnet_throughput_cb cb, void* user_data) {
 	cb(user_data);
+}
+
+void urnet_invoke_transport_delay_change(urnet_transport_delay_change_cb cb, void* user_data, const char* delay_json) {
+	cb(user_data, delay_json);
 }
 
 void urnet_invoke_transport_settings_change(urnet_transport_settings_change_cb cb, void* user_data, const char* transport_settings_json) {

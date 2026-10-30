@@ -2799,6 +2799,48 @@ func (self *cAdapterSnSetWalletCallback) Result(result *sdk.SnSetWalletResult, e
 	}
 }
 
+type cAdapterSnTopCallback struct {
+	cbResult C.urnet_sn_top_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnTopCallback) Result(result *sdk.SnTopResult, errParam error) {
+	defer cgoGuard("urnet_sn_top_cb")
+	result_ := cJson(result, "urnet_sn_top_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_top(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
+type cAdapterSnTopMeCallback struct {
+	cbResult C.urnet_sn_top_me_cb
+	userData unsafe.Pointer
+}
+
+func (self *cAdapterSnTopMeCallback) Result(result *sdk.SnTopMeResult, errParam error) {
+	defer cgoGuard("urnet_sn_top_me_cb")
+	result_ := cJson(result, "urnet_sn_top_me_cb")
+	var errParam_ *C.char
+	if errParam != nil {
+		errParam_ = cString(errParam.Error())
+	}
+	C.urnet_invoke_sn_top_me(self.cbResult, self.userData, result_, errParam_)
+	if result_ != nil {
+		cStringFree(result_)
+	}
+	if errParam_ != nil {
+		cStringFree(errParam_)
+	}
+}
+
 type cAdapterSnValidateWalletCallback struct {
 	cbResult C.urnet_sn_validate_wallet_cb
 	userData unsafe.Pointer
@@ -3074,6 +3116,20 @@ type cAdapterThroughputListener struct {
 func (self *cAdapterThroughputListener) ThroughputChanged() {
 	defer cgoGuard("urnet_throughput_cb")
 	C.urnet_invoke_throughput(self.cbThroughputChanged, self.userData)
+}
+
+type cAdapterTransportDelayChangeListener struct {
+	cbTransportDelayChanged C.urnet_transport_delay_change_cb
+	userData                unsafe.Pointer
+}
+
+func (self *cAdapterTransportDelayChangeListener) TransportDelayChanged(delay *sdk.TransportDelay) {
+	defer cgoGuard("urnet_transport_delay_change_cb")
+	delay_ := cJson(delay, "urnet_transport_delay_change_cb")
+	C.urnet_invoke_transport_delay_change(self.cbTransportDelayChanged, self.userData, delay_)
+	if delay_ != nil {
+		cStringFree(delay_)
+	}
 }
 
 type cAdapterTransportSettingsChangeListener struct {
@@ -5612,6 +5668,41 @@ func urnet_api_sn_set_wallet_sync(self C.uint64_t, args *C.char, outError **C.ch
 		return nil
 	}
 	return cJson(r0, "urnet_api_sn_set_wallet_sync")
+}
+
+//export urnet_api_sn_top
+func urnet_api_sn_top(self C.uint64_t, args *C.char, callback_result C.urnet_sn_top_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_top")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_top")
+	if !ok {
+		return
+	}
+	var args_ *sdk.SnTopArgs
+	if args != nil {
+		args_ = &sdk.SnTopArgs{}
+		if !goJson(args, args_, "urnet_api_sn_top") {
+			return
+		}
+	}
+	var callback_ sdk.SnTopCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnTopCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnTop(args_, callback_)
+}
+
+//export urnet_api_sn_top_me
+func urnet_api_sn_top_me(self C.uint64_t, callback_result C.urnet_sn_top_me_cb, callback_user_data unsafe.Pointer) {
+	defer cgoGuard("urnet_api_sn_top_me")
+	self_, ok := resolveHandle[*sdk.Api](uint64(self), "urnet_api_sn_top_me")
+	if !ok {
+		return
+	}
+	var callback_ sdk.SnTopMeCallback
+	if callback_result != nil {
+		callback_ = &cAdapterSnTopMeCallback{cbResult: callback_result, userData: callback_user_data}
+	}
+	self_.SnTopMe(callback_)
 }
 
 //export urnet_api_sn_validate_wallet
@@ -8964,6 +9055,21 @@ func urnet_device_add_route_local_change_listener(self C.uint64_t, listener_rout
 	return C.uint64_t(newHandle(r0))
 }
 
+//export urnet_device_add_transport_delay_change_listener
+func urnet_device_add_transport_delay_change_listener(self C.uint64_t, listener_transport_delay_changed C.urnet_transport_delay_change_cb, listener_user_data unsafe.Pointer) C.uint64_t {
+	defer cgoGuard("urnet_device_add_transport_delay_change_listener")
+	self_, ok := resolveHandle[sdk.Device](uint64(self), "urnet_device_add_transport_delay_change_listener")
+	if !ok {
+		return 0
+	}
+	var listener_ sdk.TransportDelayChangeListener
+	if listener_transport_delay_changed != nil {
+		listener_ = &cAdapterTransportDelayChangeListener{cbTransportDelayChanged: listener_transport_delay_changed, userData: listener_user_data}
+	}
+	r0 := self_.AddTransportDelayChangeListener(listener_)
+	return C.uint64_t(newHandle(r0))
+}
+
 //export urnet_device_add_transport_settings_change_listener
 func urnet_device_add_transport_settings_change_listener(self C.uint64_t, listener_transport_settings_changed C.urnet_transport_settings_change_cb, listener_user_data unsafe.Pointer) C.uint64_t {
 	defer cgoGuard("urnet_device_add_transport_settings_change_listener")
@@ -9815,6 +9921,20 @@ func urnet_device_get_supports_extender_pin(self C.uint64_t) C.bool {
 	}
 	r0 := self_.GetSupportsExtenderPin()
 	return C.bool(r0)
+}
+
+//export urnet_device_get_transport_delay
+func urnet_device_get_transport_delay(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_get_transport_delay")
+	self_, ok := resolveHandle[sdk.Device](uint64(self), "urnet_device_get_transport_delay")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetTransportDelay()
+	if r0 == nil {
+		return nil
+	}
+	return cJson(r0, "urnet_device_get_transport_delay")
 }
 
 //export urnet_device_get_transport_settings
@@ -12239,6 +12359,17 @@ func urnet_device_local_write_memory_owner_census(self C.uint64_t, path *C.char,
 	return C.bool(true)
 }
 
+//export urnet_device_local_key_material_get_extender_measurement_key_file
+func urnet_device_local_key_material_get_extender_measurement_key_file(self C.uint64_t) *C.char {
+	defer cgoGuard("urnet_device_local_key_material_get_extender_measurement_key_file")
+	self_, ok := resolveHandle[*sdk.DeviceLocalKeyMaterial](uint64(self), "urnet_device_local_key_material_get_extender_measurement_key_file")
+	if !ok {
+		return nil
+	}
+	r0 := self_.GetExtenderMeasurementKeyFile()
+	return cString(string(r0))
+}
+
 //export urnet_device_local_key_material_is_empty
 func urnet_device_local_key_material_is_empty(self C.uint64_t) C.bool {
 	defer cgoGuard("urnet_device_local_key_material_is_empty")
@@ -12258,6 +12389,16 @@ func urnet_device_local_key_material_set_extender_key_seed(self C.uint64_t, exte
 		return
 	}
 	self_.SetExtenderKeySeed(goBytes(extenderKeySeed, extenderKeySeed_len))
+}
+
+//export urnet_device_local_key_material_set_extender_measurement_key_file
+func urnet_device_local_key_material_set_extender_measurement_key_file(self C.uint64_t, extenderMeasurementKeyFile *C.char) {
+	defer cgoGuard("urnet_device_local_key_material_set_extender_measurement_key_file")
+	self_, ok := resolveHandle[*sdk.DeviceLocalKeyMaterial](uint64(self), "urnet_device_local_key_material_set_extender_measurement_key_file")
+	if !ok {
+		return
+	}
+	self_.SetExtenderMeasurementKeyFile(goString(extenderMeasurementKeyFile))
 }
 
 //export urnet_device_local_load_result_get_default_error

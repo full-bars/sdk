@@ -178,6 +178,8 @@ pub type urnet_sn_ledger_claim_sent_cb = Option<unsafe extern "C" fn(*mut c_void
 pub type urnet_sn_network_consent_challenge_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_network_consent_status_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_set_wallet_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
+pub type urnet_sn_top_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
+pub type urnet_sn_top_me_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_validate_wallet_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_wallet_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_solana_payment_intent_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
@@ -194,6 +196,7 @@ pub type urnet_subscription_balance_fetch_error_cb = Option<unsafe extern "C" fn
 pub type urnet_subscription_create_payment_id_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_subscription_jwt_out_of_sync_cb = Option<unsafe extern "C" fn(*mut c_void, bool) -> ()>;
 pub type urnet_throughput_cb = Option<unsafe extern "C" fn(*mut c_void) -> ()>;
+pub type urnet_transport_delay_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_transport_settings_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_transport_status_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_tunnel_change_cb = Option<unsafe extern "C" fn(*mut c_void, bool) -> ()>;
@@ -376,6 +379,8 @@ pub struct Raw {
     pub urnet_api_sn_pool_claim_sync: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> *mut c_char,
     pub urnet_api_sn_set_wallet: unsafe extern "C" fn(u64, *const c_char, urnet_sn_set_wallet_cb, *mut c_void) -> (),
     pub urnet_api_sn_set_wallet_sync: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> *mut c_char,
+    pub urnet_api_sn_top: unsafe extern "C" fn(u64, *const c_char, urnet_sn_top_cb, *mut c_void) -> (),
+    pub urnet_api_sn_top_me: unsafe extern "C" fn(u64, urnet_sn_top_me_cb, *mut c_void) -> (),
     pub urnet_api_sn_validate_wallet: unsafe extern "C" fn(u64, *const c_char, urnet_sn_validate_wallet_cb, *mut c_void) -> (),
     pub urnet_api_sn_wallet_mapping_challenge_sync: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> *mut c_char,
     pub urnet_api_start_jwt_refresh: unsafe extern "C" fn(u64) -> (),
@@ -593,6 +598,7 @@ pub struct Raw {
     pub urnet_device_add_provider_transport_settings_change_listener: unsafe extern "C" fn(u64, urnet_provider_transport_settings_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_provider_transport_status_change_listener: unsafe extern "C" fn(u64, urnet_provider_transport_status_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_route_local_change_listener: unsafe extern "C" fn(u64, urnet_route_local_change_cb, *mut c_void) -> u64,
+    pub urnet_device_add_transport_delay_change_listener: unsafe extern "C" fn(u64, urnet_transport_delay_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_transport_settings_change_listener: unsafe extern "C" fn(u64, urnet_transport_settings_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_transport_status_change_listener: unsafe extern "C" fn(u64, urnet_transport_status_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_tunnel_change_listener: unsafe extern "C" fn(u64, urnet_tunnel_change_cb, *mut c_void) -> u64,
@@ -659,6 +665,8 @@ pub struct Raw {
     pub urnet_device_get_route_local: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_get_should_show_rating_dialog: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_get_stats: unsafe extern "C" fn(u64) -> u64,
+    pub urnet_device_get_supports_extender_pin: unsafe extern "C" fn(u64) -> bool,
+    pub urnet_device_get_transport_delay: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_get_transport_settings: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_get_transport_status: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_get_tunnel_started: unsafe extern "C" fn(u64) -> bool,
@@ -834,8 +842,10 @@ pub struct Raw {
     pub urnet_device_local_upload_logs_with_files: unsafe extern "C" fn(u64, *const c_char, *const c_char, urnet_upload_logs_cb, *mut c_void, *mut *mut c_char) -> bool,
     pub urnet_device_local_wait_for_close: unsafe extern "C" fn(u64, i64) -> bool,
     pub urnet_device_local_write_memory_owner_census: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> bool,
+    pub urnet_device_local_key_material_get_extender_measurement_key_file: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_local_key_material_is_empty: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_local_key_material_set_extender_key_seed: unsafe extern "C" fn(u64, *const u8, i32) -> (),
+    pub urnet_device_local_key_material_set_extender_measurement_key_file: unsafe extern "C" fn(u64, *const c_char) -> (),
     pub urnet_device_local_load_result_get_default_error: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_local_load_result_get_has_connect_location: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_local_load_result_get_has_default_location: unsafe extern "C" fn(u64) -> bool,
@@ -1722,6 +1732,8 @@ impl Raw {
             urnet_api_sn_pool_claim_sync: unsafe { *library.get(b"urnet_api_sn_pool_claim_sync\0")? },
             urnet_api_sn_set_wallet: unsafe { *library.get(b"urnet_api_sn_set_wallet\0")? },
             urnet_api_sn_set_wallet_sync: unsafe { *library.get(b"urnet_api_sn_set_wallet_sync\0")? },
+            urnet_api_sn_top: unsafe { *library.get(b"urnet_api_sn_top\0")? },
+            urnet_api_sn_top_me: unsafe { *library.get(b"urnet_api_sn_top_me\0")? },
             urnet_api_sn_validate_wallet: unsafe { *library.get(b"urnet_api_sn_validate_wallet\0")? },
             urnet_api_sn_wallet_mapping_challenge_sync: unsafe { *library.get(b"urnet_api_sn_wallet_mapping_challenge_sync\0")? },
             urnet_api_start_jwt_refresh: unsafe { *library.get(b"urnet_api_start_jwt_refresh\0")? },
@@ -1939,6 +1951,7 @@ impl Raw {
             urnet_device_add_provider_transport_settings_change_listener: unsafe { *library.get(b"urnet_device_add_provider_transport_settings_change_listener\0")? },
             urnet_device_add_provider_transport_status_change_listener: unsafe { *library.get(b"urnet_device_add_provider_transport_status_change_listener\0")? },
             urnet_device_add_route_local_change_listener: unsafe { *library.get(b"urnet_device_add_route_local_change_listener\0")? },
+            urnet_device_add_transport_delay_change_listener: unsafe { *library.get(b"urnet_device_add_transport_delay_change_listener\0")? },
             urnet_device_add_transport_settings_change_listener: unsafe { *library.get(b"urnet_device_add_transport_settings_change_listener\0")? },
             urnet_device_add_transport_status_change_listener: unsafe { *library.get(b"urnet_device_add_transport_status_change_listener\0")? },
             urnet_device_add_tunnel_change_listener: unsafe { *library.get(b"urnet_device_add_tunnel_change_listener\0")? },
@@ -2005,6 +2018,8 @@ impl Raw {
             urnet_device_get_route_local: unsafe { *library.get(b"urnet_device_get_route_local\0")? },
             urnet_device_get_should_show_rating_dialog: unsafe { *library.get(b"urnet_device_get_should_show_rating_dialog\0")? },
             urnet_device_get_stats: unsafe { *library.get(b"urnet_device_get_stats\0")? },
+            urnet_device_get_supports_extender_pin: unsafe { *library.get(b"urnet_device_get_supports_extender_pin\0")? },
+            urnet_device_get_transport_delay: unsafe { *library.get(b"urnet_device_get_transport_delay\0")? },
             urnet_device_get_transport_settings: unsafe { *library.get(b"urnet_device_get_transport_settings\0")? },
             urnet_device_get_transport_status: unsafe { *library.get(b"urnet_device_get_transport_status\0")? },
             urnet_device_get_tunnel_started: unsafe { *library.get(b"urnet_device_get_tunnel_started\0")? },
@@ -2180,8 +2195,10 @@ impl Raw {
             urnet_device_local_upload_logs_with_files: unsafe { *library.get(b"urnet_device_local_upload_logs_with_files\0")? },
             urnet_device_local_wait_for_close: unsafe { *library.get(b"urnet_device_local_wait_for_close\0")? },
             urnet_device_local_write_memory_owner_census: unsafe { *library.get(b"urnet_device_local_write_memory_owner_census\0")? },
+            urnet_device_local_key_material_get_extender_measurement_key_file: unsafe { *library.get(b"urnet_device_local_key_material_get_extender_measurement_key_file\0")? },
             urnet_device_local_key_material_is_empty: unsafe { *library.get(b"urnet_device_local_key_material_is_empty\0")? },
             urnet_device_local_key_material_set_extender_key_seed: unsafe { *library.get(b"urnet_device_local_key_material_set_extender_key_seed\0")? },
+            urnet_device_local_key_material_set_extender_measurement_key_file: unsafe { *library.get(b"urnet_device_local_key_material_set_extender_measurement_key_file\0")? },
             urnet_device_local_load_result_get_default_error: unsafe { *library.get(b"urnet_device_local_load_result_get_default_error\0")? },
             urnet_device_local_load_result_get_has_connect_location: unsafe { *library.get(b"urnet_device_local_load_result_get_has_connect_location\0")? },
             urnet_device_local_load_result_get_has_default_location: unsafe { *library.get(b"urnet_device_local_load_result_get_has_default_location\0")? },

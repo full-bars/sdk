@@ -361,6 +361,10 @@ typedef void (*urnet_sn_network_consent_status_cb)(void* user_data, const char* 
 void urnet_invoke_sn_network_consent_status(urnet_sn_network_consent_status_cb cb, void* user_data, const char* result_json, const char* err_param);
 typedef void (*urnet_sn_set_wallet_cb)(void* user_data, const char* result_json, const char* err_param);
 void urnet_invoke_sn_set_wallet(urnet_sn_set_wallet_cb cb, void* user_data, const char* result_json, const char* err_param);
+typedef void (*urnet_sn_top_cb)(void* user_data, const char* result_json, const char* err_param);
+void urnet_invoke_sn_top(urnet_sn_top_cb cb, void* user_data, const char* result_json, const char* err_param);
+typedef void (*urnet_sn_top_me_cb)(void* user_data, const char* result_json, const char* err_param);
+void urnet_invoke_sn_top_me(urnet_sn_top_me_cb cb, void* user_data, const char* result_json, const char* err_param);
 typedef void (*urnet_sn_validate_wallet_cb)(void* user_data, const char* result_json, const char* err_param);
 void urnet_invoke_sn_validate_wallet(urnet_sn_validate_wallet_cb cb, void* user_data, const char* result_json, const char* err_param);
 typedef void (*urnet_sn_wallet_change_cb)(void* user_data, const char* wallet_json);
@@ -393,6 +397,8 @@ typedef void (*urnet_subscription_jwt_out_of_sync_cb)(void* user_data, bool serv
 void urnet_invoke_subscription_jwt_out_of_sync(urnet_subscription_jwt_out_of_sync_cb cb, void* user_data, bool server_is_pro);
 typedef void (*urnet_throughput_cb)(void* user_data);
 void urnet_invoke_throughput(urnet_throughput_cb cb, void* user_data);
+typedef void (*urnet_transport_delay_change_cb)(void* user_data, const char* delay_json);
+void urnet_invoke_transport_delay_change(urnet_transport_delay_change_cb cb, void* user_data, const char* delay_json);
 typedef void (*urnet_transport_settings_change_cb)(void* user_data, const char* transport_settings_json);
 void urnet_invoke_transport_settings_change(urnet_transport_settings_change_cb cb, void* user_data, const char* transport_settings_json);
 typedef void (*urnet_transport_status_change_cb)(void* user_data, const char* transport_status_json);

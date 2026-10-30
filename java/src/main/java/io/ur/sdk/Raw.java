@@ -180,6 +180,8 @@ public interface Raw extends Library {
   interface urnet_sn_network_consent_challenge_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
   interface urnet_sn_network_consent_status_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
   interface urnet_sn_set_wallet_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
+  interface urnet_sn_top_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
+  interface urnet_sn_top_me_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
   interface urnet_sn_validate_wallet_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
   interface urnet_sn_wallet_change_cb extends Callback { void invoke(Pointer a0, String a1); }
   interface urnet_solana_payment_intent_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
@@ -196,6 +198,7 @@ public interface Raw extends Library {
   interface urnet_subscription_create_payment_id_cb extends Callback { void invoke(Pointer a0, String a1, String a2); }
   interface urnet_subscription_jwt_out_of_sync_cb extends Callback { void invoke(Pointer a0, byte a1); }
   interface urnet_throughput_cb extends Callback { void invoke(Pointer a0); }
+  interface urnet_transport_delay_change_cb extends Callback { void invoke(Pointer a0, String a1); }
   interface urnet_transport_settings_change_cb extends Callback { void invoke(Pointer a0, String a1); }
   interface urnet_transport_status_change_cb extends Callback { void invoke(Pointer a0, String a1); }
   interface urnet_tunnel_change_cb extends Callback { void invoke(Pointer a0, byte a1); }
@@ -376,6 +379,8 @@ public interface Raw extends Library {
   Pointer urnet_api_sn_pool_claim_sync(long a0, String a1, PointerByReference a2);
   void urnet_api_sn_set_wallet(long a0, String a1, urnet_sn_set_wallet_cb a2, Pointer a3);
   Pointer urnet_api_sn_set_wallet_sync(long a0, String a1, PointerByReference a2);
+  void urnet_api_sn_top(long a0, String a1, urnet_sn_top_cb a2, Pointer a3);
+  void urnet_api_sn_top_me(long a0, urnet_sn_top_me_cb a1, Pointer a2);
   void urnet_api_sn_validate_wallet(long a0, String a1, urnet_sn_validate_wallet_cb a2, Pointer a3);
   Pointer urnet_api_sn_wallet_mapping_challenge_sync(long a0, String a1, PointerByReference a2);
   void urnet_api_start_jwt_refresh(long a0);
@@ -593,6 +598,7 @@ public interface Raw extends Library {
   long urnet_device_add_provider_transport_settings_change_listener(long a0, urnet_provider_transport_settings_change_cb a1, Pointer a2);
   long urnet_device_add_provider_transport_status_change_listener(long a0, urnet_provider_transport_status_change_cb a1, Pointer a2);
   long urnet_device_add_route_local_change_listener(long a0, urnet_route_local_change_cb a1, Pointer a2);
+  long urnet_device_add_transport_delay_change_listener(long a0, urnet_transport_delay_change_cb a1, Pointer a2);
   long urnet_device_add_transport_settings_change_listener(long a0, urnet_transport_settings_change_cb a1, Pointer a2);
   long urnet_device_add_transport_status_change_listener(long a0, urnet_transport_status_change_cb a1, Pointer a2);
   long urnet_device_add_tunnel_change_listener(long a0, urnet_tunnel_change_cb a1, Pointer a2);
@@ -659,6 +665,8 @@ public interface Raw extends Library {
   byte urnet_device_get_route_local(long a0);
   byte urnet_device_get_should_show_rating_dialog(long a0);
   long urnet_device_get_stats(long a0);
+  byte urnet_device_get_supports_extender_pin(long a0);
+  Pointer urnet_device_get_transport_delay(long a0);
   Pointer urnet_device_get_transport_settings(long a0);
   Pointer urnet_device_get_transport_status(long a0);
   byte urnet_device_get_tunnel_started(long a0);
@@ -834,8 +842,10 @@ public interface Raw extends Library {
   byte urnet_device_local_upload_logs_with_files(long a0, String a1, String a2, urnet_upload_logs_cb a3, Pointer a4, PointerByReference a5);
   byte urnet_device_local_wait_for_close(long a0, long a1);
   byte urnet_device_local_write_memory_owner_census(long a0, String a1, PointerByReference a2);
+  Pointer urnet_device_local_key_material_get_extender_measurement_key_file(long a0);
   byte urnet_device_local_key_material_is_empty(long a0);
   void urnet_device_local_key_material_set_extender_key_seed(long a0, Pointer a1, int a2);
+  void urnet_device_local_key_material_set_extender_measurement_key_file(long a0, String a1);
   Pointer urnet_device_local_load_result_get_default_error(long a0);
   byte urnet_device_local_load_result_get_has_connect_location(long a0);
   byte urnet_device_local_load_result_get_has_default_location(long a0);

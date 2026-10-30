@@ -215,6 +215,7 @@ export interface GetPointsLeaderboardArgs {
 
 export interface PointsLeaderboardRow {
   network_id: string | null;
+  is_me: boolean;
   network_name?: string;
   emoji_tag?: string;
   anonymous: boolean;
@@ -705,6 +706,7 @@ export interface ConnectLocation {
   stable: boolean;
   strong_privacy: boolean;
   network_peer?: boolean;
+  extender_ip?: string;
 }
 
 export interface ProxyDeviceState {

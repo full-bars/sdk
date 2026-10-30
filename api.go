@@ -1910,6 +1910,27 @@ type SubscriptionBalanceResult struct {
 	// has not ended, for the renewal notice (CryptoTermNoticeDue); nil when
 	// there is none.
 	CryptoTerm *CryptoTerm `json:"crypto_term,omitempty"`
+
+	// ----- failed renewals -----
+	// PaymentPastDue is set while a store retries a renewal whose payment did
+	// not go through (a declined card on a Stripe renewal). Apps show the
+	// past-due notice while it is set, with an "Update payment method" action
+	// that opens its UpdatePaymentUrl. nil when no renewal is failing, and
+	// from an older server.
+	PaymentPastDue *PaymentPastDue `json:"payment_past_due,omitempty"`
+}
+
+// A renewal whose payment did not go through, which the store is retrying
+// (SubscriptionBalanceResult.PaymentPastDue).
+type PaymentPastDue struct {
+	// the store retrying the renewal: "stripe"
+	Store string `json:"store"`
+	// when the renewal first failed, RFC 3339
+	FailTime string `json:"fail_time"`
+	// where the customer updates the payment method: ur.io's Manage
+	// Subscription, whose "Update payment method" opens the store's billing
+	// portal for the signed-in network
+	UpdatePaymentUrl string `json:"update_payment_url"`
 }
 
 // ExperimentVariant is the caller's variant on a surface, "" when no
@@ -2813,7 +2834,13 @@ type GetPointsLeaderboardArgs struct {
 // `DisplayName` is the network name, or empty when `Anonymous` (the app then
 // shows its localized "Anonymous"); `EmojiTag` shows either way.
 type PointsLeaderboardRow struct {
-	NetworkId   *Id    `json:"network_id"`
+	// NetworkId is nil on an anonymous row: since 2026-10-29 the server sends
+	// it only on a named row and on the signed-in caller's own row, so an
+	// anonymous row never identifies its network. Use IsMe to find the
+	// caller's row and Position to order rows.
+	NetworkId *Id `json:"network_id"`
+	// IsMe marks the signed-in caller's own row
+	IsMe        bool   `json:"is_me"`
 	NetworkName string `json:"network_name,omitempty"`
 	EmojiTag    string `json:"emoji_tag,omitempty"`
 	Anonymous   bool   `json:"anonymous"`
@@ -3442,7 +3469,16 @@ func (self *Api) CreateStripePaymentIntent(args *StripeCreatePaymentIntentArgs, 
  * Stripe Customer Portal
  */
 
-type StripeCreateCustomerPortalArgs struct{}
+// The portal flow that opens straight on updating the payment method
+// (StripeCreateCustomerPortalArgs.Flow).
+const StripeCustomerPortalFlowPaymentMethodUpdate = "payment_method_update"
+
+type StripeCreateCustomerPortalArgs struct {
+	// StripeCustomerPortalFlowPaymentMethodUpdate opens the portal on updating
+	// the payment method, and returns to ur.io's Manage Subscription once it is
+	// saved; empty opens the portal's home. An older server ignores it.
+	Flow string `json:"flow,omitempty"`
+}
 
 type StripeCreateCustomerPortalError struct {
 	// the server's `SubscriptionErrorCode*` value (`no_customer` or
