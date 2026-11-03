@@ -318,6 +318,28 @@ inline constexpr const char* ExtenderProvideStateOff = "off";
 inline constexpr const char* ExtenderProvideStateSettingUp = "setting_up";
 inline constexpr const char* ExtenderRoleFeed = "feed";
 inline constexpr const char* ExtenderRoleMember = "member";
+inline constexpr const char* ExtenderSeedImportErrorConflict = "import_extender_seed_conflict";
+inline constexpr const char* ExtenderSeedImportErrorExpired = "import_extender_seed_expired";
+inline constexpr const char* ExtenderSeedImportErrorForeignNetwork = "import_extender_seed_foreign_network";
+inline constexpr const char* ExtenderSeedImportErrorForged = "import_extender_seed_forged";
+inline constexpr const char* ExtenderSeedImportErrorGatedRecord = "import_extender_seed_gated_record";
+inline constexpr const char* ExtenderSeedImportErrorInvalid = "import_extender_seed_invalid";
+inline constexpr const char* ExtenderSeedImportErrorInvalidRecord = "import_extender_seed_invalid_record";
+inline constexpr const char* ExtenderSeedImportErrorNoRootKeys = "import_extender_seed_no_root_keys";
+inline constexpr const char* ExtenderSeedImportErrorNotYetValid = "import_extender_seed_not_yet_valid";
+inline constexpr const char* ExtenderSeedImportErrorRollback = "import_extender_seed_rollback";
+inline constexpr const char* ExtenderSeedImportErrorTooLarge = "import_extender_seed_too_large";
+inline constexpr const char* ExtenderSeedImportErrorUnavailable = "import_extender_seed_unavailable";
+inline constexpr const char* ExtenderSeedImportOutcomeAccepted = "accepted";
+inline constexpr const char* ExtenderSeedImportOutcomeIdentical = "identical";
+inline constexpr const char* ExtenderSeedPassOutcomeApplied = "applied";
+inline constexpr const char* ExtenderSeedPassOutcomeCanceled = "canceled";
+inline constexpr const char* ExtenderSeedPassOutcomeFailed = "failed";
+inline constexpr const char* ExtenderSeedPassOutcomeNothingNew = "nothing_new";
+inline constexpr const char* ExtenderSeedSourceEmbedded = "embedded";
+inline constexpr const char* ExtenderSeedSourceImport = "import";
+inline constexpr const char* ExtenderSeedSourceMirror = "mirror";
+inline constexpr const char* ExtenderSeedSourceStore = "store";
 inline constexpr const char* IpFamilyDualstack = "dualstack";
 inline constexpr const char* IpFamilyFilterV4Capable = "v4-capable";
 inline constexpr const char* IpFamilyFilterV6Capable = "v6-capable";
@@ -343,6 +365,9 @@ inline constexpr const char* LicenseKindFont = "font";
 inline constexpr const char* LicenseKindSoftware = "software";
 inline constexpr int64_t LocalStorageDirectoryPermissions = 448;
 inline constexpr int64_t LocalStorageFilePermissions = 384;
+inline constexpr const char* LocationMatchCountry = "country";
+inline constexpr const char* LocationMatchExact = "";
+inline constexpr const char* LocationMatchRegion = "region";
 inline constexpr const char* LocationTypeCity = "city";
 inline constexpr const char* LocationTypeCountry = "country";
 inline constexpr const char* LocationTypeRegion = "region";
@@ -486,6 +511,18 @@ inline constexpr const char* SnErrorCodeWalletBlocked = "wallet_blocked";
 inline constexpr int64_t SnNetworkConsentEpochSpan = 65535;
 inline constexpr int64_t SnRaoPerAlpha = 1000000000;
 inline constexpr int64_t SnSs58Prefix = 42;
+inline constexpr const char* SnTopFilterAll = "all";
+inline constexpr const char* SnTopFilterClaimed = "claimed";
+inline constexpr const char* SnTopFilterUnclaimed = "unclaimed";
+inline constexpr const char* SnTopLabelBorderline = "borderline";
+inline constexpr const char* SnTopLabelEstimate = "estimate";
+inline constexpr const char* SnTopLabelLikely = "likely";
+inline constexpr const char* SnTopLabelNotMeasurable = "not_measurable";
+inline constexpr const char* SnTopLabelUnlikely = "unlikely";
+inline constexpr const char* SnTopNotMeasurableReasonNone = "";
+inline constexpr const char* SnTopNotMeasurableReasonNotInCohort = "not_in_cohort";
+inline constexpr const char* SnTopNotMeasurableReasonNotProviding = "not_providing";
+inline constexpr const char* SnTopNotMeasurableReasonSharedEgress = "shared_egress";
 inline constexpr const char* SnTxTypeEip1559 = "eip1559";
 inline constexpr const char* SnTxTypeLegacy = "legacy";
 inline constexpr const char* SnWalletConsentScopeHotkey = "hotkey";
@@ -498,6 +535,7 @@ inline constexpr const char* SolanaWalletBridgeErrorNoAccount = "no_account";
 inline constexpr const char* SolanaWalletBridgeErrorSessionNotFound = "session_not_found";
 inline constexpr const char* SolanaWalletBridgeErrorUserRejected = "user_rejected";
 inline constexpr const char* SolanaWalletBridgeErrorWallet = "wallet_error";
+inline constexpr const char* StripeCustomerPortalFlowPaymentMethodUpdate = "payment_method_update";
 inline constexpr const char* StripeIntentTypePayment = "payment";
 inline constexpr const char* StripeIntentTypeSetup = "setup";
 inline constexpr const char* StripeItemData10Tib = "data_10tib";
@@ -547,6 +585,9 @@ inline constexpr const char* WalletAuthErrorCodeSignatureMismatch = "signature_m
 inline constexpr const char* WalletTypeCircleUserControlled = "circle_uc";
 inline constexpr const char* WalletTypeSol = "sol";
 inline constexpr const char* WalletTypeXch = "xch";
+inline constexpr const char* WinbackOfferStoreApple = "apple";
+inline constexpr const char* WinbackOfferStorePlay = "play";
+inline constexpr const char* WinbackOfferStoreStripe = "stripe";
 inline constexpr const char* WindowTypeAuto = "auto";
 inline constexpr const char* WindowTypeQuality = "quality";
 inline constexpr const char* WindowTypeSpeed = "speed";
@@ -745,6 +786,9 @@ struct ExportResult;
 struct ExtenderImportResult;
 struct ExtenderInfo;
 struct ExtenderProvideStatus;
+struct ExtenderSeedImportResult;
+struct ExtenderSeedMirrorValue;
+struct ExtenderSeedStatus;
 struct ExtenderSettings;
 struct ExtenderShareDecodeResult;
 struct ExtenderShareResult;
@@ -798,6 +842,7 @@ struct LicenseInfo;
 struct ListApiKeysResult;
 struct LocationDeviceResult;
 struct LocationGroupResult;
+struct LocationMatch;
 struct LocationResult;
 struct LogFileInfo;
 struct MemoryStats;
@@ -830,6 +875,7 @@ struct NetworkUnblockLocationResult;
 struct NetworkUserUpdateArgs;
 struct NetworkUserUpdateError;
 struct NetworkUserUpdateResult;
+struct NetworkUserUserAuth;
 struct OnboardingClickArgs;
 struct OnboardingClickResult;
 struct OnboardingError;
@@ -839,6 +885,7 @@ struct OnboardingOfferIssueArgs;
 struct OnboardingOfferIssueResult;
 struct OverrideLocalAppIds;
 struct PacketStats;
+struct PaymentPastDue;
 struct PointsLeaderboardError;
 struct PointsLeaderboardKey;
 struct PointsLeaderboardRow;
@@ -920,6 +967,14 @@ struct SnPoolClaimResult;
 struct SnSetWalletArgs;
 struct SnSetWalletError;
 struct SnSetWalletResult;
+struct SnTopArgs;
+struct SnTopFleet;
+struct SnTopHistoryPoint;
+struct SnTopRow;
+struct SnTopMe;
+struct SnTopSnapshot;
+struct SnTopMeResult;
+struct SnTopResult;
 struct SnUnsignedTx;
 struct SnValidateWalletResult;
 struct SnWalletMappingChallengeArgs;
@@ -945,6 +1000,7 @@ struct StripePaymentSheetResult;
 struct StripePricesResult;
 struct SubprotocolStats;
 struct Subscription;
+struct WinbackOffer;
 struct SubscriptionBalanceResult;
 struct SubscriptionCreatePaymentIdArgs;
 struct SubscriptionCreatePaymentIdError;
@@ -954,6 +1010,7 @@ struct ThroughputPoint;
 struct Time;
 struct TransferBalance;
 struct TransferStatsResult;
+struct TransportDelay;
 struct TransportDistribution;
 struct TransportModePriority;
 struct TransportPacketStats;
@@ -1034,6 +1091,7 @@ using NetworkClientConnectionList = std::vector<NetworkClientConnection>;
 using NetworkClientInfoList = std::vector<NetworkClientInfo>;
 using NetworkPeerList = std::vector<NetworkPeer>;
 using NetworkSpaceList = std::vector<nlohmann::json>;
+using NetworkUserUserAuthList = std::vector<NetworkUserUserAuth>;
 using PointsLeaderboardRowList = std::vector<PointsLeaderboardRow>;
 using ProbeResultList = std::vector<ProbeResult>;
 using ProvideSecretKeyList = std::vector<ProvideSecretKey>;
@@ -1049,6 +1107,9 @@ using RegionalDnsServerList = std::vector<RegionalDnsServer>;
 using SnEpochClaimList = std::vector<SnEpochClaim>;
 using SnLedgerAccountList = std::vector<SnLedgerAccount>;
 using SnLedgerUnsignedTxList = std::vector<SnLedgerUnsignedTx>;
+using SnTopFleetList = std::vector<SnTopFleet>;
+using SnTopHistoryPointList = std::vector<SnTopHistoryPoint>;
+using SnTopRowList = std::vector<SnTopRow>;
 using SnUnsignedTxList = std::vector<SnUnsignedTx>;
 using SnWalletList = std::vector<SnWallet>;
 using StringList = std::vector<std::string>;
@@ -1961,6 +2022,20 @@ struct DeviceLocalSettings {
 	bool ProvideExtenderDnsPrivilegedPort{};
 	bool Verbose{};
 	bool MoveDeclineBackgroundOrMetered{};
+	bool EnableTransportDelay{};
+	int64_t TransportDelayWindowCount{};
+	int64_t TransportDelayWindowTimeout{};
+	int64_t TransportDelayGoodUpBitsPerSecond{};
+	int64_t TransportDelayBadUpBitsPerSecond{};
+	int64_t TransportDelayGoodDownBitsPerSecond{};
+	int64_t TransportDelayBadDownBitsPerSecond{};
+	int64_t TransportDelayGoodUpQueueDelay{};
+	int64_t TransportDelayGoodDownQueueDelay{};
+	int64_t TransportDelayBadUpQueueDelay{};
+	int64_t TransportDelayBadDownQueueDelay{};
+	double TransportDelayQualityStep{};
+	double TransportDelayQualityHysteresis{};
+	bool StrictWindowHandover{};
 	std::string DnsPumpHost{};
 	bool EnableRpc{};
 	bool DisableLogging{};
@@ -2107,6 +2182,36 @@ struct ExtenderProvideStatus {
 	int64_t ConnectionCount{};
 };
 
+struct ExtenderSeedImportResult {
+	bool Ok{};
+	std::string Error{};
+	std::string Outcome{};
+	std::string NetworkHost{};
+	int64_t Sequence{};
+	int64_t ExpireTime{};
+	int64_t RecordCount{};
+	int64_t RevocationCount{};
+	int64_t UsableCount{};
+};
+
+struct ExtenderSeedMirrorValue {
+	std::optional<std::string> url;
+	std::optional<std::string> address;
+};
+
+struct ExtenderSeedStatus {
+	int64_t LastPassTime{};
+	std::string LastPassOutcome{};
+	std::string LastPassError{};
+	int64_t Sequence{};
+	int64_t ExpireTime{};
+	std::string Source{};
+	int64_t EmbeddedCount{};
+	std::string EmbeddedError{};
+	int64_t MirrorCount{};
+	int64_t DnsIndependentMirrorCount{};
+};
+
 struct ExtenderSettings {
 	std::string DnsName{};
 	bool DnsNameDefault{};
@@ -2158,6 +2263,12 @@ struct ExtenderStatus {
 	int64_t LastSampleTime{};
 	std::string LastError{};
 	std::optional<ExtenderInfoList> Extenders;
+	bool GatedPreference{};
+	std::string GatedMode{};
+	std::string GatedFallbackReason{};
+	int64_t GatedUsableCount{};
+	std::string GatedReleaseOutcome{};
+	int64_t GatedRecordExpireTime{};
 };
 
 struct FeedbackSendNeeds {
@@ -2230,6 +2341,7 @@ struct FindProviders2Args {
 	std::optional<std::string> rank_mode;
 	std::optional<bool> force_minimum;
 	std::optional<std::string> ip_family;
+	std::optional<bool> strict;
 };
 
 struct FindProviders2Result {
@@ -2270,6 +2382,7 @@ struct FindProvidersProvider {
 	std::optional<std::string> reputation_failed_names;
 	std::optional<ProviderLocation> location;
 	std::optional<std::string> ip_family;
+	std::optional<std::string> match;
 };
 
 struct FindProvidersResult {
@@ -2386,6 +2499,7 @@ struct NetworkUser {
 	std::string network_name{};
 	std::optional<std::string> wallet_address;
 	std::optional<StringList> auth_types;
+	std::optional<NetworkUserUserAuthList> user_auths;
 };
 
 struct GetNetworkUserResult {
@@ -2474,6 +2588,13 @@ struct LocationGroupResult {
 	std::optional<int64_t> provider_count;
 	std::optional<bool> promoted;
 	std::optional<int64_t> match_distance;
+};
+
+struct LocationMatch {
+	std::string Match{};
+	bool Mixed{};
+	std::string Name{};
+	std::optional<std::string> LocationId;
 };
 
 struct LocationResult {
@@ -2757,7 +2878,9 @@ struct NetworkSpaceValues {
 	std::optional<std::string> gossip_url;
 	std::optional<std::vector<std::string>> extender_root_public_keys;
 	std::optional<std::vector<std::string>> extender_hosts;
+	std::optional<std::vector<ExtenderSeedMirrorValue>> extender_seed_mirrors;
 	std::optional<std::string> extender_reset_id;
+	std::optional<bool> extender_gated_preference;
 	std::optional<VlessSettings> vless;
 	std::optional<std::vector<std::string>> control_doh_urls_ipv4;
 	std::optional<std::vector<std::string>> control_doh_urls_ipv6;
@@ -2786,6 +2909,11 @@ struct NetworkUserUpdateError {
 
 struct NetworkUserUpdateResult {
 	std::optional<NetworkUserUpdateError> error;
+};
+
+struct NetworkUserUserAuth {
+	std::optional<std::string> user_auth;
+	std::string auth_type{};
 };
 
 struct OnboardingClickArgs {
@@ -2861,6 +2989,12 @@ struct PacketStats {
 	std::optional<TransportPacketStatsList> TransportStats;
 };
 
+struct PaymentPastDue {
+	std::string store{};
+	std::string fail_time{};
+	std::string update_payment_url{};
+};
+
 struct PointsLeaderboardError {
 	std::string message{};
 };
@@ -2870,10 +3004,12 @@ struct PointsLeaderboardKey {
 	int64_t Blocks{};
 	int64_t Streak{};
 	std::string NetworkId{};
+	int64_t Position{};
 };
 
 struct PointsLeaderboardRow {
 	std::optional<std::string> network_id;
+	bool is_me{};
 	std::optional<std::string> network_name;
 	std::optional<std::string> emoji_tag;
 	bool anonymous{};
@@ -3506,6 +3642,105 @@ struct SnSetWalletResult {
 	std::optional<int64_t> mapping_generation;
 };
 
+struct SnTopArgs {
+	std::optional<int64_t> limit;
+	std::optional<std::string> cursor;
+	std::optional<std::string> filter;
+	std::optional<std::string> snapshot;
+};
+
+struct SnTopFleet {
+	int64_t uid{};
+	int64_t generation{};
+	int64_t valid_to_epoch{};
+	double replica_score{};
+	bool has_replica_score{};
+	double validator_score{};
+	bool has_validator_score{};
+	int64_t validator_rank{};
+	bool has_validator_rank{};
+	int64_t validator_rank_of{};
+	bool has_validator_rank_of{};
+	bool selected{};
+	bool has_selected{};
+	double incentive{};
+	bool has_incentive{};
+	bool incentive_stale{};
+};
+
+struct SnTopHistoryPoint {
+	std::string day{};
+	int64_t rank{};
+	double score{};
+};
+
+struct SnTopRow {
+	int64_t position{};
+	std::string name{};
+	std::string tag{};
+	double projected_score{};
+	double raw_last_tempo{};
+	double margin{};
+	int64_t trend{};
+	int64_t prefixes{};
+	int64_t shared_prefixes{};
+	double presence{};
+	std::string label{};
+	bool measurable{};
+	bool verify_eligible{};
+	bool claim_prompt{};
+	bool is_me{};
+	std::optional<SnTopFleetList> fleets;
+};
+
+struct SnTopMe {
+	std::optional<SnTopRow> row;
+	double solo_score{};
+	int64_t distinct_prefixes{};
+	int64_t shared_prefixes{};
+	int64_t shared_with_units{};
+	std::string not_measurable_reason{};
+	std::optional<SnTopHistoryPointList> history;
+};
+
+struct SnTopSnapshot {
+	std::string id{};
+	int64_t tempo_index{};
+	int64_t block{};
+	std::optional<std::string> computed_at;
+	int64_t settlement_epoch{};
+	int64_t total_ranked{};
+	int64_t head_seats{};
+	int64_t claimed_fleets{};
+	int64_t open_seats{};
+	double projected_cutoff{};
+	double claimed_cutoff{};
+	bool has_claimed_cutoff{};
+	bool binding_open{};
+	std::string binding_note{};
+	int64_t measured_providers{};
+	int64_t cohort_capacity{};
+	std::optional<std::string> validator_summary_at;
+	std::optional<std::string> incentive_at;
+	double precision_at_200{};
+	bool has_precision_at_200{};
+	bool stale{};
+};
+
+struct SnTopMeResult {
+	std::optional<SnTopSnapshot> snapshot;
+	std::optional<SnTopMe> me;
+	std::optional<ApiError> error;
+};
+
+struct SnTopResult {
+	std::optional<SnTopSnapshot> snapshot;
+	std::optional<SnTopRowList> rows;
+	std::optional<SnTopRow> me;
+	std::string next{};
+	std::optional<ApiError> error;
+};
+
 struct SnUnsignedTx {
 	int64_t epoch{};
 	int64_t chain_id{};
@@ -3600,6 +3835,7 @@ struct StripeCreateCheckoutSessionResult {
 };
 
 struct StripeCreateCustomerPortalArgs {
+	std::optional<std::string> flow;
 };
 
 struct StripeCreateCustomerPortalError {
@@ -3690,6 +3926,15 @@ struct Subscription {
 	std::string plan{};
 };
 
+struct WinbackOffer {
+	std::string expires_at{};
+	int64_t percent_off{};
+	std::string plan{};
+	std::string store{};
+	std::optional<std::string> play_offer_tag;
+	std::optional<std::string> apple_offer_id;
+};
+
 struct SubscriptionBalanceResult {
 	int64_t start_balance_byte_count{};
 	int64_t balance_byte_count{};
@@ -3702,9 +3947,11 @@ struct SubscriptionBalanceResult {
 	std::optional<bool> guest;
 	std::optional<PriceTier> price_tier;
 	std::optional<OnboardingOffer> onboarding_offer;
+	std::optional<WinbackOffer> winback_offer;
 	std::optional<ExperimentAssignmentList> experiments;
 	std::optional<CryptoPaymentAssetList> crypto_assets;
 	std::optional<CryptoTerm> crypto_term;
+	std::optional<PaymentPastDue> payment_past_due;
 };
 
 struct SubscriptionCreatePaymentIdArgs {
@@ -3756,6 +4003,16 @@ struct TransferBalance {
 struct TransferStatsResult {
 	int64_t paid_bytes_provided{};
 	int64_t unpaid_bytes_provided{};
+};
+
+struct TransportDelay {
+	double UpQuality{};
+	double DownQuality{};
+	int64_t UpBitsPerSecond{};
+	int64_t DownBitsPerSecond{};
+	int64_t UpQueueDelayMillis{};
+	int64_t DownQueueDelayMillis{};
+	bool Fallback{};
 };
 
 struct TransportDistribution {
@@ -4243,6 +4500,12 @@ inline void to_json(nlohmann::json& j, const ExtenderInfo& v);
 inline void from_json(const nlohmann::json& j, ExtenderInfo& v);
 inline void to_json(nlohmann::json& j, const ExtenderProvideStatus& v);
 inline void from_json(const nlohmann::json& j, ExtenderProvideStatus& v);
+inline void to_json(nlohmann::json& j, const ExtenderSeedImportResult& v);
+inline void from_json(const nlohmann::json& j, ExtenderSeedImportResult& v);
+inline void to_json(nlohmann::json& j, const ExtenderSeedMirrorValue& v);
+inline void from_json(const nlohmann::json& j, ExtenderSeedMirrorValue& v);
+inline void to_json(nlohmann::json& j, const ExtenderSeedStatus& v);
+inline void from_json(const nlohmann::json& j, ExtenderSeedStatus& v);
 inline void to_json(nlohmann::json& j, const ExtenderSettings& v);
 inline void from_json(const nlohmann::json& j, ExtenderSettings& v);
 inline void to_json(nlohmann::json& j, const ExtenderShareDecodeResult& v);
@@ -4349,6 +4612,8 @@ inline void to_json(nlohmann::json& j, const LocationDeviceResult& v);
 inline void from_json(const nlohmann::json& j, LocationDeviceResult& v);
 inline void to_json(nlohmann::json& j, const LocationGroupResult& v);
 inline void from_json(const nlohmann::json& j, LocationGroupResult& v);
+inline void to_json(nlohmann::json& j, const LocationMatch& v);
+inline void from_json(const nlohmann::json& j, LocationMatch& v);
 inline void to_json(nlohmann::json& j, const LocationResult& v);
 inline void from_json(const nlohmann::json& j, LocationResult& v);
 inline void to_json(nlohmann::json& j, const LogFileInfo& v);
@@ -4413,6 +4678,8 @@ inline void to_json(nlohmann::json& j, const NetworkUserUpdateError& v);
 inline void from_json(const nlohmann::json& j, NetworkUserUpdateError& v);
 inline void to_json(nlohmann::json& j, const NetworkUserUpdateResult& v);
 inline void from_json(const nlohmann::json& j, NetworkUserUpdateResult& v);
+inline void to_json(nlohmann::json& j, const NetworkUserUserAuth& v);
+inline void from_json(const nlohmann::json& j, NetworkUserUserAuth& v);
 inline void to_json(nlohmann::json& j, const OnboardingClickArgs& v);
 inline void from_json(const nlohmann::json& j, OnboardingClickArgs& v);
 inline void to_json(nlohmann::json& j, const OnboardingClickResult& v);
@@ -4431,6 +4698,8 @@ inline void to_json(nlohmann::json& j, const OverrideLocalAppIds& v);
 inline void from_json(const nlohmann::json& j, OverrideLocalAppIds& v);
 inline void to_json(nlohmann::json& j, const PacketStats& v);
 inline void from_json(const nlohmann::json& j, PacketStats& v);
+inline void to_json(nlohmann::json& j, const PaymentPastDue& v);
+inline void from_json(const nlohmann::json& j, PaymentPastDue& v);
 inline void to_json(nlohmann::json& j, const PointsLeaderboardError& v);
 inline void from_json(const nlohmann::json& j, PointsLeaderboardError& v);
 inline void to_json(nlohmann::json& j, const PointsLeaderboardKey& v);
@@ -4593,6 +4862,22 @@ inline void to_json(nlohmann::json& j, const SnSetWalletError& v);
 inline void from_json(const nlohmann::json& j, SnSetWalletError& v);
 inline void to_json(nlohmann::json& j, const SnSetWalletResult& v);
 inline void from_json(const nlohmann::json& j, SnSetWalletResult& v);
+inline void to_json(nlohmann::json& j, const SnTopArgs& v);
+inline void from_json(const nlohmann::json& j, SnTopArgs& v);
+inline void to_json(nlohmann::json& j, const SnTopFleet& v);
+inline void from_json(const nlohmann::json& j, SnTopFleet& v);
+inline void to_json(nlohmann::json& j, const SnTopHistoryPoint& v);
+inline void from_json(const nlohmann::json& j, SnTopHistoryPoint& v);
+inline void to_json(nlohmann::json& j, const SnTopRow& v);
+inline void from_json(const nlohmann::json& j, SnTopRow& v);
+inline void to_json(nlohmann::json& j, const SnTopMe& v);
+inline void from_json(const nlohmann::json& j, SnTopMe& v);
+inline void to_json(nlohmann::json& j, const SnTopSnapshot& v);
+inline void from_json(const nlohmann::json& j, SnTopSnapshot& v);
+inline void to_json(nlohmann::json& j, const SnTopMeResult& v);
+inline void from_json(const nlohmann::json& j, SnTopMeResult& v);
+inline void to_json(nlohmann::json& j, const SnTopResult& v);
+inline void from_json(const nlohmann::json& j, SnTopResult& v);
 inline void to_json(nlohmann::json& j, const SnUnsignedTx& v);
 inline void from_json(const nlohmann::json& j, SnUnsignedTx& v);
 inline void to_json(nlohmann::json& j, const SnValidateWalletResult& v);
@@ -4643,6 +4928,8 @@ inline void to_json(nlohmann::json& j, const SubprotocolStats& v);
 inline void from_json(const nlohmann::json& j, SubprotocolStats& v);
 inline void to_json(nlohmann::json& j, const Subscription& v);
 inline void from_json(const nlohmann::json& j, Subscription& v);
+inline void to_json(nlohmann::json& j, const WinbackOffer& v);
+inline void from_json(const nlohmann::json& j, WinbackOffer& v);
 inline void to_json(nlohmann::json& j, const SubscriptionBalanceResult& v);
 inline void from_json(const nlohmann::json& j, SubscriptionBalanceResult& v);
 inline void to_json(nlohmann::json& j, const SubscriptionCreatePaymentIdArgs& v);
@@ -4661,6 +4948,8 @@ inline void to_json(nlohmann::json& j, const TransferBalance& v);
 inline void from_json(const nlohmann::json& j, TransferBalance& v);
 inline void to_json(nlohmann::json& j, const TransferStatsResult& v);
 inline void from_json(const nlohmann::json& j, TransferStatsResult& v);
+inline void to_json(nlohmann::json& j, const TransportDelay& v);
+inline void from_json(const nlohmann::json& j, TransportDelay& v);
 inline void to_json(nlohmann::json& j, const TransportDistribution& v);
 inline void from_json(const nlohmann::json& j, TransportDistribution& v);
 inline void to_json(nlohmann::json& j, const TransportModePriority& v);
@@ -8920,6 +9209,20 @@ inline void to_json(nlohmann::json& j, const DeviceLocalSettings& v) {
 	j["ProvideExtenderDnsPrivilegedPort"] = v.ProvideExtenderDnsPrivilegedPort;
 	j["Verbose"] = v.Verbose;
 	j["MoveDeclineBackgroundOrMetered"] = v.MoveDeclineBackgroundOrMetered;
+	j["EnableTransportDelay"] = v.EnableTransportDelay;
+	j["TransportDelayWindowCount"] = v.TransportDelayWindowCount;
+	j["TransportDelayWindowTimeout"] = v.TransportDelayWindowTimeout;
+	j["TransportDelayGoodUpBitsPerSecond"] = v.TransportDelayGoodUpBitsPerSecond;
+	j["TransportDelayBadUpBitsPerSecond"] = v.TransportDelayBadUpBitsPerSecond;
+	j["TransportDelayGoodDownBitsPerSecond"] = v.TransportDelayGoodDownBitsPerSecond;
+	j["TransportDelayBadDownBitsPerSecond"] = v.TransportDelayBadDownBitsPerSecond;
+	j["TransportDelayGoodUpQueueDelay"] = v.TransportDelayGoodUpQueueDelay;
+	j["TransportDelayGoodDownQueueDelay"] = v.TransportDelayGoodDownQueueDelay;
+	j["TransportDelayBadUpQueueDelay"] = v.TransportDelayBadUpQueueDelay;
+	j["TransportDelayBadDownQueueDelay"] = v.TransportDelayBadDownQueueDelay;
+	j["TransportDelayQualityStep"] = v.TransportDelayQualityStep;
+	j["TransportDelayQualityHysteresis"] = v.TransportDelayQualityHysteresis;
+	j["StrictWindowHandover"] = v.StrictWindowHandover;
 	j["DnsPumpHost"] = v.DnsPumpHost;
 	j["EnableRpc"] = v.EnableRpc;
 	j["DisableLogging"] = v.DisableLogging;
@@ -9010,6 +9313,48 @@ inline void from_json(const nlohmann::json& j, DeviceLocalSettings& v) {
 	}
 	if (auto it = j.find("MoveDeclineBackgroundOrMetered"); it != j.end() && !it->is_null()) {
 		it->get_to(v.MoveDeclineBackgroundOrMetered);
+	}
+	if (auto it = j.find("EnableTransportDelay"); it != j.end() && !it->is_null()) {
+		it->get_to(v.EnableTransportDelay);
+	}
+	if (auto it = j.find("TransportDelayWindowCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayWindowCount);
+	}
+	if (auto it = j.find("TransportDelayWindowTimeout"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayWindowTimeout);
+	}
+	if (auto it = j.find("TransportDelayGoodUpBitsPerSecond"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayGoodUpBitsPerSecond);
+	}
+	if (auto it = j.find("TransportDelayBadUpBitsPerSecond"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayBadUpBitsPerSecond);
+	}
+	if (auto it = j.find("TransportDelayGoodDownBitsPerSecond"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayGoodDownBitsPerSecond);
+	}
+	if (auto it = j.find("TransportDelayBadDownBitsPerSecond"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayBadDownBitsPerSecond);
+	}
+	if (auto it = j.find("TransportDelayGoodUpQueueDelay"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayGoodUpQueueDelay);
+	}
+	if (auto it = j.find("TransportDelayGoodDownQueueDelay"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayGoodDownQueueDelay);
+	}
+	if (auto it = j.find("TransportDelayBadUpQueueDelay"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayBadUpQueueDelay);
+	}
+	if (auto it = j.find("TransportDelayBadDownQueueDelay"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayBadDownQueueDelay);
+	}
+	if (auto it = j.find("TransportDelayQualityStep"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayQualityStep);
+	}
+	if (auto it = j.find("TransportDelayQualityHysteresis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayQualityHysteresis);
+	}
+	if (auto it = j.find("StrictWindowHandover"); it != j.end() && !it->is_null()) {
+		it->get_to(v.StrictWindowHandover);
 	}
 	if (auto it = j.find("DnsPumpHost"); it != j.end() && !it->is_null()) {
 		it->get_to(v.DnsPumpHost);
@@ -9597,6 +9942,125 @@ inline void from_json(const nlohmann::json& j, ExtenderProvideStatus& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const ExtenderSeedImportResult& v) {
+	j = nlohmann::json::object();
+	j["Ok"] = v.Ok;
+	j["Error"] = v.Error;
+	j["Outcome"] = v.Outcome;
+	j["NetworkHost"] = v.NetworkHost;
+	j["Sequence"] = v.Sequence;
+	j["ExpireTime"] = v.ExpireTime;
+	j["RecordCount"] = v.RecordCount;
+	j["RevocationCount"] = v.RevocationCount;
+	j["UsableCount"] = v.UsableCount;
+}
+inline void from_json(const nlohmann::json& j, ExtenderSeedImportResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Ok"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Ok);
+	}
+	if (auto it = j.find("Error"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Error);
+	}
+	if (auto it = j.find("Outcome"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Outcome);
+	}
+	if (auto it = j.find("NetworkHost"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NetworkHost);
+	}
+	if (auto it = j.find("Sequence"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Sequence);
+	}
+	if (auto it = j.find("ExpireTime"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ExpireTime);
+	}
+	if (auto it = j.find("RecordCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.RecordCount);
+	}
+	if (auto it = j.find("RevocationCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.RevocationCount);
+	}
+	if (auto it = j.find("UsableCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.UsableCount);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ExtenderSeedMirrorValue& v) {
+	j = nlohmann::json::object();
+	if (v.url) {
+		j["url"] = *v.url;
+	}
+	if (v.address) {
+		j["address"] = *v.address;
+	}
+}
+inline void from_json(const nlohmann::json& j, ExtenderSeedMirrorValue& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("url"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.url = std::move(tmp);
+	}
+	if (auto it = j.find("address"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.address = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ExtenderSeedStatus& v) {
+	j = nlohmann::json::object();
+	j["LastPassTime"] = v.LastPassTime;
+	j["LastPassOutcome"] = v.LastPassOutcome;
+	j["LastPassError"] = v.LastPassError;
+	j["Sequence"] = v.Sequence;
+	j["ExpireTime"] = v.ExpireTime;
+	j["Source"] = v.Source;
+	j["EmbeddedCount"] = v.EmbeddedCount;
+	j["EmbeddedError"] = v.EmbeddedError;
+	j["MirrorCount"] = v.MirrorCount;
+	j["DnsIndependentMirrorCount"] = v.DnsIndependentMirrorCount;
+}
+inline void from_json(const nlohmann::json& j, ExtenderSeedStatus& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("LastPassTime"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LastPassTime);
+	}
+	if (auto it = j.find("LastPassOutcome"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LastPassOutcome);
+	}
+	if (auto it = j.find("LastPassError"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LastPassError);
+	}
+	if (auto it = j.find("Sequence"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Sequence);
+	}
+	if (auto it = j.find("ExpireTime"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ExpireTime);
+	}
+	if (auto it = j.find("Source"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Source);
+	}
+	if (auto it = j.find("EmbeddedCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.EmbeddedCount);
+	}
+	if (auto it = j.find("EmbeddedError"); it != j.end() && !it->is_null()) {
+		it->get_to(v.EmbeddedError);
+	}
+	if (auto it = j.find("MirrorCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.MirrorCount);
+	}
+	if (auto it = j.find("DnsIndependentMirrorCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DnsIndependentMirrorCount);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const ExtenderSettings& v) {
 	j = nlohmann::json::object();
 	j["DnsName"] = v.DnsName;
@@ -9756,6 +10220,12 @@ inline void to_json(nlohmann::json& j, const ExtenderStatus& v) {
 	if (v.Extenders) {
 		j["Extenders"] = *v.Extenders;
 	}
+	j["GatedPreference"] = v.GatedPreference;
+	j["GatedMode"] = v.GatedMode;
+	j["GatedFallbackReason"] = v.GatedFallbackReason;
+	j["GatedUsableCount"] = v.GatedUsableCount;
+	j["GatedReleaseOutcome"] = v.GatedReleaseOutcome;
+	j["GatedRecordExpireTime"] = v.GatedRecordExpireTime;
 }
 inline void from_json(const nlohmann::json& j, ExtenderStatus& v) {
 	if (!j.is_object()) {
@@ -9807,6 +10277,24 @@ inline void from_json(const nlohmann::json& j, ExtenderStatus& v) {
 		ExtenderInfoList tmp{};
 		it->get_to(tmp);
 		v.Extenders = std::move(tmp);
+	}
+	if (auto it = j.find("GatedPreference"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GatedPreference);
+	}
+	if (auto it = j.find("GatedMode"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GatedMode);
+	}
+	if (auto it = j.find("GatedFallbackReason"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GatedFallbackReason);
+	}
+	if (auto it = j.find("GatedUsableCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GatedUsableCount);
+	}
+	if (auto it = j.find("GatedReleaseOutcome"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GatedReleaseOutcome);
+	}
+	if (auto it = j.find("GatedRecordExpireTime"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GatedRecordExpireTime);
 	}
 }
 
@@ -10121,6 +10609,9 @@ inline void to_json(nlohmann::json& j, const FindProviders2Args& v) {
 	if (v.ip_family) {
 		j["ip_family"] = *v.ip_family;
 	}
+	if (v.strict) {
+		j["strict"] = *v.strict;
+	}
 }
 inline void from_json(const nlohmann::json& j, FindProviders2Args& v) {
 	if (!j.is_object()) {
@@ -10163,6 +10654,11 @@ inline void from_json(const nlohmann::json& j, FindProviders2Args& v) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.ip_family = std::move(tmp);
+	}
+	if (auto it = j.find("strict"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.strict = std::move(tmp);
 	}
 }
 
@@ -10341,6 +10837,9 @@ inline void to_json(nlohmann::json& j, const FindProvidersProvider& v) {
 	if (v.ip_family) {
 		j["ip_family"] = *v.ip_family;
 	}
+	if (v.match) {
+		j["match"] = *v.match;
+	}
 }
 inline void from_json(const nlohmann::json& j, FindProvidersProvider& v) {
 	if (!j.is_object()) {
@@ -10384,6 +10883,11 @@ inline void from_json(const nlohmann::json& j, FindProvidersProvider& v) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.ip_family = std::move(tmp);
+	}
+	if (auto it = j.find("match"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.match = std::move(tmp);
 	}
 }
 
@@ -10848,6 +11352,9 @@ inline void to_json(nlohmann::json& j, const NetworkUser& v) {
 	if (v.auth_types) {
 		j["auth_types"] = *v.auth_types;
 	}
+	if (v.user_auths) {
+		j["user_auths"] = *v.user_auths;
+	}
 }
 inline void from_json(const nlohmann::json& j, NetworkUser& v) {
 	if (!j.is_object()) {
@@ -10884,6 +11391,11 @@ inline void from_json(const nlohmann::json& j, NetworkUser& v) {
 		StringList tmp{};
 		it->get_to(tmp);
 		v.auth_types = std::move(tmp);
+	}
+	if (auto it = j.find("user_auths"); it != j.end() && !it->is_null()) {
+		NetworkUserUserAuthList tmp{};
+		it->get_to(tmp);
+		v.user_auths = std::move(tmp);
 	}
 }
 
@@ -11271,6 +11783,35 @@ inline void from_json(const nlohmann::json& j, LocationGroupResult& v) {
 		int64_t tmp{};
 		it->get_to(tmp);
 		v.match_distance = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const LocationMatch& v) {
+	j = nlohmann::json::object();
+	j["Match"] = v.Match;
+	j["Mixed"] = v.Mixed;
+	j["Name"] = v.Name;
+	if (v.LocationId) {
+		j["LocationId"] = *v.LocationId;
+	}
+}
+inline void from_json(const nlohmann::json& j, LocationMatch& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Match"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Match);
+	}
+	if (auto it = j.find("Mixed"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Mixed);
+	}
+	if (auto it = j.find("Name"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Name);
+	}
+	if (auto it = j.find("LocationId"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.LocationId = std::move(tmp);
 	}
 }
 
@@ -12623,8 +13164,14 @@ inline void to_json(nlohmann::json& j, const NetworkSpaceValues& v) {
 	if (v.extender_hosts) {
 		j["extender_hosts"] = *v.extender_hosts;
 	}
+	if (v.extender_seed_mirrors) {
+		j["extender_seed_mirrors"] = *v.extender_seed_mirrors;
+	}
 	if (v.extender_reset_id) {
 		j["extender_reset_id"] = *v.extender_reset_id;
+	}
+	if (v.extender_gated_preference) {
+		j["extender_gated_preference"] = *v.extender_gated_preference;
 	}
 	if (v.vless) {
 		j["vless"] = *v.vless;
@@ -12733,10 +13280,20 @@ inline void from_json(const nlohmann::json& j, NetworkSpaceValues& v) {
 		it->get_to(tmp);
 		v.extender_hosts = std::move(tmp);
 	}
+	if (auto it = j.find("extender_seed_mirrors"); it != j.end() && !it->is_null()) {
+		std::vector<ExtenderSeedMirrorValue> tmp{};
+		it->get_to(tmp);
+		v.extender_seed_mirrors = std::move(tmp);
+	}
 	if (auto it = j.find("extender_reset_id"); it != j.end() && !it->is_null()) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.extender_reset_id = std::move(tmp);
+	}
+	if (auto it = j.find("extender_gated_preference"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.extender_gated_preference = std::move(tmp);
 	}
 	if (auto it = j.find("vless"); it != j.end() && !it->is_null()) {
 		VlessSettings tmp{};
@@ -12847,6 +13404,27 @@ inline void from_json(const nlohmann::json& j, NetworkUserUpdateResult& v) {
 		NetworkUserUpdateError tmp{};
 		it->get_to(tmp);
 		v.error = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const NetworkUserUserAuth& v) {
+	j = nlohmann::json::object();
+	if (v.user_auth) {
+		j["user_auth"] = *v.user_auth;
+	}
+	j["auth_type"] = v.auth_type;
+}
+inline void from_json(const nlohmann::json& j, NetworkUserUserAuth& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("user_auth"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.user_auth = std::move(tmp);
+	}
+	if (auto it = j.find("auth_type"); it != j.end() && !it->is_null()) {
+		it->get_to(v.auth_type);
 	}
 }
 
@@ -13195,6 +13773,27 @@ inline void from_json(const nlohmann::json& j, PacketStats& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const PaymentPastDue& v) {
+	j = nlohmann::json::object();
+	j["store"] = v.store;
+	j["fail_time"] = v.fail_time;
+	j["update_payment_url"] = v.update_payment_url;
+}
+inline void from_json(const nlohmann::json& j, PaymentPastDue& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("store"); it != j.end() && !it->is_null()) {
+		it->get_to(v.store);
+	}
+	if (auto it = j.find("fail_time"); it != j.end() && !it->is_null()) {
+		it->get_to(v.fail_time);
+	}
+	if (auto it = j.find("update_payment_url"); it != j.end() && !it->is_null()) {
+		it->get_to(v.update_payment_url);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const PointsLeaderboardError& v) {
 	j = nlohmann::json::object();
 	j["message"] = v.message;
@@ -13214,6 +13813,7 @@ inline void to_json(nlohmann::json& j, const PointsLeaderboardKey& v) {
 	j["Blocks"] = v.Blocks;
 	j["Streak"] = v.Streak;
 	j["NetworkId"] = v.NetworkId;
+	j["Position"] = v.Position;
 }
 inline void from_json(const nlohmann::json& j, PointsLeaderboardKey& v) {
 	if (!j.is_object()) {
@@ -13231,6 +13831,9 @@ inline void from_json(const nlohmann::json& j, PointsLeaderboardKey& v) {
 	if (auto it = j.find("NetworkId"); it != j.end() && !it->is_null()) {
 		it->get_to(v.NetworkId);
 	}
+	if (auto it = j.find("Position"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Position);
+	}
 }
 
 inline void to_json(nlohmann::json& j, const PointsLeaderboardRow& v) {
@@ -13238,6 +13841,7 @@ inline void to_json(nlohmann::json& j, const PointsLeaderboardRow& v) {
 	if (v.network_id) {
 		j["network_id"] = *v.network_id;
 	}
+	j["is_me"] = v.is_me;
 	if (v.network_name) {
 		j["network_name"] = *v.network_name;
 	}
@@ -13289,6 +13893,9 @@ inline void from_json(const nlohmann::json& j, PointsLeaderboardRow& v) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.network_id = std::move(tmp);
+	}
+	if (auto it = j.find("is_me"); it != j.end() && !it->is_null()) {
+		it->get_to(v.is_me);
 	}
 	if (auto it = j.find("network_name"); it != j.end() && !it->is_null()) {
 		std::string tmp{};
@@ -16100,6 +16707,446 @@ inline void from_json(const nlohmann::json& j, SnSetWalletResult& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const SnTopArgs& v) {
+	j = nlohmann::json::object();
+	if (v.limit) {
+		j["limit"] = *v.limit;
+	}
+	if (v.cursor) {
+		j["cursor"] = *v.cursor;
+	}
+	if (v.filter) {
+		j["filter"] = *v.filter;
+	}
+	if (v.snapshot) {
+		j["snapshot"] = *v.snapshot;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnTopArgs& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("limit"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.limit = std::move(tmp);
+	}
+	if (auto it = j.find("cursor"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.cursor = std::move(tmp);
+	}
+	if (auto it = j.find("filter"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.filter = std::move(tmp);
+	}
+	if (auto it = j.find("snapshot"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.snapshot = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopFleet& v) {
+	j = nlohmann::json::object();
+	j["uid"] = v.uid;
+	j["generation"] = v.generation;
+	j["valid_to_epoch"] = v.valid_to_epoch;
+	j["replica_score"] = v.replica_score;
+	j["has_replica_score"] = v.has_replica_score;
+	j["validator_score"] = v.validator_score;
+	j["has_validator_score"] = v.has_validator_score;
+	j["validator_rank"] = v.validator_rank;
+	j["has_validator_rank"] = v.has_validator_rank;
+	j["validator_rank_of"] = v.validator_rank_of;
+	j["has_validator_rank_of"] = v.has_validator_rank_of;
+	j["selected"] = v.selected;
+	j["has_selected"] = v.has_selected;
+	j["incentive"] = v.incentive;
+	j["has_incentive"] = v.has_incentive;
+	j["incentive_stale"] = v.incentive_stale;
+}
+inline void from_json(const nlohmann::json& j, SnTopFleet& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("uid"); it != j.end() && !it->is_null()) {
+		it->get_to(v.uid);
+	}
+	if (auto it = j.find("generation"); it != j.end() && !it->is_null()) {
+		it->get_to(v.generation);
+	}
+	if (auto it = j.find("valid_to_epoch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.valid_to_epoch);
+	}
+	if (auto it = j.find("replica_score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.replica_score);
+	}
+	if (auto it = j.find("has_replica_score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_replica_score);
+	}
+	if (auto it = j.find("validator_score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.validator_score);
+	}
+	if (auto it = j.find("has_validator_score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_validator_score);
+	}
+	if (auto it = j.find("validator_rank"); it != j.end() && !it->is_null()) {
+		it->get_to(v.validator_rank);
+	}
+	if (auto it = j.find("has_validator_rank"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_validator_rank);
+	}
+	if (auto it = j.find("validator_rank_of"); it != j.end() && !it->is_null()) {
+		it->get_to(v.validator_rank_of);
+	}
+	if (auto it = j.find("has_validator_rank_of"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_validator_rank_of);
+	}
+	if (auto it = j.find("selected"); it != j.end() && !it->is_null()) {
+		it->get_to(v.selected);
+	}
+	if (auto it = j.find("has_selected"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_selected);
+	}
+	if (auto it = j.find("incentive"); it != j.end() && !it->is_null()) {
+		it->get_to(v.incentive);
+	}
+	if (auto it = j.find("has_incentive"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_incentive);
+	}
+	if (auto it = j.find("incentive_stale"); it != j.end() && !it->is_null()) {
+		it->get_to(v.incentive_stale);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopHistoryPoint& v) {
+	j = nlohmann::json::object();
+	j["day"] = v.day;
+	j["rank"] = v.rank;
+	j["score"] = v.score;
+}
+inline void from_json(const nlohmann::json& j, SnTopHistoryPoint& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("day"); it != j.end() && !it->is_null()) {
+		it->get_to(v.day);
+	}
+	if (auto it = j.find("rank"); it != j.end() && !it->is_null()) {
+		it->get_to(v.rank);
+	}
+	if (auto it = j.find("score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.score);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopRow& v) {
+	j = nlohmann::json::object();
+	j["position"] = v.position;
+	j["name"] = v.name;
+	j["tag"] = v.tag;
+	j["projected_score"] = v.projected_score;
+	j["raw_last_tempo"] = v.raw_last_tempo;
+	j["margin"] = v.margin;
+	j["trend"] = v.trend;
+	j["prefixes"] = v.prefixes;
+	j["shared_prefixes"] = v.shared_prefixes;
+	j["presence"] = v.presence;
+	j["label"] = v.label;
+	j["measurable"] = v.measurable;
+	j["verify_eligible"] = v.verify_eligible;
+	j["claim_prompt"] = v.claim_prompt;
+	j["is_me"] = v.is_me;
+	if (v.fleets) {
+		j["fleets"] = *v.fleets;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnTopRow& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("position"); it != j.end() && !it->is_null()) {
+		it->get_to(v.position);
+	}
+	if (auto it = j.find("name"); it != j.end() && !it->is_null()) {
+		it->get_to(v.name);
+	}
+	if (auto it = j.find("tag"); it != j.end() && !it->is_null()) {
+		it->get_to(v.tag);
+	}
+	if (auto it = j.find("projected_score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.projected_score);
+	}
+	if (auto it = j.find("raw_last_tempo"); it != j.end() && !it->is_null()) {
+		it->get_to(v.raw_last_tempo);
+	}
+	if (auto it = j.find("margin"); it != j.end() && !it->is_null()) {
+		it->get_to(v.margin);
+	}
+	if (auto it = j.find("trend"); it != j.end() && !it->is_null()) {
+		it->get_to(v.trend);
+	}
+	if (auto it = j.find("prefixes"); it != j.end() && !it->is_null()) {
+		it->get_to(v.prefixes);
+	}
+	if (auto it = j.find("shared_prefixes"); it != j.end() && !it->is_null()) {
+		it->get_to(v.shared_prefixes);
+	}
+	if (auto it = j.find("presence"); it != j.end() && !it->is_null()) {
+		it->get_to(v.presence);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
+	}
+	if (auto it = j.find("measurable"); it != j.end() && !it->is_null()) {
+		it->get_to(v.measurable);
+	}
+	if (auto it = j.find("verify_eligible"); it != j.end() && !it->is_null()) {
+		it->get_to(v.verify_eligible);
+	}
+	if (auto it = j.find("claim_prompt"); it != j.end() && !it->is_null()) {
+		it->get_to(v.claim_prompt);
+	}
+	if (auto it = j.find("is_me"); it != j.end() && !it->is_null()) {
+		it->get_to(v.is_me);
+	}
+	if (auto it = j.find("fleets"); it != j.end() && !it->is_null()) {
+		SnTopFleetList tmp{};
+		it->get_to(tmp);
+		v.fleets = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopMe& v) {
+	j = nlohmann::json::object();
+	if (v.row) {
+		j["row"] = *v.row;
+	}
+	j["solo_score"] = v.solo_score;
+	j["distinct_prefixes"] = v.distinct_prefixes;
+	j["shared_prefixes"] = v.shared_prefixes;
+	j["shared_with_units"] = v.shared_with_units;
+	j["not_measurable_reason"] = v.not_measurable_reason;
+	if (v.history) {
+		j["history"] = *v.history;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnTopMe& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("row"); it != j.end() && !it->is_null()) {
+		SnTopRow tmp{};
+		it->get_to(tmp);
+		v.row = std::move(tmp);
+	}
+	if (auto it = j.find("solo_score"); it != j.end() && !it->is_null()) {
+		it->get_to(v.solo_score);
+	}
+	if (auto it = j.find("distinct_prefixes"); it != j.end() && !it->is_null()) {
+		it->get_to(v.distinct_prefixes);
+	}
+	if (auto it = j.find("shared_prefixes"); it != j.end() && !it->is_null()) {
+		it->get_to(v.shared_prefixes);
+	}
+	if (auto it = j.find("shared_with_units"); it != j.end() && !it->is_null()) {
+		it->get_to(v.shared_with_units);
+	}
+	if (auto it = j.find("not_measurable_reason"); it != j.end() && !it->is_null()) {
+		it->get_to(v.not_measurable_reason);
+	}
+	if (auto it = j.find("history"); it != j.end() && !it->is_null()) {
+		SnTopHistoryPointList tmp{};
+		it->get_to(tmp);
+		v.history = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopSnapshot& v) {
+	j = nlohmann::json::object();
+	j["id"] = v.id;
+	j["tempo_index"] = v.tempo_index;
+	j["block"] = v.block;
+	if (v.computed_at) {
+		j["computed_at"] = *v.computed_at;
+	}
+	j["settlement_epoch"] = v.settlement_epoch;
+	j["total_ranked"] = v.total_ranked;
+	j["head_seats"] = v.head_seats;
+	j["claimed_fleets"] = v.claimed_fleets;
+	j["open_seats"] = v.open_seats;
+	j["projected_cutoff"] = v.projected_cutoff;
+	j["claimed_cutoff"] = v.claimed_cutoff;
+	j["has_claimed_cutoff"] = v.has_claimed_cutoff;
+	j["binding_open"] = v.binding_open;
+	j["binding_note"] = v.binding_note;
+	j["measured_providers"] = v.measured_providers;
+	j["cohort_capacity"] = v.cohort_capacity;
+	if (v.validator_summary_at) {
+		j["validator_summary_at"] = *v.validator_summary_at;
+	}
+	if (v.incentive_at) {
+		j["incentive_at"] = *v.incentive_at;
+	}
+	j["precision_at_200"] = v.precision_at_200;
+	j["has_precision_at_200"] = v.has_precision_at_200;
+	j["stale"] = v.stale;
+}
+inline void from_json(const nlohmann::json& j, SnTopSnapshot& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.id);
+	}
+	if (auto it = j.find("tempo_index"); it != j.end() && !it->is_null()) {
+		it->get_to(v.tempo_index);
+	}
+	if (auto it = j.find("block"); it != j.end() && !it->is_null()) {
+		it->get_to(v.block);
+	}
+	if (auto it = j.find("computed_at"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.computed_at = std::move(tmp);
+	}
+	if (auto it = j.find("settlement_epoch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.settlement_epoch);
+	}
+	if (auto it = j.find("total_ranked"); it != j.end() && !it->is_null()) {
+		it->get_to(v.total_ranked);
+	}
+	if (auto it = j.find("head_seats"); it != j.end() && !it->is_null()) {
+		it->get_to(v.head_seats);
+	}
+	if (auto it = j.find("claimed_fleets"); it != j.end() && !it->is_null()) {
+		it->get_to(v.claimed_fleets);
+	}
+	if (auto it = j.find("open_seats"); it != j.end() && !it->is_null()) {
+		it->get_to(v.open_seats);
+	}
+	if (auto it = j.find("projected_cutoff"); it != j.end() && !it->is_null()) {
+		it->get_to(v.projected_cutoff);
+	}
+	if (auto it = j.find("claimed_cutoff"); it != j.end() && !it->is_null()) {
+		it->get_to(v.claimed_cutoff);
+	}
+	if (auto it = j.find("has_claimed_cutoff"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_claimed_cutoff);
+	}
+	if (auto it = j.find("binding_open"); it != j.end() && !it->is_null()) {
+		it->get_to(v.binding_open);
+	}
+	if (auto it = j.find("binding_note"); it != j.end() && !it->is_null()) {
+		it->get_to(v.binding_note);
+	}
+	if (auto it = j.find("measured_providers"); it != j.end() && !it->is_null()) {
+		it->get_to(v.measured_providers);
+	}
+	if (auto it = j.find("cohort_capacity"); it != j.end() && !it->is_null()) {
+		it->get_to(v.cohort_capacity);
+	}
+	if (auto it = j.find("validator_summary_at"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.validator_summary_at = std::move(tmp);
+	}
+	if (auto it = j.find("incentive_at"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.incentive_at = std::move(tmp);
+	}
+	if (auto it = j.find("precision_at_200"); it != j.end() && !it->is_null()) {
+		it->get_to(v.precision_at_200);
+	}
+	if (auto it = j.find("has_precision_at_200"); it != j.end() && !it->is_null()) {
+		it->get_to(v.has_precision_at_200);
+	}
+	if (auto it = j.find("stale"); it != j.end() && !it->is_null()) {
+		it->get_to(v.stale);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopMeResult& v) {
+	j = nlohmann::json::object();
+	if (v.snapshot) {
+		j["snapshot"] = *v.snapshot;
+	}
+	if (v.me) {
+		j["me"] = *v.me;
+	}
+	if (v.error) {
+		j["error"] = *v.error;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnTopMeResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("snapshot"); it != j.end() && !it->is_null()) {
+		SnTopSnapshot tmp{};
+		it->get_to(tmp);
+		v.snapshot = std::move(tmp);
+	}
+	if (auto it = j.find("me"); it != j.end() && !it->is_null()) {
+		SnTopMe tmp{};
+		it->get_to(tmp);
+		v.me = std::move(tmp);
+	}
+	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
+		ApiError tmp{};
+		it->get_to(tmp);
+		v.error = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnTopResult& v) {
+	j = nlohmann::json::object();
+	if (v.snapshot) {
+		j["snapshot"] = *v.snapshot;
+	}
+	if (v.rows) {
+		j["rows"] = *v.rows;
+	}
+	if (v.me) {
+		j["me"] = *v.me;
+	}
+	j["next"] = v.next;
+	if (v.error) {
+		j["error"] = *v.error;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnTopResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("snapshot"); it != j.end() && !it->is_null()) {
+		SnTopSnapshot tmp{};
+		it->get_to(tmp);
+		v.snapshot = std::move(tmp);
+	}
+	if (auto it = j.find("rows"); it != j.end() && !it->is_null()) {
+		SnTopRowList tmp{};
+		it->get_to(tmp);
+		v.rows = std::move(tmp);
+	}
+	if (auto it = j.find("me"); it != j.end() && !it->is_null()) {
+		SnTopRow tmp{};
+		it->get_to(tmp);
+		v.me = std::move(tmp);
+	}
+	if (auto it = j.find("next"); it != j.end() && !it->is_null()) {
+		it->get_to(v.next);
+	}
+	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
+		ApiError tmp{};
+		it->get_to(tmp);
+		v.error = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const SnUnsignedTx& v) {
 	j = nlohmann::json::object();
 	j["epoch"] = v.epoch;
@@ -16551,10 +17598,18 @@ inline void from_json(const nlohmann::json& j, StripeCreateCheckoutSessionResult
 
 inline void to_json(nlohmann::json& j, const StripeCreateCustomerPortalArgs& v) {
 	j = nlohmann::json::object();
+	if (v.flow) {
+		j["flow"] = *v.flow;
+	}
 }
 inline void from_json(const nlohmann::json& j, StripeCreateCustomerPortalArgs& v) {
 	if (!j.is_object()) {
 		return;
+	}
+	if (auto it = j.find("flow"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.flow = std::move(tmp);
 	}
 }
 
@@ -16981,6 +18036,47 @@ inline void from_json(const nlohmann::json& j, Subscription& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const WinbackOffer& v) {
+	j = nlohmann::json::object();
+	j["expires_at"] = v.expires_at;
+	j["percent_off"] = v.percent_off;
+	j["plan"] = v.plan;
+	j["store"] = v.store;
+	if (v.play_offer_tag) {
+		j["play_offer_tag"] = *v.play_offer_tag;
+	}
+	if (v.apple_offer_id) {
+		j["apple_offer_id"] = *v.apple_offer_id;
+	}
+}
+inline void from_json(const nlohmann::json& j, WinbackOffer& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("expires_at"); it != j.end() && !it->is_null()) {
+		it->get_to(v.expires_at);
+	}
+	if (auto it = j.find("percent_off"); it != j.end() && !it->is_null()) {
+		it->get_to(v.percent_off);
+	}
+	if (auto it = j.find("plan"); it != j.end() && !it->is_null()) {
+		it->get_to(v.plan);
+	}
+	if (auto it = j.find("store"); it != j.end() && !it->is_null()) {
+		it->get_to(v.store);
+	}
+	if (auto it = j.find("play_offer_tag"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.play_offer_tag = std::move(tmp);
+	}
+	if (auto it = j.find("apple_offer_id"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.apple_offer_id = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const SubscriptionBalanceResult& v) {
 	j = nlohmann::json::object();
 	j["start_balance_byte_count"] = v.start_balance_byte_count;
@@ -17006,6 +18102,9 @@ inline void to_json(nlohmann::json& j, const SubscriptionBalanceResult& v) {
 	if (v.onboarding_offer) {
 		j["onboarding_offer"] = *v.onboarding_offer;
 	}
+	if (v.winback_offer) {
+		j["winback_offer"] = *v.winback_offer;
+	}
 	if (v.experiments) {
 		j["experiments"] = *v.experiments;
 	}
@@ -17014,6 +18113,9 @@ inline void to_json(nlohmann::json& j, const SubscriptionBalanceResult& v) {
 	}
 	if (v.crypto_term) {
 		j["crypto_term"] = *v.crypto_term;
+	}
+	if (v.payment_past_due) {
+		j["payment_past_due"] = *v.payment_past_due;
 	}
 }
 inline void from_json(const nlohmann::json& j, SubscriptionBalanceResult& v) {
@@ -17065,6 +18167,11 @@ inline void from_json(const nlohmann::json& j, SubscriptionBalanceResult& v) {
 		it->get_to(tmp);
 		v.onboarding_offer = std::move(tmp);
 	}
+	if (auto it = j.find("winback_offer"); it != j.end() && !it->is_null()) {
+		WinbackOffer tmp{};
+		it->get_to(tmp);
+		v.winback_offer = std::move(tmp);
+	}
 	if (auto it = j.find("experiments"); it != j.end() && !it->is_null()) {
 		ExperimentAssignmentList tmp{};
 		it->get_to(tmp);
@@ -17079,6 +18186,11 @@ inline void from_json(const nlohmann::json& j, SubscriptionBalanceResult& v) {
 		CryptoTerm tmp{};
 		it->get_to(tmp);
 		v.crypto_term = std::move(tmp);
+	}
+	if (auto it = j.find("payment_past_due"); it != j.end() && !it->is_null()) {
+		PaymentPastDue tmp{};
+		it->get_to(tmp);
+		v.payment_past_due = std::move(tmp);
 	}
 }
 
@@ -17303,6 +18415,43 @@ inline void from_json(const nlohmann::json& j, TransferStatsResult& v) {
 	}
 	if (auto it = j.find("unpaid_bytes_provided"); it != j.end() && !it->is_null()) {
 		it->get_to(v.unpaid_bytes_provided);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const TransportDelay& v) {
+	j = nlohmann::json::object();
+	j["UpQuality"] = v.UpQuality;
+	j["DownQuality"] = v.DownQuality;
+	j["UpBitsPerSecond"] = v.UpBitsPerSecond;
+	j["DownBitsPerSecond"] = v.DownBitsPerSecond;
+	j["UpQueueDelayMillis"] = v.UpQueueDelayMillis;
+	j["DownQueueDelayMillis"] = v.DownQueueDelayMillis;
+	j["Fallback"] = v.Fallback;
+}
+inline void from_json(const nlohmann::json& j, TransportDelay& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("UpQuality"); it != j.end() && !it->is_null()) {
+		it->get_to(v.UpQuality);
+	}
+	if (auto it = j.find("DownQuality"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DownQuality);
+	}
+	if (auto it = j.find("UpBitsPerSecond"); it != j.end() && !it->is_null()) {
+		it->get_to(v.UpBitsPerSecond);
+	}
+	if (auto it = j.find("DownBitsPerSecond"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DownBitsPerSecond);
+	}
+	if (auto it = j.find("UpQueueDelayMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.UpQueueDelayMillis);
+	}
+	if (auto it = j.find("DownQueueDelayMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DownQueueDelayMillis);
+	}
+	if (auto it = j.find("Fallback"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Fallback);
 	}
 }
 
@@ -18420,6 +19569,7 @@ using JwtRefreshListener = std::function<void(std::string jwt)>;
 using ListApiKeysCallback = std::function<void(std::optional<ListApiKeysResult> result, std::optional<std::string> err_param)>;
 using LocalOverrideAppIdsListener = std::function<void()>;
 using LocalStateSaveListener = std::function<void(DeviceLocalSaveResult result)>;
+using LocationMatchListener = std::function<void()>;
 using NetworkBlockLocationCallback = std::function<void(std::optional<NetworkBlockLocationResult> result, std::optional<std::string> err_param)>;
 using NetworkCheckCallback = std::function<void(std::optional<NetworkCheckResult> result, std::optional<std::string> err_param)>;
 using NetworkClientsListener = std::function<void(std::optional<NetworkClientInfoList> network_clients)>;
@@ -18503,6 +19653,8 @@ struct SnLedgerClaimCallback {
 using SnNetworkConsentChallengeCallback = std::function<void(std::optional<SnNetworkConsentChallengeResult> result, std::optional<std::string> err_param)>;
 using SnNetworkConsentStatusCallback = std::function<void(std::optional<SnNetworkConsentStatus> result, std::optional<std::string> err_param)>;
 using SnSetWalletCallback = std::function<void(std::optional<SnSetWalletResult> result, std::optional<std::string> err_param)>;
+using SnTopCallback = std::function<void(std::optional<SnTopResult> result, std::optional<std::string> err_param)>;
+using SnTopMeCallback = std::function<void(std::optional<SnTopMeResult> result, std::optional<std::string> err_param)>;
 using SnValidateWalletCallback = std::function<void(std::optional<SnValidateWalletResult> result, std::optional<std::string> err_param)>;
 using SnWalletChangeListener = std::function<void(std::optional<SnWallet> wallet)>;
 using SolanaPaymentIntentCallback = std::function<void(std::optional<SolanaPaymentIntentResult> result, std::optional<std::string> err_param)>;
@@ -18519,6 +19671,7 @@ using SubscriptionBalanceFetchErrorListener = std::function<void(std::string p0)
 using SubscriptionCreatePaymentIdCallback = std::function<void(std::optional<SubscriptionCreatePaymentIdResult> result, std::optional<std::string> err_param)>;
 using SubscriptionJwtOutOfSyncListener = std::function<void(bool server_is_pro)>;
 using ThroughputListener = std::function<void()>;
+using TransportDelayChangeListener = std::function<void(std::optional<TransportDelay> delay)>;
 using TransportSettingsChangeListener = std::function<void(std::optional<TransportSettings> transport_settings)>;
 using TransportStatusChangeListener = std::function<void(std::optional<TransportStatus> transport_status)>;
 using TunnelChangeListener = std::function<void(bool tunnel_started)>;
@@ -18615,6 +19768,7 @@ public:
 	Sub addProviderTransportSettingsChangeListener(ProviderTransportSettingsChangeListener listener) const;
 	Sub addProviderTransportStatusChangeListener(ProviderTransportStatusChangeListener listener) const;
 	Sub addRouteLocalChangeListener(RouteLocalChangeListener listener) const;
+	Sub addTransportDelayChangeListener(TransportDelayChangeListener listener) const;
 	Sub addTransportSettingsChangeListener(TransportSettingsChangeListener listener) const;
 	Sub addTransportStatusChangeListener(TransportStatusChangeListener listener) const;
 	Sub addTunnelChangeListener(TunnelChangeListener listener) const;
@@ -18682,6 +19836,7 @@ public:
 	bool getShouldShowRatingDialog() const;
 	DeviceStats getStats() const;
 	bool getSupportsExtenderPin() const;
+	std::optional<TransportDelay> getTransportDelay() const;
 	std::optional<TransportSettings> getTransportSettings() const;
 	std::optional<TransportStatus> getTransportStatus() const;
 	bool getTunnelStarted() const;
@@ -18866,6 +20021,8 @@ public:
 	std::optional<SnPoolClaimResult> snPoolClaimSync(const std::optional<SnPoolClaimArgs>& args) const;
 	void snSetWallet(const std::optional<SnSetWalletArgs>& args, SnSetWalletCallback callback) const;
 	std::optional<SnSetWalletResult> snSetWalletSync(const std::optional<SnSetWalletArgs>& args) const;
+	void snTop(const std::optional<SnTopArgs>& args, SnTopCallback callback) const;
+	void snTopMe(SnTopMeCallback callback) const;
 	void snValidateWallet(const std::string& address, SnValidateWalletCallback callback) const;
 	std::optional<SnWalletMappingChallengeResult> snWalletMappingChallengeSync(const std::optional<SnWalletMappingChallengeArgs>& args) const;
 	void startJwtRefresh() const;
@@ -19065,6 +20222,7 @@ public:
 	explicit ConnectViewController(uint64_t h) : detail::Handle(h) {}
 	Sub addConnectionStatusListener(ConnectionStatusListener listener) const;
 	Sub addGridListener(GridListener listener) const;
+	Sub addLocationMatchListener(LocationMatchListener listener) const;
 	Sub addSelectedLocationListener(SelectedLocationListener listener) const;
 	void close() const;
 	void connect(const std::optional<ConnectLocation>& location) const;
@@ -19074,6 +20232,7 @@ public:
 	bool getConnected() const;
 	std::string getConnectionStatus() const;
 	ConnectGrid getGrid() const;
+	std::optional<LocationMatch> getLocationMatch() const;
 	std::optional<ConnectLocation> getSelectedLocation() const;
 	void start() const;
 	void stop() const;
@@ -19283,8 +20442,10 @@ class DeviceLocalKeyMaterial final : public detail::Handle {
 public:
 	DeviceLocalKeyMaterial() = default;
 	explicit DeviceLocalKeyMaterial(uint64_t h) : detail::Handle(h) {}
+	std::string getExtenderMeasurementKeyFile() const;
 	bool isEmpty() const;
 	void setExtenderKeySeed(const uint8_t* extender_key_seed, int32_t extender_key_seed_len) const;
+	void setExtenderMeasurementKeyFile(const std::string& extender_measurement_key_file) const;
 	std::vector<uint8_t> getClientKeySeed() const;
 	std::vector<uint8_t> getProvideTlsCertificatePem() const;
 	std::vector<uint8_t> getProvideTlsPrivateKeyPem() const;
@@ -19451,8 +20612,12 @@ public:
 	void close() const;
 	std::optional<ExtenderShareDecodeResult> decodeShare(const std::string& text) const;
 	void extenderStatusChanged(const std::optional<ExtenderStatus>& status) const;
+	std::optional<ExtenderSeedStatus> getSeedStatus() const;
 	std::optional<ExtenderSettings> getSettings() const;
 	std::optional<ExtenderStatus> getStatus() const;
+	std::optional<ExtenderSeedImportResult> importSeed(const std::string& text) const;
+	std::optional<ExtenderSeedImportResult> importSeedData(const uint8_t* data, int32_t data_len) const;
+	std::optional<ExtenderSeedImportResult> importSeedFile(const std::string& path) const;
 	std::optional<ExtenderImportResult> importShare(const std::string& text, bool use_settings) const;
 	std::optional<ExtenderSettings> resetExtenders() const;
 	std::optional<ExtenderSettings> setSettings(const std::string& dns_name, const std::string& gossip_url, const std::optional<StringList>& hosts) const;
@@ -19710,6 +20875,7 @@ public:
 	std::optional<StringList> getExtenderHosts() const;
 	std::string getExtenderResetId() const;
 	std::optional<StringList> getExtenderRootPublicKeys() const;
+	std::optional<ExtenderSeedStatus> getExtenderSeedStatus() const;
 	std::optional<ExtenderStatus> getExtenderStatus() const;
 	std::string getGossipUrl() const;
 	std::string getHostName() const;
@@ -19728,6 +20894,9 @@ public:
 	std::optional<VlessSettings> getVlessSettings() const;
 	std::string getWallet() const;
 	bool hasPlatformFamilyUrls() const;
+	std::optional<ExtenderSeedImportResult> importExtenderSeed(const std::string& text) const;
+	std::optional<ExtenderSeedImportResult> importExtenderSeedData(const uint8_t* data, int32_t data_len) const;
+	std::optional<ExtenderSeedImportResult> importExtenderSeedFile(const std::string& path) const;
 	std::string resetExtenders() const;
 	LocalStateResetResult resetLocalStateIfCurrent(const LocalAuthStateSnapshot& snapshot) const;
 	bool same(const NetworkSpace& other) const;
@@ -22904,6 +24073,26 @@ inline void oneshot_local_state_save(void* user_data, uint64_t result) {
 	delete f;
 }
 
+inline void retained_location_match(void* user_data) {
+	auto* f = static_cast<LocationMatchListener*>(user_data);
+	try {
+		(*f)();
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_location_match(void* user_data) {
+	auto* f = static_cast<LocationMatchListener*>(user_data);
+	try {
+		(*f)();
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
 inline void retained_network_block_location(void* user_data, const char* result_json, const char* err_param) {
 	auto* f = static_cast<NetworkBlockLocationCallback*>(user_data);
 	try {
@@ -25036,6 +26225,78 @@ inline void oneshot_sn_set_wallet(void* user_data, const char* result_json, cons
 	delete f;
 }
 
+inline void retained_sn_top(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<SnTopCallback*>(user_data);
+	try {
+		std::optional<SnTopResult> result_v;
+		if (result_json) {
+			result_v = parseJson<SnTopResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_sn_top(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<SnTopCallback*>(user_data);
+	try {
+		std::optional<SnTopResult> result_v;
+		if (result_json) {
+			result_v = parseJson<SnTopResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
+inline void retained_sn_top_me(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<SnTopMeCallback*>(user_data);
+	try {
+		std::optional<SnTopMeResult> result_v;
+		if (result_json) {
+			result_v = parseJson<SnTopMeResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_sn_top_me(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<SnTopMeCallback*>(user_data);
+	try {
+		std::optional<SnTopMeResult> result_v;
+		if (result_json) {
+			result_v = parseJson<SnTopMeResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
 inline void retained_sn_validate_wallet(void* user_data, const char* result_json, const char* err_param) {
 	auto* f = static_cast<SnValidateWalletCallback*>(user_data);
 	try {
@@ -25509,6 +26770,34 @@ inline void oneshot_throughput(void* user_data) {
 	auto* f = static_cast<ThroughputListener*>(user_data);
 	try {
 		(*f)();
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
+inline void retained_transport_delay_change(void* user_data, const char* delay_json) {
+	auto* f = static_cast<TransportDelayChangeListener*>(user_data);
+	try {
+		std::optional<TransportDelay> delay_v;
+		if (delay_json) {
+			delay_v = parseJson<TransportDelay>(delay_json);
+		}
+		(*f)(std::move(delay_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_transport_delay_change(void* user_data, const char* delay_json) {
+	auto* f = static_cast<TransportDelayChangeListener*>(user_data);
+	try {
+		std::optional<TransportDelay> delay_v;
+		if (delay_json) {
+			delay_v = parseJson<TransportDelay>(delay_json);
+		}
+		(*f)(std::move(delay_v));
 	} catch (const std::exception& e) {
 		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
 	} catch (...) {
@@ -26624,6 +27913,17 @@ inline Sub Device::addRouteLocalChangeListener(RouteLocalChangeListener listener
 	}
 	return r;
 }
+inline Sub Device::addTransportDelayChangeListener(TransportDelayChangeListener listener) const {
+	std::shared_ptr<TransportDelayChangeListener> listener_fn;
+	if (listener) {
+		listener_fn = std::make_shared<TransportDelayChangeListener>(std::move(listener));
+	}
+	Sub r(urnet_device_add_transport_delay_change_listener(handle(), listener_fn ? &detail::retained_transport_delay_change : nullptr, listener_fn.get()));
+	if (listener_fn) {
+		r.retain(listener_fn);
+	}
+	return r;
+}
 inline Sub Device::addTransportSettingsChangeListener(TransportSettingsChangeListener listener) const {
 	std::shared_ptr<TransportSettingsChangeListener> listener_fn;
 	if (listener) {
@@ -27043,6 +28343,14 @@ inline DeviceStats Device::getStats() const {
 inline bool Device::getSupportsExtenderPin() const {
 	bool r = urnet_device_get_supports_extender_pin(handle());
 	return r;
+}
+inline std::optional<TransportDelay> Device::getTransportDelay() const {
+	char* r_c = urnet_device_get_transport_delay(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<TransportDelay>(r_s->c_str());
 }
 inline std::optional<TransportSettings> Device::getTransportSettings() const {
 	char* r_c = urnet_device_get_transport_settings(handle());
@@ -28281,6 +29589,20 @@ inline std::optional<SnSetWalletResult> Api::snSetWalletSync(const std::optional
 	}
 	return detail::parseJson<SnSetWalletResult>(r_s->c_str());
 }
+inline void Api::snTop(const std::optional<SnTopArgs>& args, SnTopCallback callback) const {
+	std::string args_json;
+	const char* args_c = nullptr;
+	if (args) {
+		args_json = nlohmann::json(*args).dump();
+		args_c = args_json.c_str();
+	}
+	auto* callback_fn = callback ? new SnTopCallback(std::move(callback)) : nullptr;
+	urnet_api_sn_top(handle(), args_c, callback_fn ? &detail::oneshot_sn_top : nullptr, callback_fn);
+}
+inline void Api::snTopMe(SnTopMeCallback callback) const {
+	auto* callback_fn = callback ? new SnTopMeCallback(std::move(callback)) : nullptr;
+	urnet_api_sn_top_me(handle(), callback_fn ? &detail::oneshot_sn_top_me : nullptr, callback_fn);
+}
 inline void Api::snValidateWallet(const std::string& address, SnValidateWalletCallback callback) const {
 	auto* callback_fn = callback ? new SnValidateWalletCallback(std::move(callback)) : nullptr;
 	urnet_api_sn_validate_wallet(handle(), address.c_str(), callback_fn ? &detail::oneshot_sn_validate_wallet : nullptr, callback_fn);
@@ -29032,6 +30354,17 @@ inline Sub ConnectViewController::addGridListener(GridListener listener) const {
 	}
 	return r;
 }
+inline Sub ConnectViewController::addLocationMatchListener(LocationMatchListener listener) const {
+	std::shared_ptr<LocationMatchListener> listener_fn;
+	if (listener) {
+		listener_fn = std::make_shared<LocationMatchListener>(std::move(listener));
+	}
+	Sub r(urnet_connect_view_controller_add_location_match_listener(handle(), listener_fn ? &detail::retained_location_match : nullptr, listener_fn.get()));
+	if (listener_fn) {
+		r.retain(listener_fn);
+	}
+	return r;
+}
 inline Sub ConnectViewController::addSelectedLocationListener(SelectedLocationListener listener) const {
 	std::shared_ptr<SelectedLocationListener> listener_fn;
 	if (listener) {
@@ -29081,6 +30414,14 @@ inline std::string ConnectViewController::getConnectionStatus() const {
 inline ConnectGrid ConnectViewController::getGrid() const {
 	ConnectGrid r(urnet_connect_view_controller_get_grid(handle()));
 	return r;
+}
+inline std::optional<LocationMatch> ConnectViewController::getLocationMatch() const {
+	char* r_c = urnet_connect_view_controller_get_location_match(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<LocationMatch>(r_s->c_str());
 }
 inline std::optional<ConnectLocation> ConnectViewController::getSelectedLocation() const {
 	char* r_c = urnet_connect_view_controller_get_selected_location(handle());
@@ -30092,12 +31433,19 @@ inline void DeviceLocal::writeMemoryOwnerCensus(const std::string& path) const {
 		throw Error("urnet: urnet_device_local_write_memory_owner_census failed");
 	}
 }
+inline std::string DeviceLocalKeyMaterial::getExtenderMeasurementKeyFile() const {
+	char* r_c = urnet_device_local_key_material_get_extender_measurement_key_file(handle());
+	return detail::takeString(r_c);
+}
 inline bool DeviceLocalKeyMaterial::isEmpty() const {
 	bool r = urnet_device_local_key_material_is_empty(handle());
 	return r;
 }
 inline void DeviceLocalKeyMaterial::setExtenderKeySeed(const uint8_t* extender_key_seed, int32_t extender_key_seed_len) const {
 	urnet_device_local_key_material_set_extender_key_seed(handle(), extender_key_seed, extender_key_seed_len);
+}
+inline void DeviceLocalKeyMaterial::setExtenderMeasurementKeyFile(const std::string& extender_measurement_key_file) const {
+	urnet_device_local_key_material_set_extender_measurement_key_file(handle(), extender_measurement_key_file.c_str());
 }
 inline std::string DeviceLocalLoadResult::getDefaultError() const {
 	char* r_c = urnet_device_local_load_result_get_default_error(handle());
@@ -30718,6 +32066,14 @@ inline void ExtenderViewController::extenderStatusChanged(const std::optional<Ex
 	}
 	urnet_extender_view_controller_extender_status_changed(handle(), status_c);
 }
+inline std::optional<ExtenderSeedStatus> ExtenderViewController::getSeedStatus() const {
+	char* r_c = urnet_extender_view_controller_get_seed_status(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedStatus>(r_s->c_str());
+}
 inline std::optional<ExtenderSettings> ExtenderViewController::getSettings() const {
 	char* r_c = urnet_extender_view_controller_get_settings(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -30733,6 +32089,30 @@ inline std::optional<ExtenderStatus> ExtenderViewController::getStatus() const {
 		return std::nullopt;
 	}
 	return detail::parseJson<ExtenderStatus>(r_s->c_str());
+}
+inline std::optional<ExtenderSeedImportResult> ExtenderViewController::importSeed(const std::string& text) const {
+	char* r_c = urnet_extender_view_controller_import_seed(handle(), text.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedImportResult>(r_s->c_str());
+}
+inline std::optional<ExtenderSeedImportResult> ExtenderViewController::importSeedData(const uint8_t* data, int32_t data_len) const {
+	char* r_c = urnet_extender_view_controller_import_seed_data(handle(), data, data_len);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedImportResult>(r_s->c_str());
+}
+inline std::optional<ExtenderSeedImportResult> ExtenderViewController::importSeedFile(const std::string& path) const {
+	char* r_c = urnet_extender_view_controller_import_seed_file(handle(), path.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedImportResult>(r_s->c_str());
 }
 inline std::optional<ExtenderImportResult> ExtenderViewController::importShare(const std::string& text, bool use_settings) const {
 	char* r_c = urnet_extender_view_controller_import_share(handle(), text.c_str(), use_settings);
@@ -31877,6 +33257,14 @@ inline std::optional<StringList> NetworkSpace::getExtenderRootPublicKeys() const
 	}
 	return detail::parseJson<StringList>(r_s->c_str());
 }
+inline std::optional<ExtenderSeedStatus> NetworkSpace::getExtenderSeedStatus() const {
+	char* r_c = urnet_network_space_get_extender_seed_status(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedStatus>(r_s->c_str());
+}
 inline std::optional<ExtenderStatus> NetworkSpace::getExtenderStatus() const {
 	char* r_c = urnet_network_space_get_extender_status(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -31964,6 +33352,30 @@ inline std::string NetworkSpace::getWallet() const {
 inline bool NetworkSpace::hasPlatformFamilyUrls() const {
 	bool r = urnet_network_space_has_platform_family_urls(handle());
 	return r;
+}
+inline std::optional<ExtenderSeedImportResult> NetworkSpace::importExtenderSeed(const std::string& text) const {
+	char* r_c = urnet_network_space_import_extender_seed(handle(), text.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedImportResult>(r_s->c_str());
+}
+inline std::optional<ExtenderSeedImportResult> NetworkSpace::importExtenderSeedData(const uint8_t* data, int32_t data_len) const {
+	char* r_c = urnet_network_space_import_extender_seed_data(handle(), data, data_len);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedImportResult>(r_s->c_str());
+}
+inline std::optional<ExtenderSeedImportResult> NetworkSpace::importExtenderSeedFile(const std::string& path) const {
+	char* r_c = urnet_network_space_import_extender_seed_file(handle(), path.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ExtenderSeedImportResult>(r_s->c_str());
 }
 inline std::string NetworkSpace::resetExtenders() const {
 	char* r_c = urnet_network_space_reset_extenders(handle());

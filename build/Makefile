@@ -63,12 +63,14 @@ _build_android:
 	# pin-store helper is unexported; neither may appear as an accepted omission
 	# the same applies to the DeviceLocalSettings struct fields, the DeviceLocal security-policy
 	# generator setters, and testing-only constructors whose unsupported field/param types gomobile skips
-	# the Sim* simulation scaffolding (sim_device.go) is a go-embedder surface whose configs
-	# deliberately carry connect types, and CollapseHostNames is the go-side ([]string) variant
+	# the Sim* simulation scaffolding is a Go-embedder surface excluded by sdk_mobile_bind.
+	# CollapseHostNames is the go-side ([]string) variant
 	# of CollapseHostNamesList — both are expected skips, not part of the mobile surface
 	# the extender network's []string surface is the same case: the ExtenderHosts and
 	# ExtenderRootPublicKeys package helpers and the NetworkSpaceValues fields they read are
 	# the go-side variants of the StringList form the mobile ExtenderSettings carries
+	# NetworkSpaceValues.ExtenderSeedMirrors is a go-side setting too: a build's seed mirrors come
+	# from the bundled table for its host, and no app screen sets them
 	# note the .comment section is stripped from the build library for cross-platform build reproducibility, see
 	# https://f-droid.org/en/docs/Reproducible_Builds/#ndk-clang-version-string-in-comment-section
 	# note llvm-objcopy and checksec take one library per call (objcopy reads a second path as its output file).

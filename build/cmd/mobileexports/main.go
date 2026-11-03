@@ -64,6 +64,12 @@ var mobileExtenderStringSliceIds = map[string]bool{
 	// SetControlDohUrls, and the []string fields stay for go embedders
 	"NetworkSpaceValues.ControlDohUrlsIpv4": true,
 	"NetworkSpaceValues.ControlDohUrlsIpv6": true,
+	// the mirrors of the seed bundle (extender_seed_mirrors.go), a slice of
+	// entries gomobile cannot bind either: a build's mirrors come from the
+	// bundled table for its host, no app screen sets them, and values that
+	// name others reach the tunnel process with the exported space, so the
+	// field stays for go embedders and the json of the values
+	"NetworkSpaceValues.ExtenderSeedMirrors": true,
 }
 
 // The exact lifecycle joins take context.Context and are for Go owners. Mobile
@@ -118,8 +124,7 @@ func allowedMobileOmission(identifier string) bool {
 	if typeName == "DeviceLocalSettings" || strings.Contains(identifier, "SetUpgradeMuxSettings") {
 		return true
 	}
-	if identifier == "Testing_NewNetworkSpaceWithUrls" || identifier == "CollapseHostNames" ||
-		strings.HasPrefix(identifier, "Sim") || strings.HasPrefix(identifier, "NewSim") {
+	if identifier == "Testing_NewNetworkSpaceWithUrls" || identifier == "CollapseHostNames" {
 		return true
 	}
 	if strings.Contains(identifier, "SyncWithContext") || memberName == "NewApi" ||

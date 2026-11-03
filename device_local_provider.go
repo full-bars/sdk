@@ -69,6 +69,16 @@ type deviceLocalProvider struct {
 	// whether the extender role also binds its dns carrier on 53, the
 	// device's ProvideExtenderDnsPrivilegedPort (L2)
 	extenderDnsPrivilegedPort bool
+	// extenderRoleChanged, when set, is called after a role asked to be replaced
+	// and has been, which the device's watch of the status must hear of (F3)
+	extenderRoleChanged func()
+	// when the running role was built, and the spread of the wait before the
+	// next role asks to be replaced. Taken with extenderLock.
+	extenderStartTime     time.Time
+	extenderRestartJitter time.Duration
+	// what the activation of the role that was replaced handed over, for the role
+	// that replaces it. Taken with extenderLock.
+	extenderActivatorState *connect.ExtenderActivatorState
 	// extenderSettingsConfigure, when set, adjusts the extender role's
 	// settings before it is built. Tests bind ephemeral carrier ports and
 	// point the activation at an in-process operator through it.
@@ -401,13 +411,14 @@ func newDeviceLocalProviderWithOverrides(
 	return provider, nil
 }
 
-// Whether a provide mode serves public peers (J4). The modes are ordered by
-// openness, so the test is public and above, which also covers the stream
-// modes. It errs toward public on purpose: dialing direct where it was not
-// needed costs nothing, while a public provider tagged with an extender's
-// address is the failure this rule exists to prevent.
+// Whether a provide mode serves public peers (J4). Provide modes are a set of
+// independent relationships, not an ordered scale (protocol.ProvideMode), so
+// this names the one device mode that provides publicly: setProvideModeWithLock
+// grants the public contract mode only to ProvideModePublic. A stream mode
+// provides nothing publicly, so it must neither declare provide intent nor
+// give up the extender dialers a censored network may need.
 func provideModeIncludesPublic(provideMode ProvideMode) bool {
-	return ProvideModePublic <= provideMode
+	return provideMode == ProvideModePublic
 }
 
 // The strategy the standby transport of a new generation dials with (J4).
@@ -1551,7 +1562,54 @@ func shareDevicePeerKeyPinStore(client, device *connect.ClientSettings) {
 func (self *deviceLocalProvider) setExtenderEnabled(enabled bool) {
 	self.extenderLock.Lock()
 	defer self.extenderLock.Unlock()
+	if !enabled {
+		// a role asked for again later starts as a new one does
+		self.extenderActivatorState = nil
+	}
+	self.setExtenderEnabledWithLock(enabled)
+}
 
+// Replaces a role that asked for it: its server ended, or its tcp carrier stayed
+// lost (G2). A role that is no longer the one running was stopped or replaced
+// since it asked, and a setting that turned the role off meanwhile stands. The
+// wait before the next ask doubles while the replacements do not last, so a role
+// that ends at once is not rebuilt in a loop.
+func (self *deviceLocalProvider) restartExtender(role *deviceLocalExtender) {
+	self.extenderLock.Lock()
+	defer self.extenderLock.Unlock()
+
+	current, closed := func() (*deviceLocalExtender, bool) {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		return self.extender, self.closed
+	}()
+	if closed || current != role {
+		return
+	}
+	if extenderProvideRestartStableTimeout <= time.Since(self.extenderStartTime) {
+		self.extenderRestartJitter = 0
+	} else {
+		self.extenderRestartJitter = min(
+			max(2*self.extenderRestartJitter, extenderProvideRestartMinJitter),
+			extenderProvideRestartMaxJitter,
+		)
+	}
+	self.setExtenderEnabledWithLock(false)
+	// what its activation was holding outlives it, so a fleet whose roles are
+	// replaced together does not post together. It is closed by now, so what it
+	// hands over is settled. A role that never got as far as activating leaves what
+	// it was handed.
+	if activatorState := role.activatorState(); activatorState != nil {
+		self.extenderActivatorState = activatorState
+	}
+	self.setExtenderEnabledWithLock(true)
+	// the watch of the status holds the old role's channel (F3)
+	if self.extenderRoleChanged != nil {
+		self.extenderRoleChanged()
+	}
+}
+
+func (self *deviceLocalProvider) setExtenderEnabledWithLock(enabled bool) {
 	current, closed := func() (*deviceLocalExtender, bool) {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -1583,6 +1641,7 @@ func (self *deviceLocalProvider) setExtenderEnabled(enabled bool) {
 		self.setExtenderStartError(err)
 		return
 	}
+	self.extenderStartTime = time.Now()
 	extender, err := newDeviceLocalExtender(self.ctx, settings)
 	if err != nil {
 		self.setExtenderStartError(err)
@@ -1656,6 +1715,9 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 		ByJwt:                  self.byJwt,
 		ClientStrategySettings: self.clientStrategySettings,
 		DialContext:            connectSettings.DialContext,
+		Restart:                self.restartExtender,
+		RestartJitter:          self.extenderRestartJitter,
+		ActivatorState:         self.extenderActivatorState,
 	}
 	settings.MeasurementsEnabled = self.extenderMeasurementsEnabled
 	if self.extenderSettingsConfigure != nil {

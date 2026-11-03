@@ -166,8 +166,10 @@ func newApi(
 		accountSignInRequiredListeners:  connect.NewCallbackList[AccountSignInRequiredListener](),
 		clientRefreshIntegrityListeners: connect.NewCallbackList[ClientRefreshIntegrityListener](),
 	}
-	api.tokenManager = newApiTokenManager(cancelCtx, api)
-	api.networkRenewer = newApiNetworkCredentialRenewer(cancelCtx, api)
+	// both workers read the same immutable schedule
+	refreshSettings := defaultApiTokenRefreshSettings()
+	api.tokenManager = newApiTokenManager(cancelCtx, api, refreshSettings)
+	api.networkRenewer = newApiNetworkCredentialRenewer(cancelCtx, api, refreshSettings)
 	return api
 }
 
@@ -353,10 +355,10 @@ func (self *Api) AddAuthLogoutListener(listener AuthLogoutListener) Sub {
 	})
 }
 
-// StartJwtRefresh idempotently enables the API-owned refresh worker. Network
-// login JWTs are not refreshable and remain dormant; a client JWT containing
-// client_id and device_id is validated/refreshed immediately and then ahead of
-// expiry.
+// Idempotently enables the API-owned refresh worker. Network login JWTs are
+// not refreshable and remain dormant; a client JWT containing client_id and
+// device_id is validated/refreshed immediately, and then each token at a point
+// drawn between 40% and 50% of its lifetime (apiTokenRefreshSettings).
 //
 //gomobile:noexport
 func (self *Api) StartJwtRefresh() {
@@ -1452,6 +1454,10 @@ type FindProviders2Args struct {
 	// IpFamilyFilterV6Capable (dualstack first, then v6-only), or the exact
 	// categories IpFamilyDualstack, IpFamilyV4Only, IpFamilyV6Only.
 	IpFamily string `json:"ip_family,omitempty"`
+	// Strict asks for the requested locations only. Unset, a city or region
+	// the server holds no admitted provider for is answered from its region,
+	// then its country, and each provider found there carries its Match.
+	Strict bool `json:"strict,omitempty"`
 }
 
 // MultiHopIdList is a list of multi-hop ids, each an ordered *IdList
@@ -1492,6 +1498,12 @@ type FindProvidersProvider struct {
 	// IpFamilyV4Only or IpFamilyV6Only; empty for a fixed client-id spec,
 	// which bypasses discovery
 	IpFamily string `json:"ip_family,omitempty"`
+	// Match is LocationTypeRegion or LocationTypeCountry when the provider
+	// was found there because the requested city or region had no admitted
+	// provider, so an app can say what it shows in place of the location it
+	// asked for. Empty for a provider of the requested location itself, a
+	// fixed client-id spec, a Strict request, and from an older server.
+	Match string `json:"match,omitempty"`
 }
 
 // `model.ProviderLocation`: the location of a provider client, resolved from
@@ -1897,6 +1909,10 @@ type SubscriptionBalanceResult struct {
 	PriceTier *PriceTier `json:"price_tier,omitempty"`
 	// OnboardingOffer is the caller's welcome offer; nil when none was issued.
 	OnboardingOffer *OnboardingOffer `json:"onboarding_offer,omitempty"`
+	// WinbackOffer is the caller's win-back offer, the monthly plan's first
+	// month at a discount for a network that paid before; nil when there is
+	// none, and from an older server.
+	WinbackOffer *WinbackOffer `json:"winback_offer,omitempty"`
 	// Experiments is the caller's variant per experiment surface; nil when no
 	// experiment runs.
 	Experiments *ExperimentAssignmentList `json:"experiments,omitempty"`
@@ -1910,6 +1926,27 @@ type SubscriptionBalanceResult struct {
 	// has not ended, for the renewal notice (CryptoTermNoticeDue); nil when
 	// there is none.
 	CryptoTerm *CryptoTerm `json:"crypto_term,omitempty"`
+
+	// ----- failed renewals -----
+	// PaymentPastDue is set while a store retries a renewal whose payment did
+	// not go through (a declined card on a Stripe renewal). Apps show the
+	// past-due notice while it is set, with an "Update payment method" action
+	// that opens its UpdatePaymentUrl. nil when no renewal is failing, and
+	// from an older server.
+	PaymentPastDue *PaymentPastDue `json:"payment_past_due,omitempty"`
+}
+
+// A renewal whose payment did not go through, which the store is retrying
+// (SubscriptionBalanceResult.PaymentPastDue).
+type PaymentPastDue struct {
+	// the store retrying the renewal: "stripe"
+	Store string `json:"store"`
+	// when the renewal first failed, RFC 3339
+	FailTime string `json:"fail_time"`
+	// where the customer updates the payment method: ur.io's Manage
+	// Subscription, whose "Update payment method" opens the store's billing
+	// portal for the signed-in network
+	UpdatePaymentUrl string `json:"update_payment_url"`
 }
 
 // ExperimentVariant is the caller's variant on a surface, "" when no
@@ -2813,7 +2850,13 @@ type GetPointsLeaderboardArgs struct {
 // `DisplayName` is the network name, or empty when `Anonymous` (the app then
 // shows its localized "Anonymous"); `EmojiTag` shows either way.
 type PointsLeaderboardRow struct {
-	NetworkId   *Id    `json:"network_id"`
+	// NetworkId is nil on an anonymous row: since 2026-10-29 the server sends
+	// it only on a named row and on the signed-in caller's own row, so an
+	// anonymous row never identifies its network. Use IsMe to find the
+	// caller's row and Position to order rows.
+	NetworkId *Id `json:"network_id"`
+	// IsMe marks the signed-in caller's own row
+	IsMe        bool   `json:"is_me"`
 	NetworkName string `json:"network_name,omitempty"`
 	EmojiTag    string `json:"emoji_tag,omitempty"`
 	Anonymous   bool   `json:"anonymous"`
@@ -3442,7 +3485,16 @@ func (self *Api) CreateStripePaymentIntent(args *StripeCreatePaymentIntentArgs, 
  * Stripe Customer Portal
  */
 
-type StripeCreateCustomerPortalArgs struct{}
+// The portal flow that opens straight on updating the payment method
+// (StripeCreateCustomerPortalArgs.Flow).
+const StripeCustomerPortalFlowPaymentMethodUpdate = "payment_method_update"
+
+type StripeCreateCustomerPortalArgs struct {
+	// StripeCustomerPortalFlowPaymentMethodUpdate opens the portal on updating
+	// the payment method, and returns to ur.io's Manage Subscription once it is
+	// saved; empty opens the portal's home. An older server ignores it.
+	Flow string `json:"flow,omitempty"`
+}
 
 type StripeCreateCustomerPortalError struct {
 	// the server's `SubscriptionErrorCode*` value (`no_customer` or

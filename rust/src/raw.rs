@@ -99,6 +99,7 @@ pub type urnet_jwt_refresh_cb = Option<unsafe extern "C" fn(*mut c_void, *const 
 pub type urnet_list_api_keys_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_local_override_app_ids_cb = Option<unsafe extern "C" fn(*mut c_void) -> ()>;
 pub type urnet_local_state_save_cb = Option<unsafe extern "C" fn(*mut c_void, u64) -> ()>;
+pub type urnet_location_match_cb = Option<unsafe extern "C" fn(*mut c_void) -> ()>;
 pub type urnet_network_block_location_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_network_check_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_network_clients_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
@@ -178,6 +179,8 @@ pub type urnet_sn_ledger_claim_sent_cb = Option<unsafe extern "C" fn(*mut c_void
 pub type urnet_sn_network_consent_challenge_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_network_consent_status_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_set_wallet_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
+pub type urnet_sn_top_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
+pub type urnet_sn_top_me_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_validate_wallet_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_sn_wallet_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_solana_payment_intent_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
@@ -194,6 +197,7 @@ pub type urnet_subscription_balance_fetch_error_cb = Option<unsafe extern "C" fn
 pub type urnet_subscription_create_payment_id_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> ()>;
 pub type urnet_subscription_jwt_out_of_sync_cb = Option<unsafe extern "C" fn(*mut c_void, bool) -> ()>;
 pub type urnet_throughput_cb = Option<unsafe extern "C" fn(*mut c_void) -> ()>;
+pub type urnet_transport_delay_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_transport_settings_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_transport_status_change_cb = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> ()>;
 pub type urnet_tunnel_change_cb = Option<unsafe extern "C" fn(*mut c_void, bool) -> ()>;
@@ -376,6 +380,8 @@ pub struct Raw {
     pub urnet_api_sn_pool_claim_sync: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> *mut c_char,
     pub urnet_api_sn_set_wallet: unsafe extern "C" fn(u64, *const c_char, urnet_sn_set_wallet_cb, *mut c_void) -> (),
     pub urnet_api_sn_set_wallet_sync: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> *mut c_char,
+    pub urnet_api_sn_top: unsafe extern "C" fn(u64, *const c_char, urnet_sn_top_cb, *mut c_void) -> (),
+    pub urnet_api_sn_top_me: unsafe extern "C" fn(u64, urnet_sn_top_me_cb, *mut c_void) -> (),
     pub urnet_api_sn_validate_wallet: unsafe extern "C" fn(u64, *const c_char, urnet_sn_validate_wallet_cb, *mut c_void) -> (),
     pub urnet_api_sn_wallet_mapping_challenge_sync: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> *mut c_char,
     pub urnet_api_start_jwt_refresh: unsafe extern "C" fn(u64) -> (),
@@ -503,6 +509,7 @@ pub struct Raw {
     pub urnet_connect_grid_get_window_target_size: unsafe extern "C" fn(u64) -> i64,
     pub urnet_connect_view_controller_add_connection_status_listener: unsafe extern "C" fn(u64, urnet_connection_status_cb, *mut c_void) -> u64,
     pub urnet_connect_view_controller_add_grid_listener: unsafe extern "C" fn(u64, urnet_grid_cb, *mut c_void) -> u64,
+    pub urnet_connect_view_controller_add_location_match_listener: unsafe extern "C" fn(u64, urnet_location_match_cb, *mut c_void) -> u64,
     pub urnet_connect_view_controller_add_selected_location_listener: unsafe extern "C" fn(u64, urnet_selected_location_cb, *mut c_void) -> u64,
     pub urnet_connect_view_controller_close: unsafe extern "C" fn(u64) -> (),
     pub urnet_connect_view_controller_connect: unsafe extern "C" fn(u64, *const c_char) -> (),
@@ -512,6 +519,7 @@ pub struct Raw {
     pub urnet_connect_view_controller_get_connected: unsafe extern "C" fn(u64) -> bool,
     pub urnet_connect_view_controller_get_connection_status: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_connect_view_controller_get_grid: unsafe extern "C" fn(u64) -> u64,
+    pub urnet_connect_view_controller_get_location_match: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_connect_view_controller_get_selected_location: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_connect_view_controller_start: unsafe extern "C" fn(u64) -> (),
     pub urnet_connect_view_controller_stop: unsafe extern "C" fn(u64) -> (),
@@ -593,6 +601,7 @@ pub struct Raw {
     pub urnet_device_add_provider_transport_settings_change_listener: unsafe extern "C" fn(u64, urnet_provider_transport_settings_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_provider_transport_status_change_listener: unsafe extern "C" fn(u64, urnet_provider_transport_status_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_route_local_change_listener: unsafe extern "C" fn(u64, urnet_route_local_change_cb, *mut c_void) -> u64,
+    pub urnet_device_add_transport_delay_change_listener: unsafe extern "C" fn(u64, urnet_transport_delay_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_transport_settings_change_listener: unsafe extern "C" fn(u64, urnet_transport_settings_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_transport_status_change_listener: unsafe extern "C" fn(u64, urnet_transport_status_change_cb, *mut c_void) -> u64,
     pub urnet_device_add_tunnel_change_listener: unsafe extern "C" fn(u64, urnet_tunnel_change_cb, *mut c_void) -> u64,
@@ -659,6 +668,8 @@ pub struct Raw {
     pub urnet_device_get_route_local: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_get_should_show_rating_dialog: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_get_stats: unsafe extern "C" fn(u64) -> u64,
+    pub urnet_device_get_supports_extender_pin: unsafe extern "C" fn(u64) -> bool,
+    pub urnet_device_get_transport_delay: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_get_transport_settings: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_get_transport_status: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_get_tunnel_started: unsafe extern "C" fn(u64) -> bool,
@@ -834,8 +845,10 @@ pub struct Raw {
     pub urnet_device_local_upload_logs_with_files: unsafe extern "C" fn(u64, *const c_char, *const c_char, urnet_upload_logs_cb, *mut c_void, *mut *mut c_char) -> bool,
     pub urnet_device_local_wait_for_close: unsafe extern "C" fn(u64, i64) -> bool,
     pub urnet_device_local_write_memory_owner_census: unsafe extern "C" fn(u64, *const c_char, *mut *mut c_char) -> bool,
+    pub urnet_device_local_key_material_get_extender_measurement_key_file: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_local_key_material_is_empty: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_local_key_material_set_extender_key_seed: unsafe extern "C" fn(u64, *const u8, i32) -> (),
+    pub urnet_device_local_key_material_set_extender_measurement_key_file: unsafe extern "C" fn(u64, *const c_char) -> (),
     pub urnet_device_local_load_result_get_default_error: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_device_local_load_result_get_has_connect_location: unsafe extern "C" fn(u64) -> bool,
     pub urnet_device_local_load_result_get_has_default_location: unsafe extern "C" fn(u64) -> bool,
@@ -954,8 +967,12 @@ pub struct Raw {
     pub urnet_extender_view_controller_close: unsafe extern "C" fn(u64) -> (),
     pub urnet_extender_view_controller_decode_share: unsafe extern "C" fn(u64, *const c_char) -> *mut c_char,
     pub urnet_extender_view_controller_extender_status_changed: unsafe extern "C" fn(u64, *const c_char) -> (),
+    pub urnet_extender_view_controller_get_seed_status: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_extender_view_controller_get_settings: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_extender_view_controller_get_status: unsafe extern "C" fn(u64) -> *mut c_char,
+    pub urnet_extender_view_controller_import_seed: unsafe extern "C" fn(u64, *const c_char) -> *mut c_char,
+    pub urnet_extender_view_controller_import_seed_data: unsafe extern "C" fn(u64, *const u8, i32) -> *mut c_char,
+    pub urnet_extender_view_controller_import_seed_file: unsafe extern "C" fn(u64, *const c_char) -> *mut c_char,
     pub urnet_extender_view_controller_import_share: unsafe extern "C" fn(u64, *const c_char, bool) -> *mut c_char,
     pub urnet_extender_view_controller_reset_extenders: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_extender_view_controller_set_settings: unsafe extern "C" fn(u64, *const c_char, *const c_char, *const c_char) -> *mut c_char,
@@ -1120,6 +1137,7 @@ pub struct Raw {
     pub urnet_network_space_get_extender_hosts: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_get_extender_reset_id: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_get_extender_root_public_keys: unsafe extern "C" fn(u64) -> *mut c_char,
+    pub urnet_network_space_get_extender_seed_status: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_get_extender_status: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_get_gossip_url: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_get_host_name: unsafe extern "C" fn(u64) -> *mut c_char,
@@ -1138,6 +1156,9 @@ pub struct Raw {
     pub urnet_network_space_get_vless_settings: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_get_wallet: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_has_platform_family_urls: unsafe extern "C" fn(u64) -> bool,
+    pub urnet_network_space_import_extender_seed: unsafe extern "C" fn(u64, *const c_char) -> *mut c_char,
+    pub urnet_network_space_import_extender_seed_data: unsafe extern "C" fn(u64, *const u8, i32) -> *mut c_char,
+    pub urnet_network_space_import_extender_seed_file: unsafe extern "C" fn(u64, *const c_char) -> *mut c_char,
     pub urnet_network_space_reset_extenders: unsafe extern "C" fn(u64) -> *mut c_char,
     pub urnet_network_space_reset_local_state_if_current: unsafe extern "C" fn(u64, u64, *mut *mut c_char) -> u64,
     pub urnet_network_space_same: unsafe extern "C" fn(u64, u64) -> bool,
@@ -1722,6 +1743,8 @@ impl Raw {
             urnet_api_sn_pool_claim_sync: unsafe { *library.get(b"urnet_api_sn_pool_claim_sync\0")? },
             urnet_api_sn_set_wallet: unsafe { *library.get(b"urnet_api_sn_set_wallet\0")? },
             urnet_api_sn_set_wallet_sync: unsafe { *library.get(b"urnet_api_sn_set_wallet_sync\0")? },
+            urnet_api_sn_top: unsafe { *library.get(b"urnet_api_sn_top\0")? },
+            urnet_api_sn_top_me: unsafe { *library.get(b"urnet_api_sn_top_me\0")? },
             urnet_api_sn_validate_wallet: unsafe { *library.get(b"urnet_api_sn_validate_wallet\0")? },
             urnet_api_sn_wallet_mapping_challenge_sync: unsafe { *library.get(b"urnet_api_sn_wallet_mapping_challenge_sync\0")? },
             urnet_api_start_jwt_refresh: unsafe { *library.get(b"urnet_api_start_jwt_refresh\0")? },
@@ -1849,6 +1872,7 @@ impl Raw {
             urnet_connect_grid_get_window_target_size: unsafe { *library.get(b"urnet_connect_grid_get_window_target_size\0")? },
             urnet_connect_view_controller_add_connection_status_listener: unsafe { *library.get(b"urnet_connect_view_controller_add_connection_status_listener\0")? },
             urnet_connect_view_controller_add_grid_listener: unsafe { *library.get(b"urnet_connect_view_controller_add_grid_listener\0")? },
+            urnet_connect_view_controller_add_location_match_listener: unsafe { *library.get(b"urnet_connect_view_controller_add_location_match_listener\0")? },
             urnet_connect_view_controller_add_selected_location_listener: unsafe { *library.get(b"urnet_connect_view_controller_add_selected_location_listener\0")? },
             urnet_connect_view_controller_close: unsafe { *library.get(b"urnet_connect_view_controller_close\0")? },
             urnet_connect_view_controller_connect: unsafe { *library.get(b"urnet_connect_view_controller_connect\0")? },
@@ -1858,6 +1882,7 @@ impl Raw {
             urnet_connect_view_controller_get_connected: unsafe { *library.get(b"urnet_connect_view_controller_get_connected\0")? },
             urnet_connect_view_controller_get_connection_status: unsafe { *library.get(b"urnet_connect_view_controller_get_connection_status\0")? },
             urnet_connect_view_controller_get_grid: unsafe { *library.get(b"urnet_connect_view_controller_get_grid\0")? },
+            urnet_connect_view_controller_get_location_match: unsafe { *library.get(b"urnet_connect_view_controller_get_location_match\0")? },
             urnet_connect_view_controller_get_selected_location: unsafe { *library.get(b"urnet_connect_view_controller_get_selected_location\0")? },
             urnet_connect_view_controller_start: unsafe { *library.get(b"urnet_connect_view_controller_start\0")? },
             urnet_connect_view_controller_stop: unsafe { *library.get(b"urnet_connect_view_controller_stop\0")? },
@@ -1939,6 +1964,7 @@ impl Raw {
             urnet_device_add_provider_transport_settings_change_listener: unsafe { *library.get(b"urnet_device_add_provider_transport_settings_change_listener\0")? },
             urnet_device_add_provider_transport_status_change_listener: unsafe { *library.get(b"urnet_device_add_provider_transport_status_change_listener\0")? },
             urnet_device_add_route_local_change_listener: unsafe { *library.get(b"urnet_device_add_route_local_change_listener\0")? },
+            urnet_device_add_transport_delay_change_listener: unsafe { *library.get(b"urnet_device_add_transport_delay_change_listener\0")? },
             urnet_device_add_transport_settings_change_listener: unsafe { *library.get(b"urnet_device_add_transport_settings_change_listener\0")? },
             urnet_device_add_transport_status_change_listener: unsafe { *library.get(b"urnet_device_add_transport_status_change_listener\0")? },
             urnet_device_add_tunnel_change_listener: unsafe { *library.get(b"urnet_device_add_tunnel_change_listener\0")? },
@@ -2005,6 +2031,8 @@ impl Raw {
             urnet_device_get_route_local: unsafe { *library.get(b"urnet_device_get_route_local\0")? },
             urnet_device_get_should_show_rating_dialog: unsafe { *library.get(b"urnet_device_get_should_show_rating_dialog\0")? },
             urnet_device_get_stats: unsafe { *library.get(b"urnet_device_get_stats\0")? },
+            urnet_device_get_supports_extender_pin: unsafe { *library.get(b"urnet_device_get_supports_extender_pin\0")? },
+            urnet_device_get_transport_delay: unsafe { *library.get(b"urnet_device_get_transport_delay\0")? },
             urnet_device_get_transport_settings: unsafe { *library.get(b"urnet_device_get_transport_settings\0")? },
             urnet_device_get_transport_status: unsafe { *library.get(b"urnet_device_get_transport_status\0")? },
             urnet_device_get_tunnel_started: unsafe { *library.get(b"urnet_device_get_tunnel_started\0")? },
@@ -2180,8 +2208,10 @@ impl Raw {
             urnet_device_local_upload_logs_with_files: unsafe { *library.get(b"urnet_device_local_upload_logs_with_files\0")? },
             urnet_device_local_wait_for_close: unsafe { *library.get(b"urnet_device_local_wait_for_close\0")? },
             urnet_device_local_write_memory_owner_census: unsafe { *library.get(b"urnet_device_local_write_memory_owner_census\0")? },
+            urnet_device_local_key_material_get_extender_measurement_key_file: unsafe { *library.get(b"urnet_device_local_key_material_get_extender_measurement_key_file\0")? },
             urnet_device_local_key_material_is_empty: unsafe { *library.get(b"urnet_device_local_key_material_is_empty\0")? },
             urnet_device_local_key_material_set_extender_key_seed: unsafe { *library.get(b"urnet_device_local_key_material_set_extender_key_seed\0")? },
+            urnet_device_local_key_material_set_extender_measurement_key_file: unsafe { *library.get(b"urnet_device_local_key_material_set_extender_measurement_key_file\0")? },
             urnet_device_local_load_result_get_default_error: unsafe { *library.get(b"urnet_device_local_load_result_get_default_error\0")? },
             urnet_device_local_load_result_get_has_connect_location: unsafe { *library.get(b"urnet_device_local_load_result_get_has_connect_location\0")? },
             urnet_device_local_load_result_get_has_default_location: unsafe { *library.get(b"urnet_device_local_load_result_get_has_default_location\0")? },
@@ -2300,8 +2330,12 @@ impl Raw {
             urnet_extender_view_controller_close: unsafe { *library.get(b"urnet_extender_view_controller_close\0")? },
             urnet_extender_view_controller_decode_share: unsafe { *library.get(b"urnet_extender_view_controller_decode_share\0")? },
             urnet_extender_view_controller_extender_status_changed: unsafe { *library.get(b"urnet_extender_view_controller_extender_status_changed\0")? },
+            urnet_extender_view_controller_get_seed_status: unsafe { *library.get(b"urnet_extender_view_controller_get_seed_status\0")? },
             urnet_extender_view_controller_get_settings: unsafe { *library.get(b"urnet_extender_view_controller_get_settings\0")? },
             urnet_extender_view_controller_get_status: unsafe { *library.get(b"urnet_extender_view_controller_get_status\0")? },
+            urnet_extender_view_controller_import_seed: unsafe { *library.get(b"urnet_extender_view_controller_import_seed\0")? },
+            urnet_extender_view_controller_import_seed_data: unsafe { *library.get(b"urnet_extender_view_controller_import_seed_data\0")? },
+            urnet_extender_view_controller_import_seed_file: unsafe { *library.get(b"urnet_extender_view_controller_import_seed_file\0")? },
             urnet_extender_view_controller_import_share: unsafe { *library.get(b"urnet_extender_view_controller_import_share\0")? },
             urnet_extender_view_controller_reset_extenders: unsafe { *library.get(b"urnet_extender_view_controller_reset_extenders\0")? },
             urnet_extender_view_controller_set_settings: unsafe { *library.get(b"urnet_extender_view_controller_set_settings\0")? },
@@ -2466,6 +2500,7 @@ impl Raw {
             urnet_network_space_get_extender_hosts: unsafe { *library.get(b"urnet_network_space_get_extender_hosts\0")? },
             urnet_network_space_get_extender_reset_id: unsafe { *library.get(b"urnet_network_space_get_extender_reset_id\0")? },
             urnet_network_space_get_extender_root_public_keys: unsafe { *library.get(b"urnet_network_space_get_extender_root_public_keys\0")? },
+            urnet_network_space_get_extender_seed_status: unsafe { *library.get(b"urnet_network_space_get_extender_seed_status\0")? },
             urnet_network_space_get_extender_status: unsafe { *library.get(b"urnet_network_space_get_extender_status\0")? },
             urnet_network_space_get_gossip_url: unsafe { *library.get(b"urnet_network_space_get_gossip_url\0")? },
             urnet_network_space_get_host_name: unsafe { *library.get(b"urnet_network_space_get_host_name\0")? },
@@ -2484,6 +2519,9 @@ impl Raw {
             urnet_network_space_get_vless_settings: unsafe { *library.get(b"urnet_network_space_get_vless_settings\0")? },
             urnet_network_space_get_wallet: unsafe { *library.get(b"urnet_network_space_get_wallet\0")? },
             urnet_network_space_has_platform_family_urls: unsafe { *library.get(b"urnet_network_space_has_platform_family_urls\0")? },
+            urnet_network_space_import_extender_seed: unsafe { *library.get(b"urnet_network_space_import_extender_seed\0")? },
+            urnet_network_space_import_extender_seed_data: unsafe { *library.get(b"urnet_network_space_import_extender_seed_data\0")? },
+            urnet_network_space_import_extender_seed_file: unsafe { *library.get(b"urnet_network_space_import_extender_seed_file\0")? },
             urnet_network_space_reset_extenders: unsafe { *library.get(b"urnet_network_space_reset_extenders\0")? },
             urnet_network_space_reset_local_state_if_current: unsafe { *library.get(b"urnet_network_space_reset_local_state_if_current\0")? },
             urnet_network_space_same: unsafe { *library.get(b"urnet_network_space_same\0")? },

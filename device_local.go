@@ -217,7 +217,8 @@ func newDeviceLocalPlatformTransportSettingsForProfile(
 
 // The platform transport settings of each window client the device's
 // generator builds: the device's carrier policy, its shared receive and H1
-// statistics, and its decline of the platform's advisory moves.
+// statistics, its decline of the platform's advisory moves, and the edge
+// placement of a device the platform hosts.
 func (self *DeviceLocal) windowPlatformTransportSettings() *connect.PlatformTransportSettings {
 	settings := newDeviceLocalPlatformTransportSettingsForProfile(
 		self.settings.MemoryTargetByteCount,
@@ -228,6 +229,7 @@ func (self *DeviceLocal) windowPlatformTransportSettings() *connect.PlatformTran
 		self.settings.LowMemoryProfile,
 		self.moveDeclineHook(),
 	)
+	settings.Placement = self.settings.PlatformPlacement
 	settings.ReceiveStats = self.platformTransportReceiveStats
 	settings.H1ConnectionStats = &self.h1ConnectionStats
 	return settings
@@ -403,6 +405,9 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 	return &DeviceLocalSettings{
 		MemoryTargetByteCount: memoryTargetByteCount,
 		LowMemoryProfile:      lowMemoryProfile,
+		// a strict window hands a drained slot to its replacement instead of
+		// building candidates its hard max refuses (see the field)
+		StrictWindowHandover: true,
 		// this works with the `SequenceBufferSize` to control packet loss during back pressure
 		SendTimeout:        5 * time.Second,
 		SequenceBufferSize: bufferSize,
@@ -410,6 +415,7 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 
 		NetContractStatusDuration: 10 * time.Second,
 		NetContractStatusCount:    10,
+		contractErrorLogInterval:  60 * time.Second,
 
 		BlockActionWindowDuration: 300 * time.Second,
 		BlockActionWindowMaxCount: 1024,
@@ -453,6 +459,23 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 		// backgrounded or metered (D11)
 		MoveDeclineBackgroundOrMetered: true,
 
+		// the window transports measure their connections (connect/DELAY.md
+		// §10), with the thresholds of the calibration report until the
+		// shadow trial sets them (§13)
+		EnableTransportDelay:                true,
+		TransportDelayWindowCount:           defaultTransportDelayWindowCount,
+		TransportDelayWindowTimeout:         defaultTransportDelayWindowTimeout,
+		TransportDelayGoodUpBitsPerSecond:   defaultTransportDelayGoodUpBitsPerSecond,
+		TransportDelayBadUpBitsPerSecond:    defaultTransportDelayBadUpBitsPerSecond,
+		TransportDelayGoodDownBitsPerSecond: defaultTransportDelayGoodDownBitsPerSecond,
+		TransportDelayBadDownBitsPerSecond:  defaultTransportDelayBadDownBitsPerSecond,
+		TransportDelayGoodUpQueueDelay:      defaultTransportDelayGoodUpQueueDelay,
+		TransportDelayGoodDownQueueDelay:    defaultTransportDelayGoodDownQueueDelay,
+		TransportDelayBadUpQueueDelay:       defaultTransportDelayBadUpQueueDelay,
+		TransportDelayBadDownQueueDelay:     defaultTransportDelayBadDownQueueDelay,
+		TransportDelayQualityStep:           defaultTransportDelayQualityStep,
+		TransportDelayQualityHysteresis:     defaultTransportDelayQualityHysteresis,
+
 		ClientSettings: *clientSettings,
 	}
 }
@@ -482,9 +505,9 @@ func (self *DeviceLocalSettings) logger() connect.Logger {
 // BusyProbeBudgetMillis and friends elsewhere in the sdk.
 //
 // Millisecond granularity is not a narrowing in practice: every default here
-// is whole seconds (5s, 10s, 300s, 1s, 1s). A sub-millisecond value set from
-// Go still round-trips through the Go field untouched — only the bound view
-// truncates.
+// is whole milliseconds (5s, 10s, 300s, 1s, 1s, 20s, 500ms, 2.5s). A
+// sub-millisecond value set from Go still round-trips through the Go field
+// untouched — only the bound view truncates.
 
 func (self *DeviceLocalSettings) GetSendTimeoutMillis() int64 {
 	return self.SendTimeout.Milliseconds()
@@ -526,6 +549,46 @@ func (self *DeviceLocalSettings) SetNetworkPeersEpochMillis(millis int64) {
 	self.NetworkPeersEpoch = time.Duration(millis) * time.Millisecond
 }
 
+func (self *DeviceLocalSettings) GetTransportDelayWindowTimeoutMillis() int64 {
+	return self.TransportDelayWindowTimeout.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayWindowTimeoutMillis(millis int64) {
+	self.TransportDelayWindowTimeout = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetTransportDelayGoodUpQueueDelayMillis() int64 {
+	return self.TransportDelayGoodUpQueueDelay.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayGoodUpQueueDelayMillis(millis int64) {
+	self.TransportDelayGoodUpQueueDelay = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetTransportDelayGoodDownQueueDelayMillis() int64 {
+	return self.TransportDelayGoodDownQueueDelay.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayGoodDownQueueDelayMillis(millis int64) {
+	self.TransportDelayGoodDownQueueDelay = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetTransportDelayBadUpQueueDelayMillis() int64 {
+	return self.TransportDelayBadUpQueueDelay.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayBadUpQueueDelayMillis(millis int64) {
+	self.TransportDelayBadUpQueueDelay = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetTransportDelayBadDownQueueDelayMillis() int64 {
+	return self.TransportDelayBadDownQueueDelay.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayBadDownQueueDelayMillis(millis int64) {
+	self.TransportDelayBadDownQueueDelay = time.Duration(millis) * time.Millisecond
+}
+
 // DeviceLocalSettings is BOUND and app-facing, despite what a
 // `//gomobile:noexport` on this type used to claim: gobind emits the class
 // with ~50 working members, and Sdk exposes both defaultDeviceLocalSettings()
@@ -557,6 +620,12 @@ type DeviceLocalSettings struct {
 	ProviderDiscovery connect.NetworkProviderDiscovery `json:"-"`
 	//gomobile:noexport Go-only private API authority.
 	LocalApi localDeviceApi `json:"-"`
+	// Chooses the edge each window transport dials, for a device the platform
+	// hosts, which reads the platform's edge load (connect
+	// platform_placement.go). A platform device has no provider, so only the
+	// windows are placed. Nil resolves the platform host.
+	//gomobile:noexport Go-only platform placement authority.
+	PlatformPlacement connect.PlatformPlacement `json:"-"`
 	// Diagnostic-only injection of the existing allocator-error return path.
 	testingTakeLocalAddress func() (netip.Addr, bool)
 	// Constructor seams observe admission ordering without creating a client.
@@ -594,6 +663,14 @@ type DeviceLocalSettings struct {
 	//gomobile:noexport time.Duration — bound as GetNetContractStatusMillis/SetNetContractStatusMillis
 	NetContractStatusDuration time.Duration
 	NetContractStatusCount    int
+
+	// The least time between two `[contract]error` lines of one kind while
+	// the contract status keeps that kind (contractErrorLogThrottle). Under
+	// sustained contract refusals every status update reports the error, and
+	// the line made up most of an app's logs. One minute, as connect's log
+	// throttles. Non-positive logs every error. Unexported, so the bound
+	// settings and the c abi json do not change.
+	contractErrorLogInterval time.Duration
 
 	// the time window and max count of retained block actions
 	//
@@ -708,6 +785,42 @@ type DeviceLocalSettings struct {
 	// (SetNetworkMetered). A compulsory move still applies. On by default;
 	// off accepts advisory moves in either state.
 	MoveDeclineBackgroundOrMetered bool
+	// EnableTransportDelay offers the delay header on every window transport,
+	// which then measures its connection, and reports the transport quality
+	// (Device.GetTransportDelay, connect/DELAY.md §10). On by default. Off,
+	// nothing is offered or measured and the quality reads normal operation;
+	// a hosted device turns it off, since its transports run between data
+	// centers and never cross the user's link. Settings are not sent over the
+	// device rpc, so these are set where the device is built.
+	EnableTransportDelay bool
+	// the window: each direction scores the second-worst of its newest
+	// TransportDelayWindowCount sampled seconds, none older than
+	// TransportDelayWindowTimeout (transport_delay.go)
+	TransportDelayWindowCount int
+	//gomobile:noexport time.Duration — bound as GetTransportDelayWindowTimeoutMillis/SetTransportDelayWindowTimeoutMillis
+	TransportDelayWindowTimeout time.Duration
+	// the link throughput where a direction's quality reaches 0 (at or above
+	// good) and 1 (at or below bad), in bits per second (§10.2)
+	TransportDelayGoodUpBitsPerSecond   int64
+	TransportDelayBadUpBitsPerSecond    int64
+	TransportDelayGoodDownBitsPerSecond int64
+	TransportDelayBadDownBitsPerSecond  int64
+	// the standing queue where a direction's quality reaches 0 (at or below
+	// good) and 1 (at or above bad)
+	//
+	//gomobile:noexport time.Duration — bound as GetTransportDelayGoodUpQueueDelayMillis/SetTransportDelayGoodUpQueueDelayMillis
+	TransportDelayGoodUpQueueDelay time.Duration
+	//gomobile:noexport time.Duration — bound as GetTransportDelayGoodDownQueueDelayMillis/SetTransportDelayGoodDownQueueDelayMillis
+	TransportDelayGoodDownQueueDelay time.Duration
+	//gomobile:noexport time.Duration — bound as GetTransportDelayBadUpQueueDelayMillis/SetTransportDelayBadUpQueueDelayMillis
+	TransportDelayBadUpQueueDelay time.Duration
+	//gomobile:noexport time.Duration — bound as GetTransportDelayBadDownQueueDelayMillis/SetTransportDelayBadDownQueueDelayMillis
+	TransportDelayBadDownQueueDelay time.Duration
+	// the reported quality is a multiple of the step. A worse level is
+	// reported at once; a better one once the quality is the hysteresis
+	// below the level's band (§10.3)
+	TransportDelayQualityStep       float64
+	TransportDelayQualityHysteresis float64
 	// GeneratorFunc, when set, builds the multi client generator instead of
 	// the default api generator
 	//
@@ -722,6 +835,37 @@ type DeviceLocalSettings struct {
 	//gomobile:noexport connect.MultiClientIdentityStore is an interface from
 	// another package, which gomobile does not bind. Go/headless hosts only.
 	MultiClientIdentityStore connect.MultiClientIdentityStore `json:"-"`
+	// SchedulerPauseDetector, when set, is the one scheduler-pause detector
+	// the device's multi clients share with the other devices of their host,
+	// instead of each running its own
+	// (`connect.MultiClientSettings.SchedulerPauseDetector`). A host that runs
+	// many devices in one process (the proxy service) sets one on all of them.
+	//
+	//gomobile:noexport a pointer to another package's struct, which gomobile
+	// does not bind. Go/headless hosts only.
+	SchedulerPauseDetector *connect.SchedulerPauseDetector `json:"-"`
+	// When set, the process's counters of what the device's windows do with
+	// their window clients
+	// (`connect.MultiClientSettings.WindowClientStats`). A host that runs many
+	// devices in one process (the proxy service) sets one instance on all of
+	// them and exports it. Nil counts nothing.
+	//
+	//gomobile:noexport a pointer to another package's struct, which gomobile
+	// does not bind. Go/headless hosts only.
+	WindowClientStats *connect.WindowClientStats `json:"-"`
+	// Turns on a strict window's handover
+	// (`connect.MultiClientSettings.StrictWindowHandover`) for every multi
+	// client of the device: a window at its hard max builds no candidate the
+	// hard max refuses, and a drained client hands its slot to its
+	// replacement. On by default for every host (CPUOPT3 D2: the owner turned
+	// it on for apps). It acts only on strict windows, which the low-memory
+	// profile gives iOS, Android and the hosted proxy devices; other windows
+	// plan as before either way. A host turns it off for an emergency:
+	// gomobile hosts with setStrictWindowHandover(false) on
+	// Sdk.defaultDeviceLocalSettings() and Sdk.newDeviceLocal, c abi hosts
+	// with "StrictWindowHandover": false in the settings json, and the proxy
+	// service with proxy.yml window_strict_handover: false.
+	StrictWindowHandover bool
 	// ProviderDialContextSettings, when set, is applied to the provider carrier
 	// and the exit NAT's TCP and UDP sockets. Headless integration harnesses use
 	// it to bind every path of each provider to one distinct loopback source
@@ -820,7 +964,10 @@ type DeviceLocal struct {
 	networkId        string
 	apiJwtRefreshSub Sub
 	apiAuthLogoutSub Sub
-	authPublication  *deviceAuthPublicationGate
+	// Releases this device's binding of the space's gated release fetch to
+	// its client token (extender_release_space.go). Set at construction.
+	extenderReleaseUnbind func()
+	authPublication       *deviceAuthPublicationGate
 	// Explicit key saves are separate from preference autosave. Capture and
 	// commit one current value at a time without holding callback/native locks.
 	providerKeySaveLock sync.Mutex
@@ -900,9 +1047,10 @@ type DeviceLocal struct {
 	closeOnce sync.Once
 	closed    bool
 
-	// Every device-owned goroutine or asynchronous retirement is admitted
-	// under stateLock before Close publishes the closed state. The join worker
-	// can therefore wait without racing a late WaitGroup.Add.
+	// Constructor workers are admitted before publication. Later retirement is
+	// admitted under stateLock before close() releases it with closed=true;
+	// Close starts its join only after closeOnce.Do returns. Destination setters
+	// check closed under that same lock, so their Add cannot race a zero Wait.
 	lifecycleWorkers  sync.WaitGroup
 	lifecycleJoinOnce sync.Once
 	lifecycleDone     chan struct{}
@@ -955,6 +1103,13 @@ type DeviceLocal struct {
 	remoteUserNatClient connect.UserNatClient
 	contractStatusSub   func()
 	windowMonitorSub    func()
+	// the delay stats of the current multi client generation
+	// (device_local_transport_delay.go)
+	transportDelayStatsSub func()
+	// the window of those stats, guarded by its own lock so a transport
+	// goroutine never takes stateLock, and the wake of watchTransportDelay
+	transportDelay       *transportDelayWindow
+	transportDelayNotify chan struct{}
 
 	// a stable windowMonitor instance per remoteUserNatClient for the
 	// fixed/empty monitor types (see cachedWindowMonitor). Guarded by its own
@@ -1079,6 +1234,9 @@ type DeviceLocal struct {
 
 	orderedContractStatusUpdates []*contractStatusUpdate
 	netContractStatus            *ContractStatus
+	// rate-limit the `[contract]error` lines, one throttle per kind
+	insufficientBalanceLogThrottle contractErrorLogThrottle
+	noPermissionLogThrottle        contractErrorLogThrottle
 	// the last WindowStatus dispatched to listeners. the monitor fires an event
 	// for transitions that do not change the derived status — notably a terminal
 	// provider state for a client that was never added, whose delete is a no-op —
@@ -1127,6 +1285,11 @@ type DeviceLocal struct {
 	mobileMemoryProviderTrafficByteCount ByteCount
 	// contracts of the provider client, which lives as long as the device
 	providerContracts *deviceContractTracker
+	// shared by both trackers: signaled when an update leaves something for
+	// `runContractStatsFlush` to carry out, so the settled loop can park
+	contractStatsFlushWake chan struct{}
+	// Observes each pass of `runContractStatsFlush`. Nil in production.
+	contractStatsFlushPassForTest atomic.Pointer[func()]
 
 	// packet counts on the fallback local route (no remote client)
 	localFallbackEgressPacketCount  atomic.Int64
@@ -1184,6 +1347,8 @@ type DeviceLocal struct {
 	authLogoutListeners    *connect.CallbackList[AuthLogoutListener]
 	// fed by watchClientLimitStatus from the provider's client limit hold
 	clientLimitStatusChangeListeners *connect.CallbackList[ClientLimitStatusChangeListener]
+	// fed by watchTransportDelay from the window transports' delay stats
+	transportDelayChangeListeners *connect.CallbackList[TransportDelayChangeListener]
 	// fed by watchProviderConnected from the provider's transport generations
 	providerConnectedChangeCallbacks *connect.CallbackList[func(providerConnected bool)]
 
@@ -1783,6 +1948,7 @@ func newDeviceLocalWithOverridesForPlatform(
 		netContractStatus:                        &ContractStatus{},
 		contracts:                                newDeviceContractTracker(),
 		providerContracts:                        newDeviceContractTracker(),
+		contractStatsFlushWake:                   make(chan struct{}, 1),
 		receiveCallbacks:                         connect.NewCallbackList[connect.ReceivePacketFunction](),
 		receivePacketsCallbacks:                  connect.NewCallbackList[connect.ReceivePacketsFunction](),
 		receivePacketBatchCallbacks:              connect.NewCallbackList[receivePacketBatchFunction](),
@@ -1814,6 +1980,9 @@ func newDeviceLocalWithOverridesForPlatform(
 		extenderProvideStatusChangeListeners:     connect.NewCallbackList[ExtenderProvideStatusChangeListener](),
 		extenderProvideMonitor:                   connect.NewMonitor(),
 		clientLimitStatusChangeListeners:         connect.NewCallbackList[ClientLimitStatusChangeListener](),
+		transportDelayChangeListeners:            connect.NewCallbackList[TransportDelayChangeListener](),
+		transportDelay:                           newTransportDelayWindow(settings),
+		transportDelayNotify:                     make(chan struct{}, 1),
 		providerConnectedChangeCallbacks:         connect.NewCallbackList[func(providerConnected bool)](),
 		jwtRefreshListeners:                      connect.NewCallbackList[JwtRefreshListener](),
 		authLogoutListeners:                      connect.NewCallbackList[AuthLogoutListener](),
@@ -1927,6 +2096,9 @@ func newDeviceLocalWithOverridesForPlatform(
 		// are installed here (G2, L2)
 		provider.extenderDnsPrivilegedPort = settings.ProvideExtenderDnsPrivilegedPort
 		provider.extenderSettingsConfigure = settings.providerExtenderSettings
+		provider.extenderRoleChanged = func() {
+			deviceLocal.extenderProvideMonitor.NotifyAll()
+		}
 		// the role reads the measurements setting as it starts, and a change
 		// reaches a running role through setExtenderMeasurementsEnabled
 		// (lag.dev/PLAN.md C4)
@@ -1976,9 +2148,22 @@ func newDeviceLocalWithOverridesForPlatform(
 		deviceLocal.watchExtenderProvideStatus(extenderProvideUpdate)
 	})
 
+	// the transport quality of the window transports. The wake is made with
+	// the device, so a sample that lands the instant the constructor returns
+	// still wakes the watch
+	if settings.EnableTransportDelay {
+		deviceLocal.lifecycleWorkers.Add(1)
+		go connect.HandleError(func() {
+			defer deviceLocal.lifecycleWorkers.Done()
+			deviceLocal.watchTransportDelay()
+		})
+	}
+
 	// the trailing edge of the contract stats epoch gate: carries out the last
 	// batch of a transfer, which lands inside the gate and would otherwise never
 	// be emitted, and decays the bit rate of idle contracts
+	deviceLocal.contracts.flushWake = deviceLocal.contractStatsFlushWake
+	deviceLocal.providerContracts.flushWake = deviceLocal.contractStatsFlushWake
 	deviceLocal.lifecycleWorkers.Add(1)
 	go connect.HandleError(func() {
 		defer deviceLocal.lifecycleWorkers.Done()
@@ -2024,6 +2209,14 @@ func newDeviceLocalWithOverridesForPlatform(
 	// in this tenant's name.
 	if provider != nil && !settings.HostedIncompatible {
 		provider.enableProbeAttestor(log, settings.providerPingReporterSettings)
+	}
+
+	// the space's gated release is keyed by this device's client token
+	// (connect/EXTENDER-UPDATE2.md §1.1). A hosted device never binds: its
+	// space is shared by unrelated customers.
+	deviceLocal.extenderReleaseUnbind = func() {}
+	if !settings.HostedIncompatible {
+		deviceLocal.extenderReleaseUnbind = networkSpace.bindExtenderRelease(api.GetByJwt)
 	}
 
 	ownedClientStrategyTransferred = true
@@ -2385,6 +2578,14 @@ func applyPlatformTransportMemoryUsage(
 	} else {
 		usage.PlatformTransportPreemptedH3Count = int64(platformTransportStats.PreemptedH3Count)
 	}
+}
+
+// The window policy the host chose for every multi client of the device: the
+// process counters its windows count into, and whether its strict windows
+// hand drained slots over.
+func applyDeviceLocalWindowClientSettings(settings *connect.MultiClientSettings, deviceLocalSettings *DeviceLocalSettings) {
+	settings.WindowClientStats = deviceLocalSettings.WindowClientStats
+	settings.StrictWindowHandover = deviceLocalSettings.StrictWindowHandover
 }
 
 // Keeps an absent/reset window unknown instead of manufacturing readiness.
@@ -2939,8 +3140,42 @@ type contractStatusUpdate struct {
 	contractStatus *connect.ContractStatus
 }
 
+// Rate-limits the line updateContractStatus logs for one kind of contract
+// error. Under sustained contract refusals every status update reports the
+// error, several a second from a VPN window, and the line flooded the log.
+//
+// An error of a kind the device's contract status does not have logs at once:
+// the first one, and the first after the status clears or moves to another
+// kind. While the status keeps the kind, its errors log at most once per
+// interval. A line carries the count of the errors of its kind suppressed since
+// the line before, a count that a clear does not reset.
+//
+// Guarded by the device's stateLock.
+type contractErrorLogThrottle struct {
+	logTime         time.Time
+	suppressedCount int64
+}
+
+// Reports whether an error logs a line at now and, when it does, how many
+// errors of the kind were suppressed since the previous line. A repeat is an
+// error of a kind the device's contract status already has. A non-positive
+// interval logs every error.
+func (self *contractErrorLogThrottle) allow(now time.Time, interval time.Duration, repeat bool) (bool, int64) {
+	if repeat && 0 < interval && now.Sub(self.logTime) < interval {
+		self.suppressedCount += 1
+		return false, 0
+	}
+	suppressedCount := self.suppressedCount
+	self.logTime = now
+	self.suppressedCount = 0
+	return true, suppressedCount
+}
+
 func (self *DeviceLocal) updateContractStatus(contractStatus *connect.ContractStatus) {
 	event := false
+	// at most one error line per update, logged after the lock is released
+	logLine := ""
+	var logSuppressedCount int64
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -2976,10 +3211,8 @@ func (self *DeviceLocal) updateContractStatus(contractStatus *connect.ContractSt
 				switch *contractStatus.Error {
 				case protocol.ContractError_InsufficientBalance:
 					netContractStatus.InsufficientBalance = true
-					self.log.Infof("[contract]error insufficent balance\n")
 				case protocol.ContractError_NoPermission:
 					netContractStatus.NoPermission = true
-					self.log.Infof("[contract]error no permission\n")
 				}
 			} else {
 				// reset the error state
@@ -2990,12 +3223,55 @@ func (self *DeviceLocal) updateContractStatus(contractStatus *connect.ContractSt
 				netContractStatus.Premium = true
 			}
 		}
+		// a result that says nothing about the account (setup, reliability, trust,
+		// a malformed contract) leaves its error as it stood. A refusal aged out of
+		// the window is still the last word on the balance when such a result
+		// pushes it out: clearing it there withdrew the app's out of balance alert,
+		// and reads to a desktop tunnel's failsafe as the balance having come back
+		if contractStatus.Error != nil &&
+			*contractStatus.Error != protocol.ContractError_InsufficientBalance &&
+			*contractStatus.Error != protocol.ContractError_NoPermission &&
+			self.netContractStatus != nil {
+			netContractStatus.InsufficientBalance = self.netContractStatus.InsufficientBalance
+			netContractStatus.NoPermission = self.netContractStatus.NoPermission
+		}
+
+		// only the new update's error is logged. The summary above visits
+		// every update still in the window, and logging there repeated each
+		// error up to NetContractStatusCount times. The status before this
+		// update tells a repeat from a new error
+		if contractStatus.Error != nil {
+			priorContractStatus := ContractStatus{}
+			if self.netContractStatus != nil {
+				priorContractStatus = *self.netContractStatus
+			}
+			allowLog := func(throttle *contractErrorLogThrottle, repeat bool, line string) {
+				if allowed, suppressedCount := throttle.allow(now, self.settings.contractErrorLogInterval, repeat); allowed {
+					logLine = line
+					logSuppressedCount = suppressedCount
+				}
+			}
+			switch *contractStatus.Error {
+			case protocol.ContractError_InsufficientBalance:
+				allowLog(&self.insufficientBalanceLogThrottle, priorContractStatus.InsufficientBalance, "[contract]error insufficent balance")
+			case protocol.ContractError_NoPermission:
+				allowLog(&self.noPermissionLogThrottle, priorContractStatus.NoPermission, "[contract]error no permission")
+			}
+		}
 
 		if self.netContractStatus == nil || *self.netContractStatus != *netContractStatus {
 			self.netContractStatus = netContractStatus
 			event = true
 		}
 	}()
+	if logLine != "" {
+		// the message text is unchanged for log searches; a count is a suffix
+		if 0 < logSuppressedCount {
+			self.log.Infof("%s (%d suppressed)\n", logLine, logSuppressedCount)
+		} else {
+			self.log.Infof("%s\n", logLine)
+		}
+	}
 	if event {
 		self.contractStatusChanged(self.GetContractStatus())
 	}
@@ -3620,6 +3896,8 @@ func (self *DeviceLocal) GetAuthLogoutCause() string {
 }
 
 func (self *DeviceLocal) authLogout() {
+	// a sign-out is an account change to the gated release
+	self.networkSpace.extenderReleaseCredentialChanged()
 	for _, listener := range self.authLogoutListeners.Get() {
 		connect.HandleError(func() {
 			listener.AuthLogout()
@@ -3628,6 +3906,8 @@ func (self *DeviceLocal) authLogout() {
 }
 
 func (self *DeviceLocal) jwtRefreshed(jwt string) {
+	// a token of another identity is an account change to the gated release
+	self.networkSpace.extenderReleaseCredentialChanged()
 	for _, listener := range self.jwtRefreshListeners.Get() {
 		connect.HandleError(func() {
 			listener.JwtRefreshed(jwt)
@@ -4741,23 +5021,20 @@ func (self *DeviceLocal) applyDestination(
 			self.windowMonitorSub()
 			self.windowMonitorSub = nil
 		}
+		if self.transportDelayStatsSub != nil {
+			self.transportDelayStatsSub()
+			self.transportDelayStatsSub = nil
+		}
+		// the samples and levels are the retired multi client's. A sample one
+		// of its transports publishes late is dropped from here on
+		self.transportDelay.reset(self.connectionGeneration, nil)
 		// the prior mux is closed here but its learned IP→hostname names are carried
 		// into the new mux below (AdoptServerNames): server names outlive the physical
 		// connection, so a reconnect/location change must not blank the reverse index —
 		// and the block-action host feed — for flows the OS keeps open (or dials from its
 		// long-TTL DNS cache) across the rebuild. Close() cancels the ctx but leaves the
 		// reverse map intact for the adopt.
-		var priorUpgradeMux *connect.UpgradeMux
-		if self.upgradeMux != nil {
-			priorUpgradeMux = self.upgradeMux
-			// capture the mux's learned DoH server ordering before teardown: it seeds
-			// the next mux this session and persists for the next session's first
-			// lookups (see dohServerScoresSeed)
-			self.saveDohServerScoresWithLock(priorUpgradeMux)
-			self.upgradeMux.Close()
-			self.upgradeMux = nil
-			self.upgradeMuxLiveSettings = nil
-		}
+		priorUpgradeMux := self.closeUpgradeMuxWithLock()
 		self.closeRemoteUserNatClientWithLock()
 
 		if 0 < len(connectSpecs) {
@@ -4853,6 +5130,11 @@ func (self *DeviceLocal) applyDestination(
 				transportMode, modePreferences := toConnectTransportPolicy(self.transportSettings, false)
 				apiGeneratorSettings.PlatformTransportMode = transportMode
 				apiGeneratorSettings.PlatformTransportModePreferences = modePreferences
+				// every window client's transports offer the delay header and
+				// measure (connect/DELAY.md D3)
+				if self.settings.EnableTransportDelay {
+					apiGeneratorSettings.TransportDelay = connect.DefaultTransportDelaySettings()
+				}
 				apiGenerator := connect.NewApiMultiClientGenerator(
 					self.ctx,
 					connectSpecs,
@@ -4967,6 +5249,8 @@ func (self *DeviceLocal) applyDestination(
 				overrideAllowDirect := false
 				settings.OverrideAllowDirect = &overrideAllowDirect
 			}
+			settings.SchedulerPauseDetector = self.settings.SchedulerPauseDetector
+			applyDeviceLocalWindowClientSettings(settings, self.settings)
 			if self.clientSecurityPolicyGenerator != nil {
 				settings.SecurityPolicyGenerator = self.clientSecurityPolicyGenerator
 			}
@@ -5078,6 +5362,14 @@ func (self *DeviceLocal) applyDestination(
 				}
 			}
 			self.windowMonitorSub = monitor.AddMonitorEventCallback(windowMonitorEvent)
+			if self.settings.EnableTransportDelay {
+				// the window takes this generation's samples, from before its
+				// first window client publishes one
+				self.transportDelay.reset(connectionGeneration, multi)
+				self.transportDelayStatsSub = multi.AddTransportDelayStatsCallback(func(stats *connect.TransportDelayStats) {
+					self.updateTransportDelayStats(connectionGeneration, multi, stats)
+				})
+			}
 			// }
 
 			self.remoteUserNatClient.SetLocalSecurityBypass(self.routeLocal)
@@ -5137,6 +5429,9 @@ func (self *DeviceLocal) applyDestination(
 		self.stats.UpdateConnect(connectEnabled)
 		self.connectChanged(connectEnabled)
 		self.windowStatusChanged(self.GetWindowStatus())
+		// the rebuild reset the window; the watch emits the reset levels if
+		// they changed
+		self.notifyTransportDelay()
 		self.providerIdentitiesChanged()
 		self.connectedProviderLocationsChanged()
 		if contractStatusChanged {
@@ -5689,7 +5984,8 @@ func (self *DeviceLocal) WaitForClose(timeoutMilliseconds int64) bool {
 
 // Joins the independently owned API session after callback-safe device
 // cancellation. Hosted owners use this before replacing or releasing a device;
-// callbacks running on the API refresh worker must use Close instead.
+// callbacks running on the API refresh worker or internal mux pump must use
+// Close and leave the join to an independent owner.
 //
 //gomobile:noexport
 func (self *DeviceLocal) CloseAndWait(ctx context.Context) error {
@@ -5713,6 +6009,11 @@ func (self *DeviceLocal) CloseAndWait(ctx context.Context) error {
 }
 
 func (self *DeviceLocal) close() {
+	// before any device lock: the unbind may wait on a release answer being
+	// applied
+	if self.extenderReleaseUnbind != nil {
+		self.extenderReleaseUnbind()
+	}
 	if self.authPublication != nil {
 		self.authPublication.Close()
 	}
@@ -5765,13 +6066,12 @@ func (self *DeviceLocal) close() {
 		self.windowMonitorSub()
 		self.windowMonitorSub = nil
 	}
-	if self.upgradeMux != nil {
-		// persist the learned DoH server ordering for the next session
-		self.saveDohServerScoresWithLock(self.upgradeMux)
-		self.upgradeMux.Close()
-		self.upgradeMux = nil
-		self.upgradeMuxLiveSettings = nil
+	if self.transportDelayStatsSub != nil {
+		self.transportDelayStatsSub()
+		self.transportDelayStatsSub = nil
 	}
+	self.transportDelay.reset(self.connectionGeneration, nil)
+	self.closeUpgradeMuxWithLock()
 	self.closeRemoteUserNatClientWithLock()
 	self.updateSendRouteWithLock()
 	// self.localUserNat.RemoveReceivePacketCallback(self.receive)
@@ -6255,6 +6555,25 @@ func (self *DeviceLocal) closeRemoteUserNatProviderWithLock() {
 			}
 		})
 	}
+}
+
+// Retires the selected mux and admits its pump join under the device's existing
+// close/admission lock. Close itself never waits for that pump, so a native
+// callback may request Close. The returned map owner remains available for
+// AdoptServerNames; this does not join the mux's other independent workers.
+func (self *DeviceLocal) closeUpgradeMuxWithLock() *connect.UpgradeMux {
+	upgradeMux := self.upgradeMux
+	if upgradeMux == nil {
+		return nil
+	}
+	self.saveDohServerScoresWithLock(upgradeMux)
+	upgradeMux.Close()
+	self.upgradeMux = nil
+	self.upgradeMuxLiveSettings = nil
+	self.startLifecycleWorkerWithLock(func() {
+		_ = upgradeMux.WaitForPump(context.Background())
+	})
+	return upgradeMux
 }
 
 // Detaches one destination generation and admits its complete asynchronous
@@ -7143,6 +7462,9 @@ type deviceContractTracker struct {
 	// batch ever arrives to carry it — without the trailing flush the pushed
 	// stats sit permanently below what the getters report
 	pendingEmit bool
+	// signaled without blocking when an update or clear leaves something for
+	// the flush loop to carry out. nil for a bare tracker
+	flushWake chan struct{}
 }
 
 func newDeviceContractTracker() *deviceContractTracker {
@@ -7163,6 +7485,35 @@ func (self *deviceContractTracker) clear() {
 	// last pre-disconnect values while the getters, reading the now empty maps,
 	// report zero — push and pull disagreeing until the next connect
 	self.pendingEmit = true
+	self.wakeFlush()
+}
+
+// wakeFlush resumes a parked flush loop. Called with the tracker's state
+// changed, before the loop could have judged it settled.
+func (self *deviceContractTracker) wakeFlush() {
+	if self.flushWake == nil {
+		return
+	}
+	select {
+	case self.flushWake <- struct{}{}:
+	default:
+	}
+}
+
+// settled reports that `flushPending` has nothing left to do until the next
+// update: no gated update to carry out, and no bit rate left to decay.
+func (self *deviceContractTracker) settled() bool {
+	if self.pendingEmit {
+		return false
+	}
+	for _, contracts := range []map[connect.Id]*deviceContractState{self.egressContracts, self.ingressContracts} {
+		for _, state := range contracts {
+			if state.bitRate != 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // applies a contract stats event batch.
@@ -7176,6 +7527,9 @@ func (self *deviceContractTracker) update(
 	epoch time.Duration,
 ) (egressStats *ContractStats, ingressStats *ContractStats, egressDetails *ContractDetailsList, ingressDetails *ContractDetailsList) {
 	now := time.Now()
+	// whatever this folds in, the flush loop has a trailing edge or a decay to
+	// carry out
+	defer self.wakeFlush()
 	hasClose := false
 	for _, event := range events {
 		if 0 < event.Sequence {
@@ -7349,18 +7703,37 @@ func (self *DeviceLocal) updateContractStatsEvents(events []*connect.ContractSta
 // arrives — the pushed stats then sit permanently below what the getters report,
 // and a finished transfer keeps reporting its last bit rate. This loop is the
 // trailing edge the gate needs.
+//
+// The loop arms one timer for its life. Once both trackers settle (nothing
+// gated, no rate left to decay) it parks until an update wakes it, so an idle
+// device costs no epoch wakeups.
 func (self *DeviceLocal) runContractStatsFlush() {
+	flushTimer := time.NewTimer(self.settings.ContractStatsEpoch)
+	defer flushTimer.Stop()
 	for {
 		select {
 		case <-self.ctx.Done():
 			return
-		case <-time.After(self.settings.ContractStatsEpoch):
+		case <-flushTimer.C:
 		}
-		self.flushContractStats()
+		settled := self.flushContractStats()
+		if pass := self.contractStatsFlushPassForTest.Load(); pass != nil {
+			(*pass)()
+		}
+		if settled {
+			select {
+			case <-self.ctx.Done():
+				return
+			case <-self.contractStatsFlushWake:
+			}
+		}
+		flushTimer.Reset(self.settings.ContractStatsEpoch)
 	}
 }
 
-func (self *DeviceLocal) flushContractStats() {
+// flushContractStats returns whether both trackers settled. An update that
+// lands after the judgement wakes the loop, so a parked loop never strands it.
+func (self *DeviceLocal) flushContractStats() (settled bool) {
 	var egressStats *ContractStats
 	var ingressStats *ContractStats
 	var egressDetails *ContractDetailsList
@@ -7376,6 +7749,7 @@ func (self *DeviceLocal) flushContractStats() {
 			self.contracts.flushPending(self.settings.ContractStatsEpoch)
 		providerEgressStats, providerIngressStats, providerEgressDetails, providerIngressDetails =
 			self.providerContracts.flushPending(self.settings.ContractStatsEpoch)
+		settled = self.contracts.settled() && self.providerContracts.settled()
 	}()
 	if egressStats != nil {
 		self.egressContractStatsChanged(egressStats)
@@ -7389,6 +7763,7 @@ func (self *DeviceLocal) flushContractStats() {
 		self.providerEgressContractDetailsChanged(providerEgressDetails)
 		self.providerIngressContractDetailsChanged(providerIngressDetails)
 	}
+	return
 }
 
 // the contract stats epoch callback from the provider client

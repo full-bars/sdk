@@ -67,7 +67,8 @@ const (
 	// other carrier and tries the port again every few minutes (EXTENDER.md
 	// G2). The reason is the bind error.
 	ExtenderProvideErrorTcpUnavailable = "tcp_unavailable"
-	// No carrier bound. The reason is the bind failures.
+	// No carrier bound, the tcp carrier was lost and is being bound again, or the
+	// role failed and is being replaced (EXTENDER.md G2). The reason says which.
 	ExtenderProvideErrorListen = "listen"
 	// The last activation failed and no family is active.
 	ExtenderProvideErrorActivationFailed = "activation_failed"
@@ -108,13 +109,15 @@ type ExtenderProvideStatus struct {
 	// activates nothing, ListenError names the tcp carrier, and the bind is
 	// tried again every few minutes, the role starting the moment it holds the
 	// port. On a host with several provider processes the first to take the
-	// port serves the extender and the others report this. Empty while the
-	// role holds the port or is not asked to run.
+	// port serves the extender and the others report this. Empty while the role
+	// holds the port or is not asked to run.
 	TcpUnavailableError string
-	// True while at least one carrier is bound.
+	// True while the tcp carrier is serving, the one port an extender requires
+	// (G2). A role that lost it reports false, with what ended it in ListenError
+	// and no family activated, while it binds the port again.
 	Listening bool
-	// The carriers that failed to bind, as "<carrier>: <error>" joined by
-	// "; ". Empty when every configured carrier bound.
+	// The carriers that failed to bind or were lost, as "<carrier>: <error>"
+	// joined by "; ". Empty when every configured carrier is serving.
 	ListenError string
 	ActivatedV4 bool
 	ActivatedV6 bool
@@ -353,6 +356,20 @@ func (self *ExtenderProvideStatus) withState(
 	return self
 }
 
+// The spread of the wait before a role asks to be replaced (G2), so a fleet that
+// lost its listeners together does not start over together. A replacement that did
+// not last doubles it to the max, which is what keeps a role that ends at once from
+// being rebuilt in a loop.
+const extenderProvideRestartMinJitter = 5 * time.Minute
+const extenderProvideRestartMaxJitter = 1 * time.Hour
+
+// The least of that wait, under the spread: no role is replaced at once, however it
+// ended, so one that fails as it starts is never rebuilt as fast as it can fail.
+const extenderProvideRestartFloor = 1 * time.Minute
+
+// How long a role must have run for its replacement to start the spread over.
+const extenderProvideRestartStableTimeout = 1 * time.Hour
+
 // What one extender role is built from (G2, G3). The provider fills it from
 // the network space and the device's own egress; a test replaces the ports,
 // the listen seams and the operator urls through
@@ -391,6 +408,24 @@ type deviceLocalExtenderSettings struct {
 	// 443 while another process holds it (G2). Tests fire the retry through
 	// it, and hold the role without a sleep.
 	TcpRetryAfter func(wait time.Duration) <-chan time.Time
+
+	// Asks the provider to replace this role with a new one, which is how a role
+	// whose server ended, or whose tcp carrier stayed lost, comes back (G2). The
+	// provider fills it. Nil leaves the role reporting what happened.
+	Restart func(role *deviceLocalExtender)
+	// The spread of the wait before this role asks to be replaced, doubling
+	// with each replacement that did not last (deviceLocalProvider.restartExtender).
+	// Zero takes extenderProvideRestartMinJitter.
+	RestartJitter time.Duration
+	// When set, replaces time.After as the wait before this role asks to be
+	// replaced. Tests fire it, and see the wait the role asked for.
+	RestartAfter func(wait time.Duration) <-chan time.Time
+	// What the activation of the role this one replaces handed over (G2), so its
+	// holds and its status outlive the role. Nil starts as a new process does.
+	ActivatorState *connect.ExtenderActivatorState
+	// ConfigureActivator, when set, adjusts the activation loop's settings before
+	// it is built. Tests pin when a post goes through it.
+	ConfigureActivator func(settings *connect.ExtenderActivatorSettings)
 
 	// The admission limits of this extender (EXTENDER.md A12), each a rate
 	// per minute: the distinct source subnets it admits, and the actions of
@@ -463,6 +498,23 @@ type deviceLocalExtenderSettings struct {
 	// tells the operator, which withdraws the measurement name (C4, C9). Zero
 	// takes extenderMeasurementOptOutHold. Tests shorten it.
 	MeasurementOptOutHold time.Duration
+	// The least time between two log lines of one kind of forward dial
+	// failure, the stream forward's or the datagram relay's (A7). Zero takes
+	// extenderForwardDialErrorLogInterval; a negative value logs every
+	// failure.
+	ForwardDialErrorLogInterval time.Duration
+
+	// The tcp carrier camouflage of this extender (EXTENDER.md P7, phase 14c;
+	// EXTENDER-UPDATE2 §3), the settings `connectctl extender` takes as flags.
+	// Off: the provider fills none of them, so a provider extender serves and
+	// activates as it always has, and only `providerExtenderSettings` turns it
+	// on. CamouflageSplice is the initial posture, off for Phase A, on for
+	// Phase B once this extender's records have settled, and means nothing
+	// without CamouflageEnabled. CamouflageRevalidationInterval is how often the
+	// borrowed names are verified again, zero for the connect default.
+	CamouflageEnabled              bool
+	CamouflageSplice               bool
+	CamouflageRevalidationInterval time.Duration
 }
 
 // The bound dns ports of one extender as one string (F3, L2), ascending.

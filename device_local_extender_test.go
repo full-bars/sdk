@@ -122,6 +122,14 @@ type testProvideExtenderOperator struct {
 	// keeps each signed record newer than the last, which is what the newest
 	// wins rule of B5 needs when two activations land in the same instant
 	issueSerial int
+	// signs the camouflage key an activation posts into its record, as an
+	// operator with phase 14b does; off ignores it, as one without does
+	signCamouflageKey bool
+	// has the record require tcp-camouflage-v1 when it carries a key, as an
+	// operator does for an extender in its capability cohort
+	requireCamouflage bool
+	// the lifetime of a record, zero for the fixture's two weeks
+	recordLifetime time.Duration
 }
 
 func newTestProvideExtenderOperator(
@@ -256,9 +264,25 @@ func (self *testProvideExtenderOperator) activateResult(
 	}
 	self.issueSerial += 1
 	issueTime := now.Add(time.Duration(self.issueSerial) * time.Millisecond)
+	recordLifetime := 14 * 24 * time.Hour
+	if 0 < self.recordLifetime {
+		recordLifetime = self.recordLifetime
+	}
+	var realityPublicKey []byte
+	var requiredCapabilities []string
+	if self.signCamouflageKey && args.RealityPublicKeyHex != "" {
+		var keyErr error
+		if realityPublicKey, keyErr = connect.ParseExtenderRealityPublicKeyHex(args.RealityPublicKeyHex); keyErr != nil {
+			self.stateLock.Unlock()
+			return nil, keyErr
+		}
+		if self.requireCamouflage {
+			requiredCapabilities = []string{connect.ExtenderCapabilityTcpCamouflageV1}
+		}
+	}
 	self.stateLock.Unlock()
 
-	expireTime := now.Add(14 * 24 * time.Hour)
+	expireTime := now.Add(recordLifetime)
 	addresses := []*protocol.ExtenderAddress{}
 	for _, activatedIp := range activatedIps {
 		addr := netip.MustParseAddr(activatedIp)
@@ -283,6 +307,9 @@ func (self *testProvideExtenderOperator) activateResult(
 		IssueTimeMs:  uint64(issueTime.UnixMilli()),
 		ExpireTimeMs: uint64(expireTime.UnixMilli()),
 		NetworkHost:  testProvideExtenderHost,
+
+		RealityPublicKey:     realityPublicKey,
+		RequiredCapabilities: requiredCapabilities,
 	})
 	if err != nil {
 		return nil, err
@@ -616,6 +643,24 @@ func (self *testProvideExtenderFixture) waitStatus(
 				"the status never reported %s, last = %+v",
 				name, self.device.GetExtenderProvideStatus())
 			return nil
+		}
+	}
+}
+
+// The node the space runs, once any swap under way has installed it: the first
+// post's answer rebuilds the node, and the space runs none in between.
+func (self *testProvideExtenderFixture) waitExtenderNode() *spaceExtenderNode {
+	self.t.Helper()
+	deadline := time.After(60 * time.Second)
+	for {
+		update := self.networkSpace.extenderNodeMonitor.NotifyChannel()
+		if extenderNode := self.networkSpace.getExtenderNode(); extenderNode != nil {
+			return extenderNode
+		}
+		select {
+		case <-update:
+		case <-deadline:
+			self.t.Fatal("the space runs no node")
 		}
 	}
 }
@@ -1262,7 +1307,7 @@ func TestDeviceLocalProviderExtenderReusesTheMemberNodeKey(t *testing.T) {
 
 	// the node the role installed carries the same identity, so the peer id
 	// the mesh knows this host by does not change when it becomes an extender
-	extenderPeerId := fixture.networkSpace.getExtenderNode().node.PeerId()
+	extenderPeerId := fixture.waitExtenderNode().node.PeerId()
 	fixture.device.SetProvideExtender(false)
 	memberPeerId := fixture.networkSpace.getExtenderNode().node.PeerId()
 	if extenderPeerId != memberPeerId {
