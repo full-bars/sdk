@@ -8,6 +8,7 @@ import (
 	"fmt"
 	mathrand "math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -148,6 +149,7 @@ func newApiTokenManager(ctx context.Context, api *Api, settings *apiTokenRefresh
 		settings:       settings,
 		clock:          systemApiRefreshClock{},
 	}
+	globalTokenRenewalTracker.registerClient(manager)
 	go func() {
 		defer close(manager.done)
 		connect.HandleError(manager.run)
@@ -170,6 +172,27 @@ func (self *apiTokenManager) clientTag() string {
 		return ""
 	}
 	return " client=" + identity.clientId
+}
+
+func (self *apiTokenManager) clientName() string {
+	identity, ok := parseClientJwtIdentity(self.api.GetByJwt())
+	if !ok || identity.clientId == "" {
+		return "unknown"
+	}
+	return shortClientIdentifier(identity.clientId)
+}
+
+func shortClientIdentifier(clientId string) string {
+	if clientId == "" {
+		return "unknown"
+	}
+	if idx := strings.IndexByte(clientId, '-'); idx > 0 {
+		return clientId[:idx]
+	}
+	if len(clientId) > 8 {
+		return clientId[:8]
+	}
+	return clientId
 }
 
 // jwtCanRefresh is intentionally an unverified parse. It is only a local
@@ -542,6 +565,8 @@ func (self *apiTokenManager) scheduledRefreshTimeout(byJwt string) time.Duration
 }
 
 func (self *apiTokenManager) run() {
+	globalTokenRenewalTracker.registerClient(self)
+	defer globalTokenRenewalTracker.unregisterClient(self)
 	for {
 		// Capture the notify channel BEFORE reading the token and refreshPending,
 		// and use it for exactly ONE wait (the inner retry loop re-captures its
@@ -556,6 +581,7 @@ func (self *apiTokenManager) run() {
 		byJwt := self.api.GetByJwt()
 
 		if !self.active.Load() || !jwtCanRefresh(byJwt) {
+			globalTokenRenewalTracker.clearFailure(self)
 			// keep no copy of a credential that is no longer scheduled, such as
 			// one signed out
 			self.scheduledByJwt = ""
@@ -581,7 +607,7 @@ func (self *apiTokenManager) run() {
 		}
 
 		if 0 < refreshTimeout {
-			self.api.logger().Infof(
+			self.api.logger().V(1).Infof(
 				"[api-token]%s waiting %.2fs to refresh the jwt",
 				self.clientTag(), float64(refreshTimeout/time.Millisecond)/1000.0,
 			)
@@ -624,10 +650,15 @@ func (self *apiTokenManager) run() {
 			// the floor of the next scheduled refresh counts from here
 			self.lastRefreshAttemptTime = self.clock.Now()
 			attempt := self.beginRefreshAttempt()
-			self.api.logger().Infof("[api-token]%s refreshing the jwt now", self.clientTag())
+			self.api.logger().V(1).Infof("[api-token]%s refreshing the jwt now", self.clientTag())
 			outcome := self.refreshTokenWithContext(attempt.ctx, byJwt)
 			superseded := self.finishRefreshAttempt(attempt)
 			if outcome.loggedOut || outcome.stale || outcome.err == nil {
+				if outcome.err == nil && !outcome.loggedOut && !outcome.stale {
+					globalTokenRenewalTracker.clearFailure(self)
+				} else if outcome.loggedOut {
+					globalTokenRenewalTracker.clearFailure(self)
+				}
 				break
 			}
 			if self.ctx.Err() != nil {
@@ -647,9 +678,6 @@ func (self *apiTokenManager) run() {
 				continue
 			}
 
-			if outcome.logRequestError {
-				self.api.logger().Errorf("[api-token]%s failed to refresh JWT: %v", self.clientTag(), outcome.err)
-			}
 			transportRetryPending := self.markRefreshFailed(attempt.transportGeneration)
 
 			// A request arriving during the failed HTTP call must not sleep
@@ -676,10 +704,11 @@ func (self *apiTokenManager) run() {
 			}
 
 			randomTimeout := self.nextRetryTimeout()
+			retryAt := self.clock.Now().Add(randomTimeout)
+			globalTokenRenewalTracker.recordFailure(self, retryAt)
 			self.api.logger().Infof(
-				"[api-token]%s jwt refresh failed. Will retry in %.2fs. err = %s",
-				self.clientTag(), float64(randomTimeout/time.Millisecond)/1000.0,
-				outcome.err,
+				"sign-in renewal failed for client %s: %v; retrying in %s",
+				self.clientName(), outcome.err, formatHumanDuration(randomTimeout),
 			)
 
 			retryWait, stopRetryWait := self.clock.After(randomTimeout)
@@ -787,7 +816,8 @@ func (self *apiTokenManager) refreshTokenWithContext(ctx context.Context, byJwt 
 	if !self.api.setRefreshedByJwt(byJwt, result.ByJwt, authGeneration) {
 		return apiTokenRefreshOutcome{stale: true}
 	}
-	self.api.logger().Infof("[api-token]%s successfully refreshed JWT", self.clientTag())
+	globalTokenRenewalTracker.clearFailure(self)
+	self.api.logger().V(1).Infof("[api-token]%s successfully refreshed JWT", self.clientTag())
 	return apiTokenRefreshOutcome{}
 }
 
@@ -801,4 +831,197 @@ func (self *apiTokenManager) RefreshToken() {
 
 func (self *apiTokenManager) Close() {
 	self.cancel()
+}
+
+func formatHumanDuration(d time.Duration) string {
+	if d <= 0 {
+		return "0s"
+	}
+	if d < time.Minute {
+		sec := int(d.Round(time.Second).Seconds())
+		if sec <= 0 {
+			sec = 1
+		}
+		return fmt.Sprintf("%ds", sec)
+	}
+	if d < time.Hour {
+		min := int(d.Round(time.Minute).Minutes())
+		if min <= 0 {
+			min = 1
+		}
+		return fmt.Sprintf("%dm", min)
+	}
+	if d < 24*time.Hour {
+		hrs := int(d.Round(time.Hour).Hours())
+		if hrs <= 0 {
+			hrs = 1
+		}
+		return fmt.Sprintf("%dh", hrs)
+	}
+	days := int(d.Round(24*time.Hour).Hours() / 24)
+	if days <= 0 {
+		days = 1
+	}
+	return fmt.Sprintf("%dd", days)
+}
+
+type tokenRenewalTracker struct {
+	stateLock sync.Mutex
+	clients   map[*apiTokenManager]struct{}
+	failing   map[*apiTokenManager]time.Time
+	ticker    *time.Ticker
+	stopChan  chan struct{}
+}
+
+var (
+	tokenRenewalSummaryInterval = 1 * time.Minute
+	globalTokenRenewalTracker   = newTokenRenewalTracker()
+)
+
+func newTokenRenewalTracker() *tokenRenewalTracker {
+	return &tokenRenewalTracker{
+		clients: make(map[*apiTokenManager]struct{}),
+		failing: make(map[*apiTokenManager]time.Time),
+	}
+}
+
+func (self *tokenRenewalTracker) registerClient(manager *apiTokenManager) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.clients[manager] = struct{}{}
+}
+
+func (self *tokenRenewalTracker) unregisterClient(manager *apiTokenManager) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	delete(self.clients, manager)
+	delete(self.failing, manager)
+	if len(self.failing) == 0 && self.ticker != nil {
+		self.ticker.Stop()
+		close(self.stopChan)
+		self.ticker = nil
+		self.stopChan = nil
+	}
+}
+
+func (self *tokenRenewalTracker) recordFailure(manager *apiTokenManager, retryAt time.Time) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.clients[manager] = struct{}{}
+	self.failing[manager] = retryAt
+	if self.ticker == nil && tokenRenewalSummaryInterval > 0 {
+		self.ticker = time.NewTicker(tokenRenewalSummaryInterval)
+		self.stopChan = make(chan struct{})
+		go self.runPeriodicSummary(self.ticker, self.stopChan)
+	}
+}
+
+func (self *tokenRenewalTracker) clearFailure(manager *apiTokenManager) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	delete(self.failing, manager)
+	if len(self.failing) == 0 && self.ticker != nil {
+		self.ticker.Stop()
+		close(self.stopChan)
+		self.ticker = nil
+		self.stopChan = nil
+	}
+}
+
+func (self *tokenRenewalTracker) runPeriodicSummary(ticker *time.Ticker, stopChan chan struct{}) {
+	for {
+		select {
+		case <-stopChan:
+			return
+		case <-ticker.C:
+			if !self.emitSummary(time.Now()) {
+				self.stateLock.Lock()
+				if len(self.failing) == 0 && self.ticker == ticker {
+					ticker.Stop()
+					self.ticker = nil
+					self.stopChan = nil
+					self.stateLock.Unlock()
+					return
+				}
+				self.stateLock.Unlock()
+			}
+		}
+	}
+}
+
+func (self *tokenRenewalTracker) emitSummary(now time.Time) bool {
+	self.stateLock.Lock()
+	failingCount := len(self.failing)
+	if failingCount == 0 {
+		self.stateLock.Unlock()
+		return false
+	}
+
+	totalCount := 0
+	var logger connect.Logger
+	for m := range self.clients {
+		if m.api != nil && m.active.Load() && jwtCanRefresh(m.api.GetByJwt()) {
+			totalCount++
+		}
+		if logger == nil && m.api != nil {
+			logger = m.api.logger()
+		}
+	}
+	if totalCount < failingCount {
+		totalCount = failingCount
+	}
+
+	var soonest time.Time
+	first := true
+	for m, retryAt := range self.failing {
+		if first || retryAt.Before(soonest) {
+			soonest = retryAt
+			first = false
+		}
+		if logger == nil && m.api != nil {
+			logger = m.api.logger()
+		}
+	}
+	self.stateLock.Unlock()
+
+	var remaining time.Duration
+	if !first && soonest.After(now) {
+		remaining = soonest.Sub(now)
+	}
+
+	msg := fmt.Sprintf(
+		"sign-in: %d of %d clients failing renewal, next retry in %s",
+		failingCount, totalCount, formatHumanDuration(remaining),
+	)
+
+	if logger == nil {
+		logger = connect.DefaultLogger()
+	}
+	logger.Infof(msg)
+	return true
+}
+
+func (self *tokenRenewalTracker) resetForTesting() {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	if self.ticker != nil {
+		self.ticker.Stop()
+		close(self.stopChan)
+		self.ticker = nil
+		self.stopChan = nil
+	}
+	self.clients = make(map[*apiTokenManager]struct{})
+	self.failing = make(map[*apiTokenManager]time.Time)
+}
+
+func emitTokenManagerSummaryAt(now time.Time) bool {
+	return globalTokenRenewalTracker.emitSummary(now)
+}
+
+func emitTokenManagerSummary() bool {
+	return emitTokenManagerSummaryAt(time.Now())
+}
+
+func resetTokenManagerSummaryTrackerForTesting() {
+	globalTokenRenewalTracker.resetForTesting()
 }
