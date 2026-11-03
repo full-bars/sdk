@@ -609,11 +609,11 @@ func (self *NetworkSpace) suppliedExtenderMeasurementKeyFile() string {
 	return self.extenderMeasurementKeyFile
 }
 
-func (self *NetworkSpace) getExtenderServedLifetime() uint64 {
+func (self *NetworkSpace) getExtenderServedLifetime() (uint64, error) {
 	if self.asyncLocalState != nil {
-		return self.asyncLocalState.GetLocalState().GetExtenderServedLifetime()
+		return self.asyncLocalState.GetLocalState().ReadExtenderServedLifetime()
 	}
-	return 0
+	return 0, nil
 }
 
 func (self *NetworkSpace) setExtenderServedLifetime(lifetime uint64) error {

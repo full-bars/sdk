@@ -403,7 +403,10 @@ func TestExtenderServeStatsLifetimePersistence(t *testing.T) {
 	})
 
 	// Verify persistence in local state directly
-	persistedLifetime := fixture.networkSpace.getExtenderServedLifetime()
+	persistedLifetime, err := fixture.networkSpace.getExtenderServedLifetime()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if persistedLifetime != 1 {
 		t.Fatalf("expected persisted lifetime 1, got %d", persistedLifetime)
 	}
@@ -470,7 +473,11 @@ func TestExtenderServeStatsLifetimePersistence(t *testing.T) {
 	}
 
 	// Check persisted store again
-	if postPersisted := fixture.networkSpace.getExtenderServedLifetime(); postPersisted != 2 {
+	postPersisted, err := fixture.networkSpace.getExtenderServedLifetime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postPersisted != 2 {
 		t.Fatalf("expected persisted lifetime 2, got %d", postPersisted)
 	}
 }
@@ -581,3 +588,17 @@ func TestExtenderServeStatsLifetimeHook(t *testing.T) {
 		t.Fatalf("expected ExtenderSaveServedLifetime hook called with %d, got %d", initialLifetime+1, lastSaved.Load())
 	}
 }
+
+// An extender whose server has not started or is nil answers false for
+// tcpCarrierServing and does not panic when its state is read.
+func TestExtenderStateWhenServerNilDoesNotPanic(t *testing.T) {
+	extender := &deviceLocalExtender{}
+	if extender.tcpCarrierServing() {
+		t.Fatal("expected tcpCarrierServing=false when server is nil")
+	}
+	state := extender.state()
+	if state.Listening {
+		t.Fatal("expected Listening=false when server is nil")
+	}
+}
+

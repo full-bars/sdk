@@ -1053,7 +1053,11 @@ func (self *deviceLocalExtender) run() {
 
 // Whether the tcp carrier is serving, the one port an extender requires (G2).
 func (self *deviceLocalExtender) tcpCarrierServing() bool {
-	return slices.Contains(self.server.Carriers(), connect.ExtenderCarrierTcp)
+	server := self.currentServer()
+	if server == nil {
+		return false
+	}
+	return slices.Contains(server.Carriers(), connect.ExtenderCarrierTcp)
 }
 
 // What the status says of a role whose loop failed, until its replacement.
@@ -1186,6 +1190,9 @@ func (self *deviceLocalExtender) startActivator() {
 }
 
 func (self *deviceLocalExtender) directory() *connect.ExtenderDirectory {
+	if self.settings == nil || self.settings.NetworkSpace == nil {
+		return nil
+	}
 	return self.settings.NetworkSpace.extenderDirectory
 }
 
@@ -1276,7 +1283,8 @@ func (self *deviceLocalExtender) updateNode() {
 // One mesh address per activated family (D2). Only the tcp carrier carries the
 // mesh, so a host whose tcp bind failed advertises nothing.
 func (self *deviceLocalExtender) meshListenAddrs() ([]ma.Multiaddr, error) {
-	if !slices.Contains(self.server.Carriers(), connect.ExtenderCarrierTcp) {
+	server := self.currentServer()
+	if server == nil || !slices.Contains(server.Carriers(), connect.ExtenderCarrierTcp) {
 		return nil, nil
 	}
 	ips := []netip.Addr{}
@@ -1298,11 +1306,12 @@ func (self *deviceLocalExtender) publish() {
 }
 
 func (self *deviceLocalExtender) state() extenderProvideState {
+	server := self.currentServer()
 	listenErrors := map[string]error{}
 	dnsPorts := []int{}
-	if self.server != nil {
-		listenErrors = self.server.ListenErrors()
-		dnsPorts = self.server.DnsPorts()
+	if server != nil {
+		listenErrors = server.ListenErrors()
+		dnsPorts = server.DnsPorts()
 	}
 	state := extenderProvideState{
 		Enabled:     true,
@@ -1311,9 +1320,9 @@ func (self *deviceLocalExtender) state() extenderProvideState {
 		DnsPorts:    extenderDnsPortsText(dnsPorts),
 	}
 	// a server gone for good has lost its carriers to no error of theirs
-	if !state.Listening && state.ListenError == "" && self.server != nil {
+	if !state.Listening && state.ListenError == "" && server != nil {
 		select {
-		case <-self.server.Done():
+		case <-server.Done():
 			state.ListenError = extenderListenErrorText(map[string]error{
 				connect.ExtenderCarrierTcp: errors.New("the extender server ended"),
 			})
@@ -1364,24 +1373,26 @@ func (self *deviceLocalExtender) state() extenderProvideState {
 
 	// what this extender measured of its peers and what they answered
 	// (GEOMAP §2.1, §2.3)
-	pingerStatus := self.peerPinger.Status()
-	state.PeerPingCount = pingerStatus.PingCount
-	state.PeerPingCosignedCount = pingerStatus.CosignedCount
-	state.PeerPingRejectedCount = pingerStatus.RejectedCount
-	state.PeerPingUnknownCount = pingerStatus.UnknownCount
-	state.LastPeerPingTime = extenderStatusTimeMs(pingerStatus.LastPingTime)
+	if self.peerPinger != nil {
+		pingerStatus := self.peerPinger.Status()
+		state.PeerPingCount = pingerStatus.PingCount
+		state.PeerPingCosignedCount = pingerStatus.CosignedCount
+		state.PeerPingRejectedCount = pingerStatus.RejectedCount
+		state.PeerPingUnknownCount = pingerStatus.UnknownCount
+		state.LastPeerPingTime = extenderStatusTimeMs(pingerStatus.LastPingTime)
+	}
 
 	// what the admission limits turned away (A12), read at each publish; a
 	// refusal alone wakes nothing, since a flood would be a publish per
 	// refused connection
-	if self.server != nil {
-		admissionStats := self.server.AdmissionStats()
+	if server != nil {
+		admissionStats := server.AdmissionStats()
 		state.LimitedBySubnetsCount = int(admissionStats.LimitedBySubnetsCount)
 		state.LimitedBySourceCount = int(admissionStats.LimitedBySourceCount)
 	}
 
 	connected := 0
-	if server := self.currentServer(); server != nil {
+	if server != nil {
 		connected = server.ConnectionCount()
 	}
 	state.Connected = connected
@@ -1448,7 +1459,7 @@ func (self *deviceLocalExtender) updateRevoked() time.Time {
 	}
 
 	now := time.Now
-	if self.settings.Now != nil {
+	if self.settings != nil && self.settings.Now != nil {
 		now = self.settings.Now
 	}
 	self.stateLock.Lock()

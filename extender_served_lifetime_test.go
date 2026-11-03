@@ -168,3 +168,68 @@ func TestExtenderServedLifetimeFailedWriteKeepsCount(t *testing.T) {
 		t.Fatalf("expected the count 7 to survive the failed write, got %d", got)
 	}
 }
+
+// A failed read from the space store leaves the store alone. Corrupted or
+// unreadable files must not be treated as a zero count and overwritten.
+func TestExtenderServeTrackerNetworkSpaceFailedReadDoesNotOverwrite(t *testing.T) {
+	tempDir := t.TempDir()
+	localState := newLocalState(context.Background(), tempDir)
+	t.Cleanup(localState.Close)
+	space := &NetworkSpace{
+		asyncLocalState: &AsyncLocalState{localState: localState},
+	}
+	filePath := filepath.Join(localState.localStorageDir, extenderServedLifetimeFileName)
+	if err := os.WriteFile(filePath, []byte("corrupt-not-a-number"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tracker := newExtenderServeTracker(space, nil, nil)
+	tracker.record(1, time.Now())
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "corrupt-not-a-number" {
+		t.Fatalf("corrupted file was overwritten with %q while read failed", string(content))
+	}
+
+	// Restore valid count
+	if err := os.WriteFile(filePath, []byte("100"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tracker.record(1, time.Now())
+	afterBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(afterBytes) != "102" {
+		t.Fatalf("expected count 102 after recovery, got %q", string(afterBytes))
+	}
+}
+
+// Calling snapshot before any session records retries loading the lifetime
+// count if an earlier attempt failed.
+func TestExtenderServeTrackerSnapshotRetriesLifetimeLoad(t *testing.T) {
+	var fail atomic.Bool
+	fail.Store(true)
+	load := func() (uint64, error) {
+		if fail.Load() {
+			return 0, errors.New("temporary error")
+		}
+		return 42, nil
+	}
+	tracker := newExtenderServeTracker(nil, load, nil)
+	_, lifetime, _, _ := tracker.snapshot(0)
+	if lifetime != 0 {
+		t.Fatalf("expected lifetime=0 while load fails, got %d", lifetime)
+	}
+
+	fail.Store(false)
+	_, lifetime, _, _ = tracker.snapshot(0)
+	if lifetime != 42 {
+		t.Fatalf("expected lifetime=42 after load succeeds, got %d", lifetime)
+	}
+}
+

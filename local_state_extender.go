@@ -357,20 +357,31 @@ func (self *LocalState) GetOrCreateExtenderKeySeed() ([]byte, error) {
 // The persisted lifetime count of client sessions served by the provider extender role.
 const extenderServedLifetimeFileName = ".extender_served_lifetime"
 
-// GetExtenderServedLifetime reads back the persisted lifetime count of client
-// sessions served by the provider extender role, 0 when unset or unreadable.
-func (self *LocalState) GetExtenderServedLifetime() uint64 {
+// ReadExtenderServedLifetime reads back the persisted lifetime count of client
+// sessions served by the provider extender role. A missing file is treated as
+// an unset count (0, nil); read or parse errors are returned.
+func (self *LocalState) ReadExtenderServedLifetime() (uint64, error) {
 	self.extenderServedLifetimeLock.Lock()
 	defer self.extenderServedLifetimeLock.Unlock()
 	path := filepath.Join(self.localStorageDir, extenderServedLifetimeFileName)
 	stateBytes, err := os.ReadFile(path)
 	if err != nil {
-		return 0
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
 	}
 	lifetime, err := strconv.ParseUint(strings.TrimSpace(string(stateBytes)), 10, 64)
 	if err != nil {
-		return 0
+		return 0, err
 	}
+	return lifetime, nil
+}
+
+// GetExtenderServedLifetime reads back the persisted lifetime count of client
+// sessions served by the provider extender role, 0 when unset or unreadable.
+func (self *LocalState) GetExtenderServedLifetime() uint64 {
+	lifetime, _ := self.ReadExtenderServedLifetime()
 	return lifetime
 }
 

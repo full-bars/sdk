@@ -297,6 +297,8 @@ func (self *extenderServeTracker) initLifetime() {
 // Reads the persisted count from the store it is saved to. Lock held. With a
 // hook, the hook is the only store: a zero it returns is the count, and a
 // failed load is not, so the count is left as it was and not saved over.
+// With space, the space's local state is the store; an unset file is count 0,
+// and a read or parse error leaves loaded false so nothing is saved over it.
 func (self *extenderServeTracker) loadLifetime() {
 	if self.loadHook != nil {
 		val, err := self.loadHook()
@@ -310,7 +312,13 @@ func (self *extenderServeTracker) loadLifetime() {
 		return
 	}
 	if self.space != nil {
-		self.servedLifetime = self.space.getExtenderServedLifetime()
+		val, err := self.space.getExtenderServedLifetime()
+		if err != nil {
+			return
+		}
+		self.servedLifetime += val
+		self.loaded = true
+		return
 	}
 	self.loaded = true
 }
@@ -367,6 +375,9 @@ func (self *extenderServeTracker) updateConnected(connected int) {
 func (self *extenderServeTracker) snapshot(connected int) (uint64, uint64, int, time.Time) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
+	if !self.loaded {
+		self.loadLifetime()
+	}
 	if connected > self.peakConnected {
 		self.peakConnected = connected
 	}
