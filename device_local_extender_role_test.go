@@ -110,7 +110,7 @@ func testTcpRetry(settings *deviceLocalExtenderSettings, waits chan time.Duratio
 // Another process holding tcp 443, the one port an extender requires, turns
 // the role off (G2): it binds no udp carrier, activates nothing and runs no
 // extender node, the status says why, and it waits to bind the port again
-// after extenderProvideTcpRetryTimeout.
+// on the fast retry cadence.
 func TestDeviceLocalProviderExtenderWithTcpTakenStartsNoCarrier(t *testing.T) {
 	tcpPort := testFreeTcpPort(t)
 	testHoldTcpPort(t, tcpPort)
@@ -140,7 +140,7 @@ func TestDeviceLocalProviderExtenderWithTcpTakenStartsNoCarrier(t *testing.T) {
 	}
 	select {
 	case wait := <-waits:
-		connect.AssertEqual(t, wait, extenderProvideTcpRetryTimeout)
+		connect.AssertEqual(t, wait, extenderProvideTcpRetrySchedule[0])
 	case <-time.After(10 * time.Second):
 		t.Fatal("the role does not try the tcp port again")
 	}
@@ -258,5 +258,125 @@ func TestDeviceLocalProviderExtenderRunsWithoutATakenDnsPort(t *testing.T) {
 	}
 	if status.DnsPorts != "" || status.TcpUnavailableError != "" {
 		t.Fatalf("status = %+v, expected no dns port and the tcp port held", status)
+	}
+}
+
+// A taken tcp 443 retries on the fast cadence (2s, 4s, 8s, 15s, 30s) and then
+// settles to the steady-state cadence of 3m, so a handover takes the port
+// within seconds of the previous holder releasing it.
+func TestDeviceLocalProviderExtenderTcpRetryCadenceFastThenNormal(t *testing.T) {
+	tcpPort := testFreeTcpPort(t)
+	testHoldTcpPort(t, tcpPort)
+	waits := make(chan time.Duration, 16)
+	retry := make(chan time.Time)
+	fixture := newTestProvideExtenderFixture(t, func(settings *deviceLocalExtenderSettings) {
+		settings.TcpPort = tcpPort
+		testTcpRetry(settings, waits, retry)
+	})
+
+	fixture.waitStatus("off for want of tcp", func(status *ExtenderProvideStatus) bool {
+		return status.ErrorCase == ExtenderProvideErrorTcpUnavailable
+	})
+
+	expectedSchedule := []time.Duration{
+		2 * time.Second,
+		4 * time.Second,
+		8 * time.Second,
+		15 * time.Second,
+		30 * time.Second,
+		extenderProvideTcpRetryTimeout,
+		extenderProvideTcpRetryTimeout,
+	}
+
+	for i, expectedWait := range expectedSchedule {
+		select {
+		case wait := <-waits:
+			connect.AssertEqual(t, wait, expectedWait)
+			retry <- time.Time{}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for retry %d", i)
+		}
+	}
+}
+
+// ReleaseExtenderCarriers frees the bound carrier ports immediately and leaves
+// the role off, so another device can bind the port without waiting for process
+// exit or retry cadences.
+func TestDeviceLocalReleaseExtenderCarriersFreesPortForSecondDevice(t *testing.T) {
+	tcpPort := testFreeTcpPort(t)
+
+	// First device binds the port and starts serving the extender role.
+	fixture1 := newTestProvideExtenderFixture(t, func(settings *deviceLocalExtenderSettings) {
+		settings.TcpPort = tcpPort
+	})
+	status1 := fixture1.waitStatus("first device running", func(status *ExtenderProvideStatus) bool {
+		return status.Enabled && status.Listening
+	})
+	if !status1.Listening {
+		t.Fatalf("first device expected listening, got %+v", status1)
+	}
+
+	// First device explicitly releases extender carriers while staying alive.
+	fixture1.device.ReleaseExtenderCarriers()
+
+	// Status on first device reflects the role is off.
+	status1After := fixture1.waitStatus("first device released", func(status *ExtenderProvideStatus) bool {
+		return !status.Enabled && !status.Listening
+	})
+	if status1After.Listening {
+		t.Fatalf("first device expected not listening after release, got %+v", status1After)
+	}
+
+	// Second device binds the same port immediately without error.
+	fixture2 := newTestProvideExtenderFixture(t, func(settings *deviceLocalExtenderSettings) {
+		settings.TcpPort = tcpPort
+	})
+	status2 := fixture2.waitStatus("second device running on freed port", func(status *ExtenderProvideStatus) bool {
+		return status.Enabled && status.Listening
+	})
+	if !status2.Listening {
+		t.Fatalf("second device expected listening on freed port, got %+v", status2)
+	}
+}
+
+// ReleaseExtenderCarriers is safe to call when the role never started, and is
+// idempotent.
+func TestDeviceLocalReleaseExtenderCarriersSafeAndIdempotent(t *testing.T) {
+	// Safe on nil receiver.
+	var nilDevice *DeviceLocal
+	nilDevice.ReleaseExtenderCarriers()
+
+	// Safe when the device never started a provider.
+	emptyDevice := &DeviceLocal{}
+	emptyDevice.ReleaseExtenderCarriers()
+	emptyDevice.ReleaseExtenderCarriers()
+
+	// Safe when the device is providing but extender role was disabled in settings.
+	tcpPort := testFreeTcpPort(t)
+	fixtureNoExtender := newTestProvideExtenderFixtureWithDevice(t, func(settings *DeviceLocalSettings) {
+		settings.ProvideExtenderEnabled = false
+	}, func(settings *deviceLocalExtenderSettings) {
+		settings.TcpPort = tcpPort
+	})
+	// Calling on a running device with role off is safe.
+	fixtureNoExtender.device.ReleaseExtenderCarriers()
+	// Idempotent: repeated calls do nothing and do not panic.
+	fixtureNoExtender.device.ReleaseExtenderCarriers()
+	fixtureNoExtender.device.ReleaseExtenderCarriers()
+
+	// Safe and idempotent on a device that did start the extender role.
+	fixtureWithExtender := newTestProvideExtenderFixture(t, func(settings *deviceLocalExtenderSettings) {
+		settings.TcpPort = tcpPort
+	})
+	fixtureWithExtender.waitStatus("running", func(status *ExtenderProvideStatus) bool {
+		return status.Enabled && status.Listening
+	})
+	fixtureWithExtender.device.ReleaseExtenderCarriers()
+	fixtureWithExtender.device.ReleaseExtenderCarriers()
+	fixtureWithExtender.device.ReleaseExtenderCarriers()
+
+	status := fixtureWithExtender.device.GetExtenderProvideStatus()
+	if status.Enabled || status.Listening {
+		t.Fatalf("expected role off after multiple releases, got %+v", status)
 	}
 }

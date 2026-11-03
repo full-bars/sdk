@@ -1054,6 +1054,12 @@ type DeviceLocal struct {
 	// which is what separates it from SetProvideExtender.
 	provideExtenderSessionHeld bool
 
+	// extenderCarriersReleased marks the extender role permanently released
+	// for this device session (ReleaseExtenderCarriers). An outgoing process
+	// frees TCP 443 immediately rather than waiting for process exit, and the
+	// role stays off for the remainder of the session.
+	extenderCarriersReleased bool
+
 	// Constructor workers are admitted before publication. Later retirement is
 	// admitted under stateLock before close() releases it with closed=true;
 	// Close starts its join only after closeOnce.Do returns. Destination setters

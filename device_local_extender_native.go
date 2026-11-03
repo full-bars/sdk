@@ -99,6 +99,27 @@ const extenderProvideListenTimeout = 60 * time.Second
 // the holder exiting.
 const extenderProvideTcpRetryTimeout = 3 * time.Minute
 
+// The fast retry schedule used immediately after the role starts when tcp 443
+// is taken by an outgoing process, so a handover takes the port within seconds
+// of the previous holder releasing it rather than waiting minutes.
+var extenderProvideTcpRetrySchedule = []time.Duration{
+	2 * time.Second,
+	4 * time.Second,
+	8 * time.Second,
+	15 * time.Second,
+	30 * time.Second,
+}
+
+// How long the role waits before retrying tcp 443 on attempt number `attempt`
+// (0-indexed). The first attempts after the role starts are fast, and only
+// then settle to the steady-state cadence of extenderProvideTcpRetryTimeout.
+func extenderProvideTcpRetryDelay(attempt int) time.Duration {
+	if attempt < len(extenderProvideTcpRetrySchedule) {
+		return extenderProvideTcpRetrySchedule[attempt]
+	}
+	return extenderProvideTcpRetryTimeout
+}
+
 // How long a tcp carrier that was serving may stay lost before the role asks to
 // be replaced (G2). The server binds a lost port again by itself, so a port still
 // gone after this is one another process took or the host refuses, and the new
@@ -478,19 +499,19 @@ func (self *deviceLocalExtender) listenTcp() (net.Listener, error) {
 	return listener, nil
 }
 
-// Waits for tcp 443 while another process holds it (G2): binds it again every
-// extenderProvideTcpRetryTimeout, publishing each failure, until it holds the
-// port. Nil when the role closed first.
+// Waits for tcp 443 while another process holds it (G2): retries on the fast
+// initial cadence and then every extenderProvideTcpRetryTimeout, publishing each
+// failure, until it holds the port. Nil when the role closed first.
 func (self *deviceLocalExtender) waitForTcp() net.Listener {
 	tcpRetryAfter := time.After
 	if self.settings.TcpRetryAfter != nil {
 		tcpRetryAfter = self.settings.TcpRetryAfter
 	}
-	for {
+	for attempt := 0; ; attempt++ {
 		select {
 		case <-self.ctx.Done():
 			return nil
-		case <-tcpRetryAfter(extenderProvideTcpRetryTimeout):
+		case <-tcpRetryAfter(extenderProvideTcpRetryDelay(attempt)):
 		}
 		listener, err := self.listenTcp()
 		if err == nil {
@@ -510,9 +531,8 @@ func (self *deviceLocalExtender) publishTcpUnavailable(err error) {
 	}
 	if self.statusMonitor.Value().TcpUnavailableError != state.TcpUnavailableError {
 		self.log.Infof(
-			"[extender]provide tcp %d unavailable, the role is off and binds again every %s = %s\n",
+			"[extender]provide tcp %d unavailable, the role is off and binds again = %s\n",
 			self.settings.TcpPort,
-			extenderProvideTcpRetryTimeout,
 			err,
 		)
 	}

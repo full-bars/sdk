@@ -693,8 +693,11 @@ func (self *DeviceLocal) extenderProvideProviding() bool {
 	self.stateLock.Lock()
 	closed := self.closed
 	held := self.provideExtenderSessionHeld
+	released := self.extenderCarriersReleased
 	self.stateLock.Unlock()
 	return !closed &&
+		!released &&
+		self.settings != nil &&
 		!self.settings.HostedIncompatible &&
 		self.settings.ProvideExtenderEnabled &&
 		!held &&
@@ -718,6 +721,28 @@ func (self *DeviceLocal) HoldProvideExtenderSession(held bool) {
 		return
 	}
 	self.log.Infof("[device]provide extender session held = %t\n", held)
+	self.updateExtenderProvide()
+}
+
+// ReleaseExtenderCarriers closes the extender's bound carriers and leaves the
+// role off, so an outgoing process frees TCP 443 immediately instead of at
+// process exit. Safe to call when the role never started, and idempotent.
+func (self *DeviceLocal) ReleaseExtenderCarriers() {
+	if self == nil {
+		return
+	}
+	self.stateLock.Lock()
+	if self.extenderCarriersReleased {
+		self.stateLock.Unlock()
+		return
+	}
+	self.extenderCarriersReleased = true
+	provider := self.provider
+	self.stateLock.Unlock()
+
+	if provider != nil {
+		provider.releaseExtenderCarriers()
+	}
 	self.updateExtenderProvide()
 }
 
@@ -771,8 +796,10 @@ func (self *DeviceLocal) updateExtenderProvide() {
 		}
 		enabled := wanted()
 		for {
-			if hook := self.settings.testingBeforeExtenderProvideApply; hook != nil {
-				hook(enabled)
+			if self.settings != nil {
+				if hook := self.settings.testingBeforeExtenderProvideApply; hook != nil {
+					hook(enabled)
+				}
 			}
 			provider.setExtenderEnabled(enabled)
 			current := wanted()
@@ -785,7 +812,9 @@ func (self *DeviceLocal) updateExtenderProvide() {
 	// the watch is woken whether or not there is a provider: the state of N3
 	// follows the setting and the provide state, so a device with no provider
 	// still moves between off and not_providing (N2, N3)
-	self.extenderProvideMonitor.NotifyAll()
+	if self.extenderProvideMonitor != nil {
+		self.extenderProvideMonitor.NotifyAll()
+	}
 }
 
 // watchExtenderProvideStatus emits at most one status per epoch, carrying the

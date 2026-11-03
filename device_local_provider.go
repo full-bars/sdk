@@ -79,6 +79,10 @@ type deviceLocalProvider struct {
 	// what the activation of the role that was replaced handed over, for the role
 	// that replaces it. Taken with extenderLock.
 	extenderActivatorState *connect.ExtenderActivatorState
+	// extenderReleased is set by releaseExtenderCarriers so the role stays off
+	// and is not restarted for the remainder of this provider session.
+	// Taken with extenderLock.
+	extenderReleased bool
 	// extenderSettingsConfigure, when set, adjusts the extender role's
 	// settings before it is built. Tests bind ephemeral carrier ports and
 	// point the activation at an in-process operator through it.
@@ -1569,6 +1573,16 @@ func (self *deviceLocalProvider) setExtenderEnabled(enabled bool) {
 	self.setExtenderEnabledWithLock(enabled)
 }
 
+// releaseExtenderCarriers closes the running extender role immediately and
+// marks it released so it cannot be restarted for this provider session.
+func (self *deviceLocalProvider) releaseExtenderCarriers() {
+	self.extenderLock.Lock()
+	defer self.extenderLock.Unlock()
+	self.extenderReleased = true
+	self.extenderActivatorState = nil
+	self.setExtenderEnabledWithLock(false)
+}
+
 // Replaces a role that asked for it: its server ended, or its tcp carrier stayed
 // lost (G2). A role that is no longer the one running was stopped or replaced
 // since it asked, and a setting that turned the role off meanwhile stands. The
@@ -1583,7 +1597,7 @@ func (self *deviceLocalProvider) restartExtender(role *deviceLocalExtender) {
 		defer self.stateLock.Unlock()
 		return self.extender, self.closed
 	}()
-	if closed || current != role {
+	if closed || current != role || self.extenderReleased {
 		return
 	}
 	if extenderProvideRestartStableTimeout <= time.Since(self.extenderStartTime) {
@@ -1615,7 +1629,7 @@ func (self *deviceLocalProvider) setExtenderEnabledWithLock(enabled bool) {
 		defer self.stateLock.Unlock()
 		return self.extender, self.closed
 	}()
-	if closed || !extenderProvideSupported || !extenderProvideRoleEnabled {
+	if closed || !extenderProvideSupported || !extenderProvideRoleEnabled || self.extenderReleased {
 		// ios, android and js carry no role at all (G1)
 		enabled = false
 	}
