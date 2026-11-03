@@ -1424,6 +1424,10 @@ func NewNetworkSpaceWithUrls(
 	)
 	if extenderDirectory != nil {
 		copiedSettings.ExtenderDirectory = extenderDirectory
+	} else if extenderNetworkOptedOut(clientStrategySettings) {
+		// the copy carries a caller-supplied directory; drop it for a space
+		// that opted out, so the copy matches the opted-out paths below
+		copiedSettings.ExtenderDirectory = nil
 	}
 	if altUrl != "" {
 		copiedSettings.AltUrl = altUrl
