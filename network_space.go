@@ -722,9 +722,13 @@ func newNetworkSpaceWithConnectSettingsAndApiAlt(
 	}
 
 	// the directory is built before the strategy so the strategy's extender
-	// dialers come from it (E2)
-	extenderDirectory := newSpaceExtenderDirectory(cancelCtx, &key, &values, asyncLocalState, clientStrategySettings.Log)
-	clientStrategySettings.ExtenderDirectory = extenderDirectory
+	// dialers come from it (E2). A space that opts out of the extender network
+	// keeps none: every other extender path of the space reads a nil directory
+	// as "nothing to do", as it does for a url-only space.
+	extenderDirectory := newSpaceExtenderDirectoryUnlessOptedOut(cancelCtx, &key, &values, asyncLocalState, clientStrategySettings, clientStrategySettings.Log)
+	if extenderDirectory != nil {
+		clientStrategySettings.ExtenderDirectory = extenderDirectory
+	}
 
 	clientStrategy := connect.NewClientStrategy(cancelCtx, clientStrategySettings)
 
@@ -820,6 +824,24 @@ func newSpaceExtenderDirectory(
 	return directory
 }
 
+// The space's extender directory, or nil when the settings opt the space out of
+// the extender network. A nil directory is what keeps the run loop, the status
+// watch, the release fetch and the seed bootstrap from starting at all: each
+// of them starts only for a space that has a directory.
+func newSpaceExtenderDirectoryUnlessOptedOut(
+	ctx context.Context,
+	key *NetworkSpaceKey,
+	values *NetworkSpaceValues,
+	asyncLocalState *AsyncLocalState,
+	clientStrategySettings *connect.ClientStrategySettings,
+	log connect.Logger,
+) *connect.ExtenderDirectory {
+	if extenderNetworkOptedOut(clientStrategySettings) {
+		return nil
+	}
+	return newSpaceExtenderDirectory(ctx, key, values, asyncLocalState, log)
+}
+
 // The trust anchor one space's values resolve to (B4): the configured keys,
 // else the bundled table's for the host. Nil when they resolve to no key -- a
 // host the table does not name, or keys that do not parse -- which is not an
@@ -862,7 +884,8 @@ func SetExtenderNetworkClientEnabled(enabled bool) bool {
 var extenderNetworkClientConfigure func(settings *connect.ExtenderNetworkClientSettings)
 
 // Reports whether the settings a space was built from opt it out of the
-// extender network: no network client and no gossip node. A direct-only
+// extender network: no directory, no network client and no gossip node, and
+// so none of the goroutines that serve them. A direct-only
 // embedder (the miner's proxy slots) sets it; the zero value keeps every
 // space on the network.
 func extenderNetworkOptedOut(clientStrategySettings *connect.ClientStrategySettings) bool {
@@ -1389,7 +1412,7 @@ func NewNetworkSpaceWithUrls(
 	altUrl := spaceAltUrl(&values, values.PlatformUrl)
 	var extenderDirectory *connect.ExtenderDirectory
 	if extenderNetworkHostName(&key, &values) != "" {
-		extenderDirectory = newSpaceExtenderDirectory(cancelCtx, &key, &values, nil, log)
+		extenderDirectory = newSpaceExtenderDirectoryUnlessOptedOut(cancelCtx, &key, &values, nil, clientStrategySettings, log)
 	}
 	copiedSettings := *clientStrategySettings
 	// the space's own api, whose authenticated Date corrects the clock a
@@ -1401,6 +1424,10 @@ func NewNetworkSpaceWithUrls(
 	)
 	if extenderDirectory != nil {
 		copiedSettings.ExtenderDirectory = extenderDirectory
+	} else if extenderNetworkOptedOut(clientStrategySettings) {
+		// the copy carries a caller-supplied directory; drop it for a space
+		// that opted out, so the copy matches the opted-out paths below
+		copiedSettings.ExtenderDirectory = nil
 	}
 	if altUrl != "" {
 		copiedSettings.AltUrl = altUrl
