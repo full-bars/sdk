@@ -609,6 +609,20 @@ func (self *NetworkSpace) suppliedExtenderMeasurementKeyFile() string {
 	return self.extenderMeasurementKeyFile
 }
 
+func (self *NetworkSpace) getExtenderServedLifetime() uint64 {
+	if self.asyncLocalState != nil {
+		return self.asyncLocalState.GetLocalState().GetExtenderServedLifetime()
+	}
+	return 0
+}
+
+func (self *NetworkSpace) setExtenderServedLifetime(lifetime uint64) error {
+	if self.asyncLocalState != nil {
+		return self.asyncLocalState.GetLocalState().SetExtenderServedLifetime(lifetime)
+	}
+	return nil
+}
+
 // The space's logger, which a url-only space may have been built without.
 func (self *NetworkSpace) logger() connect.Logger {
 	if self.log != nil {

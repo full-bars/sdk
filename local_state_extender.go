@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -351,4 +352,37 @@ func (self *LocalState) GetOrCreateExtenderKeySeed() ([]byte, error) {
 		return nil, err
 	}
 	return seed, nil
+}
+
+// The persisted lifetime count of client sessions served by the provider extender role.
+const extenderServedLifetimeFileName = ".extender_served_lifetime"
+
+// GetExtenderServedLifetime reads back the persisted lifetime count of client
+// sessions served by the provider extender role, 0 when unset or unreadable.
+func (self *LocalState) GetExtenderServedLifetime() uint64 {
+	self.extenderServedLifetimeLock.Lock()
+	defer self.extenderServedLifetimeLock.Unlock()
+	path := filepath.Join(self.localStorageDir, extenderServedLifetimeFileName)
+	stateBytes, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	lifetime, err := strconv.ParseUint(strings.TrimSpace(string(stateBytes)), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return lifetime
+}
+
+// SetExtenderServedLifetime persists the lifetime count of client sessions
+// served by the provider extender role.
+func (self *LocalState) SetExtenderServedLifetime(lifetime uint64) error {
+	self.extenderServedLifetimeLock.Lock()
+	defer self.extenderServedLifetimeLock.Unlock()
+	path := filepath.Join(self.localStorageDir, extenderServedLifetimeFileName)
+	return os.WriteFile(
+		path,
+		[]byte(strconv.FormatUint(lifetime, 10)),
+		LocalStorageFilePermissions,
+	)
 }

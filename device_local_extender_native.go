@@ -21,6 +21,7 @@ import (
 	"github.com/urnetwork/connect"
 	"github.com/urnetwork/connect/extender"
 	"github.com/urnetwork/connect/gossip"
+	"github.com/urnetwork/connect/protocol"
 )
 
 // device_local_extender_native.go — the provider extender role (EXTENDER.md G1
@@ -201,6 +202,8 @@ type deviceLocalExtender struct {
 	// monitors the loop watches: a bind failure, an activation
 	wakeMonitor *connect.Monitor
 
+	serveTracker *extenderServeTracker
+
 	stateLock sync.Mutex
 	// true while the space runs a node for this role, so the gossip service is
 	// served rather than refused (A8)
@@ -272,6 +275,14 @@ func newDeviceLocalExtender(
 	}
 
 	cancelCtx, cancel := context.WithCancel(ctx)
+	serveTracker := settings.ServeTracker
+	if serveTracker == nil {
+		serveTracker = newExtenderServeTracker(
+			settings.NetworkSpace,
+			settings.LoadExtenderServedLifetime,
+			settings.SaveExtenderServedLifetime,
+		)
+	}
 	self := &deviceLocalExtender{
 		ctx:                 cancelCtx,
 		cancel:              cancel,
@@ -284,6 +295,7 @@ func newDeviceLocalExtender(
 		forwardDialErrorLog: newExtenderForwardDialErrorLog(log, now, forwardDialErrorLogInterval),
 		statusMonitor:       connect.NewMonitorValue(extenderProvideState{Enabled: true}),
 		wakeMonitor:         connect.NewMonitor(),
+		serveTracker:        serveTracker,
 	}
 
 	// tcp 443 first, the one port an extender requires (G2)
@@ -700,7 +712,28 @@ func (self *deviceLocalExtender) serverSettings(nodeRuns bool) *extender.Extende
 	if configureExtenderServer != nil {
 		configureExtenderServer(settings)
 	}
+	configuredHeaderHandler := settings.HeaderHandler
+	settings.HeaderHandler = func(header *protocol.ExtenderHeader) {
+		if configuredHeaderHandler != nil {
+			configuredHeaderHandler(header)
+		}
+		self.recordServed()
+	}
 	return settings
+}
+
+func (self *deviceLocalExtender) recordServed() {
+	now := time.Now
+	if self.settings != nil && self.settings.Now != nil {
+		now = self.settings.Now
+	}
+	connected := 0
+	if server := self.currentServer(); server != nil {
+		connected = server.ConnectionCount()
+	}
+	if self.serveTracker != nil {
+		self.serveTracker.record(connected, now())
+	}
 }
 
 // The measurement key and certificate (lag.dev/PLAN.md C4), on or off as the
@@ -1262,15 +1295,20 @@ func (self *deviceLocalExtender) publish() {
 }
 
 func (self *deviceLocalExtender) state() extenderProvideState {
-	listenErrors := self.server.ListenErrors()
+	listenErrors := map[string]error{}
+	dnsPorts := []int{}
+	if self.server != nil {
+		listenErrors = self.server.ListenErrors()
+		dnsPorts = self.server.DnsPorts()
+	}
 	state := extenderProvideState{
 		Enabled:     true,
 		Listening:   self.tcpCarrierServing(),
 		ListenError: extenderListenErrorText(listenErrors),
-		DnsPorts:    extenderDnsPortsText(self.server.DnsPorts()),
+		DnsPorts:    extenderDnsPortsText(dnsPorts),
 	}
 	// a server gone for good has lost its carriers to no error of theirs
-	if !state.Listening && state.ListenError == "" {
+	if !state.Listening && state.ListenError == "" && self.server != nil {
 		select {
 		case <-self.server.Done():
 			state.ListenError = extenderListenErrorText(map[string]error{
@@ -1333,10 +1371,57 @@ func (self *deviceLocalExtender) state() extenderProvideState {
 	// what the admission limits turned away (A12), read at each publish; a
 	// refusal alone wakes nothing, since a flood would be a publish per
 	// refused connection
-	admissionStats := self.server.AdmissionStats()
-	state.LimitedBySubnetsCount = int(admissionStats.LimitedBySubnetsCount)
-	state.LimitedBySourceCount = int(admissionStats.LimitedBySourceCount)
+	if self.server != nil {
+		admissionStats := self.server.AdmissionStats()
+		state.LimitedBySubnetsCount = int(admissionStats.LimitedBySubnetsCount)
+		state.LimitedBySourceCount = int(admissionStats.LimitedBySourceCount)
+	}
+
+	connected := 0
+	if server := self.currentServer(); server != nil {
+		connected = server.ConnectionCount()
+	}
+	state.Connected = connected
+	if self.serveTracker != nil {
+		state.ServedProcess, state.ServedLifetime, state.PeakConnected, state.LastServed = self.serveTracker.snapshot(connected)
+	}
 	return state
+}
+
+func (self *deviceLocalExtender) serveStats() ExtenderServeStats {
+	if self == nil {
+		return ExtenderServeStats{}
+	}
+	server := self.currentServer()
+	if server == nil {
+		state := self.statusMonitor.Value()
+		stats := ExtenderServeStats{
+			Ipv4:        state.Ipv4,
+			Ipv6:        state.Ipv6,
+			ActivatedV4: state.ActivatedV4,
+			ActivatedV6: state.ActivatedV6,
+			Listening:   state.Listening,
+			Enabled:     state.Enabled,
+		}
+		if self.serveTracker != nil {
+			stats.ServedProcess, stats.ServedLifetime, stats.PeakConnected, stats.LastServed = self.serveTracker.snapshot(0)
+		}
+		return stats
+	}
+	state := self.state()
+	return ExtenderServeStats{
+		Connected:      state.Connected,
+		ServedProcess:  state.ServedProcess,
+		ServedLifetime: state.ServedLifetime,
+		PeakConnected:  state.PeakConnected,
+		LastServed:     state.LastServed,
+		Ipv4:           state.Ipv4,
+		Ipv6:           state.Ipv6,
+		ActivatedV4:    state.ActivatedV4,
+		ActivatedV6:    state.ActivatedV6,
+		Listening:      state.Listening,
+		Enabled:        state.Enabled,
+	}
 }
 
 // When this extender's key was first seen revoked in the directory, zero while

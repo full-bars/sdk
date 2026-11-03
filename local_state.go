@@ -88,6 +88,10 @@ type LocalState struct {
 	measurementsEnabledLoaded bool
 	measurementsEnabledStored bool
 	measurementsEnabled       bool
+
+	// The extender served lifetime counter, read from `.extender_served_lifetime`.
+	// Guarded by extenderServedLifetimeLock.
+	extenderServedLifetimeLock sync.Mutex
 }
 
 // One immutable read generation of the persisted

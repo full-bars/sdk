@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/urnetwork/connect"
@@ -165,6 +166,19 @@ type ExtenderProvideStatus struct {
 	LimitedBySourceCount  int
 	// Connections open over every carrier right now.
 	ConnectionCount int
+	// The client sessions this extender serves: the count open right now,
+	// the sessions accepted since this process started, the sessions accepted
+	// for the life of the role across restarts, the high water mark of the open
+	// count, and when the last session was accepted. A session is one client
+	// that reached the extender and had its protocol header accepted, so a
+	// client that reconnects counts again. The lifetime count is the only one
+	// that survives a restart, so a role that reports zero there is a role
+	// whose store was lost, which is worth seeing rather than hiding.
+	Connected      int
+	ServedProcess  uint64
+	ServedLifetime uint64
+	PeakConnected  int
+	LastServed     time.Time
 }
 
 type ExtenderProvideStatusChangeListener interface {
@@ -213,6 +227,108 @@ type extenderProvideState struct {
 	LastPeerPingTime      int64
 	LimitedBySubnetsCount int
 	LimitedBySourceCount  int
+	Connected             int
+	ServedProcess         uint64
+	ServedLifetime        uint64
+	PeakConnected         int
+	LastServed            time.Time
+}
+
+// ExtenderServeStats is the observable serving posture and cumulative client
+// session counters of the provider extender role.
+type ExtenderServeStats struct {
+	Connected      int
+	ServedProcess  uint64
+	ServedLifetime uint64
+	PeakConnected  int
+	LastServed     time.Time
+	Ipv4           string
+	Ipv6           string
+	ActivatedV4    bool
+	ActivatedV6    bool
+	Listening      bool
+	Enabled        bool
+}
+
+type extenderServeTracker struct {
+	lock           sync.Mutex
+	servedProcess  uint64
+	servedLifetime uint64
+	peakConnected  int
+	lastServed     time.Time
+	loaded         bool
+	space          *NetworkSpace
+	loadHook       func() (uint64, error)
+	saveHook       func(uint64) error
+}
+
+func newExtenderServeTracker(
+	space *NetworkSpace,
+	loadHook func() (uint64, error),
+	saveHook func(uint64) error,
+) *extenderServeTracker {
+	tracker := &extenderServeTracker{
+		space:    space,
+		loadHook: loadHook,
+		saveHook: saveHook,
+	}
+	tracker.initLifetime()
+	return tracker
+}
+
+func (self *extenderServeTracker) initLifetime() {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+	if self.loaded {
+		return
+	}
+	self.loaded = true
+	if self.loadHook != nil {
+		if val, err := self.loadHook(); err == nil && 0 < val {
+			self.servedLifetime = val
+			return
+		}
+	}
+	if self.space != nil {
+		self.servedLifetime = self.space.getExtenderServedLifetime()
+	}
+}
+
+func (self *extenderServeTracker) record(connected int, now time.Time) {
+	self.lock.Lock()
+	self.servedProcess += 1
+	self.servedLifetime += 1
+	self.lastServed = now
+	if connected > self.peakConnected {
+		self.peakConnected = connected
+	}
+	lifetime := self.servedLifetime
+	self.lock.Unlock()
+
+	if self.saveHook != nil {
+		_ = self.saveHook(lifetime)
+		return
+	}
+	if self.space != nil {
+		_ = self.space.setExtenderServedLifetime(lifetime)
+	}
+}
+
+func (self *extenderServeTracker) updateConnected(connected int) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+	if connected > self.peakConnected {
+		self.peakConnected = connected
+	}
+}
+
+func (self *extenderServeTracker) snapshot(connected int) (uint64, uint64, int, time.Time) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+	if connected > self.peakConnected {
+		self.peakConnected = connected
+	}
+	return self.servedProcess, self.servedLifetime, self.peakConnected, self.lastServed
 }
 
 func (self extenderProvideState) status(connectionCount int) *ExtenderProvideStatus {
@@ -238,6 +354,11 @@ func (self extenderProvideState) status(connectionCount int) *ExtenderProvideSta
 		LimitedBySubnetsCount: self.LimitedBySubnetsCount,
 		LimitedBySourceCount:  self.LimitedBySourceCount,
 		ConnectionCount:       connectionCount,
+		Connected:             self.Connected,
+		ServedProcess:         self.ServedProcess,
+		ServedLifetime:        self.ServedLifetime,
+		PeakConnected:         self.PeakConnected,
+		LastServed:            self.LastServed,
 	}
 }
 
@@ -515,6 +636,19 @@ type deviceLocalExtenderSettings struct {
 	CamouflageEnabled              bool
 	CamouflageSplice               bool
 	CamouflageRevalidationInterval time.Duration
+
+	// LoadExtenderServedLifetime, when set, loads the persisted lifetime count of
+	// client sessions served by this extender. When nil, the space's persistent
+	// store (.extender_served_lifetime) is used.
+	LoadExtenderServedLifetime func() (uint64, error)
+
+	// SaveExtenderServedLifetime, when set, persists the lifetime count of client
+	// sessions served by this extender. When nil, the space's persistent
+	// store (.extender_served_lifetime) is used.
+	SaveExtenderServedLifetime func(lifetime uint64) error
+
+	// ServeTracker, when set, is the process-wide serve counter tracker.
+	ServeTracker *extenderServeTracker
 }
 
 // The bound dns ports of one extender as one string (F3, L2), ascending.
@@ -682,6 +816,23 @@ func (self *DeviceLocal) GetExtenderStats() *ExtenderStats {
 		return nil
 	}
 	return provider.extenderStats()
+}
+
+// ExtenderServeStats returns the observable serving posture and client session
+// counters of the provider extender role. Safe to call at any time, including
+// before the role starts (zero values) and after Close.
+func (self *DeviceLocal) ExtenderServeStats() ExtenderServeStats {
+	if self == nil {
+		return ExtenderServeStats{}
+	}
+	self.stateLock.Lock()
+	provider := self.provider
+	closed := self.closed
+	self.stateLock.Unlock()
+	if closed || provider == nil {
+		return ExtenderServeStats{}
+	}
+	return provider.extenderServeStats()
 }
 
 // Whether this device would run the role if the setting allowed it (G1, G2):

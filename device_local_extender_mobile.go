@@ -41,6 +41,10 @@ func (self *deviceLocalExtender) stats() *ExtenderStats {
 	return nil
 }
 
+func (self *deviceLocalExtender) serveStats() ExtenderServeStats {
+	return ExtenderServeStats{}
+}
+
 func (self *deviceLocalExtender) statusUpdate() chan struct{} {
 	return nil
 }
