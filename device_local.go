@@ -1047,6 +1047,13 @@ type DeviceLocal struct {
 	closeOnce sync.Once
 	closed    bool
 
+	// provideExtenderSessionHeld withholds the extender role for this session
+	// only. The embedder sets it when its own launch-time permission, an
+	// activation budget for instance, has to be revisited while the device
+	// runs. It is reversible and never touches the user's stored preference,
+	// which is what separates it from SetProvideExtender.
+	provideExtenderSessionHeld bool
+
 	// Constructor workers are admitted before publication. Later retirement is
 	// admitted under stateLock before close() releases it with closed=true;
 	// Close starts its join only after closeOnce.Do returns. Destination setters

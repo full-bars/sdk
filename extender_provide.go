@@ -692,11 +692,33 @@ func (self *DeviceLocal) GetExtenderStats() *ExtenderStats {
 func (self *DeviceLocal) extenderProvideProviding() bool {
 	self.stateLock.Lock()
 	closed := self.closed
+	held := self.provideExtenderSessionHeld
 	self.stateLock.Unlock()
 	return !closed &&
 		!self.settings.HostedIncompatible &&
 		self.settings.ProvideExtenderEnabled &&
+		!held &&
 		self.GetProvideEnabled()
+}
+
+// HoldProvideExtenderSession withholds the extender role for this session, or
+// releases it, without touching the user's stored preference.
+//
+// An embedder that gates the role on something it can only decide at launch,
+// an activation budget for instance, otherwise has to keep the role off for the
+// whole life of the device: the settings it passes are its own copy and cannot
+// be changed later. Holding is reversible, so the role can start as soon as the
+// gate allows it, and it never rewrites what the user chose.
+func (self *DeviceLocal) HoldProvideExtenderSession(held bool) {
+	self.stateLock.Lock()
+	changed := self.provideExtenderSessionHeld != held
+	self.provideExtenderSessionHeld = held
+	self.stateLock.Unlock()
+	if !changed {
+		return
+	}
+	self.log.Infof("[device]provide extender session held = %t\n", held)
+	self.updateExtenderProvide()
 }
 
 // AddExtenderProvideStatusChangeListener subscribes to the provider extender
