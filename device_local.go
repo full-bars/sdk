@@ -757,11 +757,11 @@ type DeviceLocalSettings struct {
 	// ExtenderLoadServedLifetime, when set, loads the persisted lifetime count of
 	// client sessions served by the provider extender role. When nil, the
 	// space's persistent store (.extender_served_lifetime) is used.
-	ExtenderLoadServedLifetime func() (uint64, error)
+	ExtenderLoadServedLifetime func() (uint64, error) `json:"-"`
 	// ExtenderSaveServedLifetime, when set, persists the lifetime count of client
 	// sessions served by the provider extender role. When nil, the space's
 	// persistent store (.extender_served_lifetime) is used.
-	ExtenderSaveServedLifetime func(lifetime uint64) error
+	ExtenderSaveServedLifetime func(lifetime uint64) error `json:"-"`
 	// providerExtenderSettings, when set, adjusts the provider extender role's
 	// settings before it is built (EXTENDER.md G2). Tests bind ephemeral
 	// carrier ports and point the activation at an in-process operator through
