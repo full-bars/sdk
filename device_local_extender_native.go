@@ -734,6 +734,9 @@ func (self *deviceLocalExtender) recordServed() {
 	if self.serveTracker != nil {
 		self.serveTracker.record(connected, now())
 	}
+	// the role loop publishes the served counters, so a session wakes it
+	// rather than waiting for the next event
+	self.wakeMonitor.NotifyAll()
 }
 
 // The measurement key and certificate (lag.dev/PLAN.md C4), on or off as the
@@ -1404,17 +1407,21 @@ func (self *deviceLocalExtender) serveStats() ExtenderServeStats {
 			Enabled:     state.Enabled,
 		}
 		if self.serveTracker != nil {
-			stats.ServedProcess, stats.ServedLifetime, stats.PeakConnected, stats.LastServed = self.serveTracker.snapshot(0)
+			served, lifetime, peak, last := self.serveTracker.snapshot(0)
+			stats.ServedProcess = int64(served)
+			stats.ServedLifetime = int64(lifetime)
+			stats.PeakConnected = peak
+			stats.LastServed = extenderStatusTimeMs(last)
 		}
 		return stats
 	}
 	state := self.state()
 	return ExtenderServeStats{
 		Connected:      state.Connected,
-		ServedProcess:  state.ServedProcess,
-		ServedLifetime: state.ServedLifetime,
+		ServedProcess:  int64(state.ServedProcess),
+		ServedLifetime: int64(state.ServedLifetime),
 		PeakConnected:  state.PeakConnected,
-		LastServed:     state.LastServed,
+		LastServed:     extenderStatusTimeMs(state.LastServed),
 		Ipv4:           state.Ipv4,
 		Ipv6:           state.Ipv6,
 		ActivatedV4:    state.ActivatedV4,

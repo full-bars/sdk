@@ -75,8 +75,8 @@ func TestExtenderServeStatsAccessorBeforeStartAndAfterClose(t *testing.T) {
 	if stats.Connected != 0 || stats.ServedProcess != 0 || stats.ServedLifetime != 0 || stats.PeakConnected != 0 {
 		t.Fatalf("counters non-zero before role starts: %+v", stats)
 	}
-	if !stats.LastServed.IsZero() {
-		t.Fatalf("LastServed non-zero before role starts: %v", stats.LastServed)
+	if stats.LastServed != 0 {
+		t.Fatalf("LastServed non-zero before role starts: %d", stats.LastServed)
 	}
 	if stats.Ipv4 != "" || stats.Ipv6 != "" || stats.ActivatedV4 || stats.ActivatedV6 || stats.Listening || stats.Enabled {
 		t.Fatalf("posture flags non-zero before role starts: %+v", stats)
@@ -143,8 +143,8 @@ func TestExtenderServeStatsSessionLifecycleAndPeakGrowth(t *testing.T) {
 	if initStats.Connected != 0 || initStats.ServedProcess != 0 || initStats.PeakConnected != 0 {
 		t.Fatalf("expected zero initial counters, got %+v", initStats)
 	}
-	if !initStats.LastServed.IsZero() {
-		t.Fatalf("expected zero LastServed, got %v", initStats.LastServed)
+	if initStats.LastServed != 0 {
+		t.Fatalf("expected zero LastServed, got %d", initStats.LastServed)
 	}
 
 	dialClient := func() net.Conn {
@@ -186,7 +186,7 @@ func TestExtenderServeStatsSessionLifecycleAndPeakGrowth(t *testing.T) {
 
 	waitServeCondition(t, 5*time.Second, func() bool {
 		s := fixture.device.ExtenderServeStats()
-		return s.Connected == 1 && s.ServedProcess == 1 && s.PeakConnected == 1 && !s.LastServed.IsZero()
+		return s.Connected == 1 && s.ServedProcess == 1 && s.PeakConnected == 1 && s.LastServed != 0
 	})
 	s1 := fixture.device.ExtenderServeStats()
 	if s1.Connected != 1 {
@@ -222,8 +222,8 @@ func TestExtenderServeStatsSessionLifecycleAndPeakGrowth(t *testing.T) {
 	if s2.PeakConnected != 2 {
 		t.Fatalf("expected PeakConnected=2, got %d", s2.PeakConnected)
 	}
-	if !s2.LastServed.After(firstServedTime) && !s2.LastServed.Equal(firstServedTime) {
-		t.Fatalf("LastServed should update on new session, got %v vs %v", s2.LastServed, firstServedTime)
+	if s2.LastServed < firstServedTime {
+		t.Fatalf("LastServed should update on new session, got %d vs %d", s2.LastServed, firstServedTime)
 	}
 
 	// Close Session 1: Connected drops to 1, but PeakConnected MUST REMAIN 2 (peak only grows)
@@ -534,7 +534,7 @@ func TestExtenderServeStatsLifetimeHook(t *testing.T) {
 	}
 
 	initStats := fixture.device.ExtenderServeStats()
-	if initStats.ServedLifetime != initialLifetime {
+	if initStats.ServedLifetime != int64(initialLifetime) {
 		t.Fatalf("expected ServedLifetime initialized from hook to be %d, got %d", initialLifetime, initStats.ServedLifetime)
 	}
 
@@ -574,7 +574,7 @@ func TestExtenderServeStatsLifetimeHook(t *testing.T) {
 	if stats.ServedProcess != 1 {
 		t.Fatalf("expected ServedProcess=1, got %d", stats.ServedProcess)
 	}
-	if stats.ServedLifetime != initialLifetime+1 {
+	if stats.ServedLifetime != int64(initialLifetime+1) {
 		t.Fatalf("expected ServedLifetime=%d, got %d", initialLifetime+1, stats.ServedLifetime)
 	}
 	if lastSaved.Load() != initialLifetime+1 {

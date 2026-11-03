@@ -175,10 +175,12 @@ type ExtenderProvideStatus struct {
 	// that survives a restart, so a role that reports zero there is a role
 	// whose store was lost, which is worth seeing rather than hiding.
 	Connected      int
-	ServedProcess  uint64
-	ServedLifetime uint64
+	ServedProcess  int64
+	ServedLifetime int64
 	PeakConnected  int
-	LastServed     time.Time
+	// Unix milliseconds of when the last session was accepted, 0 before the
+	// first.
+	LastServed int64
 }
 
 type ExtenderProvideStatusChangeListener interface {
@@ -238,16 +240,17 @@ type extenderProvideState struct {
 // session counters of the provider extender role.
 type ExtenderServeStats struct {
 	Connected      int
-	ServedProcess  uint64
-	ServedLifetime uint64
+	ServedProcess  int64
+	ServedLifetime int64
 	PeakConnected  int
-	LastServed     time.Time
-	Ipv4           string
-	Ipv6           string
-	ActivatedV4    bool
-	ActivatedV6    bool
-	Listening      bool
-	Enabled        bool
+	// Unix milliseconds of the last accepted session, 0 before the first.
+	LastServed  int64
+	Ipv4        string
+	Ipv6        string
+	ActivatedV4 bool
+	ActivatedV6 bool
+	Listening   bool
+	Enabled     bool
 }
 
 type extenderServeTracker struct {
@@ -394,10 +397,12 @@ func (self extenderProvideState) status(connectionCount int) *ExtenderProvideSta
 		LimitedBySourceCount:  self.LimitedBySourceCount,
 		ConnectionCount:       connectionCount,
 		Connected:             self.Connected,
-		ServedProcess:         self.ServedProcess,
-		ServedLifetime:        self.ServedLifetime,
-		PeakConnected:         self.PeakConnected,
-		LastServed:            self.LastServed,
+		// the counters cross as int64 and the time as unix milliseconds, the
+		// bindable forms the other fields use (gomobile has no unsigned type)
+		ServedProcess:  int64(self.ServedProcess),
+		ServedLifetime: int64(self.ServedLifetime),
+		PeakConnected:  self.PeakConnected,
+		LastServed:     extenderStatusTimeMs(self.LastServed),
 	}
 }
 
