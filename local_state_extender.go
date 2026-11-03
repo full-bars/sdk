@@ -375,14 +375,35 @@ func (self *LocalState) GetExtenderServedLifetime() uint64 {
 }
 
 // SetExtenderServedLifetime persists the lifetime count of client sessions
-// served by the provider extender role.
+// served by the provider extender role. The count is staged in a temp file
+// and renamed over the old one, so a crash mid-write leaves the old count, not
+// a truncated one that would read back as zero.
 func (self *LocalState) SetExtenderServedLifetime(lifetime uint64) error {
 	self.extenderServedLifetimeLock.Lock()
 	defer self.extenderServedLifetimeLock.Unlock()
 	path := filepath.Join(self.localStorageDir, extenderServedLifetimeFileName)
-	return os.WriteFile(
-		path,
-		[]byte(strconv.FormatUint(lifetime, 10)),
-		LocalStorageFilePermissions,
-	)
+	temp, err := os.CreateTemp(self.localStorageDir, extenderServedLifetimeFileName+".tmp-")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer func() {
+		_ = temp.Close()
+		_ = os.Remove(tempPath)
+	}()
+	if err := temp.Chmod(LocalStorageFilePermissions); err != nil {
+		return err
+	}
+	if _, err := temp.WriteString(strconv.FormatUint(lifetime, 10)); err != nil {
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	// after a successful rename the temp path is gone, so the removal above
+	// finds nothing to remove
+	return os.Rename(tempPath, path)
 }

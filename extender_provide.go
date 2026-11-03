@@ -256,10 +256,16 @@ type extenderServeTracker struct {
 	servedLifetime uint64
 	peakConnected  int
 	lastServed     time.Time
-	loaded         bool
-	space          *NetworkSpace
-	loadHook       func() (uint64, error)
-	saveHook       func(uint64) error
+	// loaded is true once the lifetime count was read from the store it is
+	// saved to. A failed hook load leaves it false, so nothing is saved over
+	// the store until a load succeeds.
+	loaded bool
+	// saveLock orders the saves of the lifetime count, so a slower save
+	// cannot land an older count over a newer one.
+	saveLock sync.Mutex
+	space    *NetworkSpace
+	loadHook func() (uint64, error)
+	saveHook func(uint64) error
 }
 
 func newExtenderServeTracker(
@@ -282,25 +288,58 @@ func (self *extenderServeTracker) initLifetime() {
 	if self.loaded {
 		return
 	}
-	self.loaded = true
+	self.loadLifetime()
+}
+
+// Reads the persisted count from the store it is saved to. Lock held. With a
+// hook, the hook is the only store: a zero it returns is the count, and a
+// failed load is not, so the count is left as it was and not saved over.
+func (self *extenderServeTracker) loadLifetime() {
 	if self.loadHook != nil {
-		if val, err := self.loadHook(); err == nil && 0 < val {
-			self.servedLifetime = val
+		val, err := self.loadHook()
+		if err != nil {
 			return
 		}
+		// sessions counted while a retried load was failing are added to
+		// the count the store holds
+		self.servedLifetime += val
+		self.loaded = true
+		return
 	}
 	if self.space != nil {
 		self.servedLifetime = self.space.getExtenderServedLifetime()
 	}
+	self.loaded = true
 }
 
 func (self *extenderServeTracker) record(connected int, now time.Time) {
 	self.lock.Lock()
+	if !self.loaded {
+		// retried here, so a count is never written over a store that was
+		// not read
+		self.loadLifetime()
+	}
 	self.servedProcess += 1
 	self.servedLifetime += 1
 	self.lastServed = now
 	if connected > self.peakConnected {
 		self.peakConnected = connected
+	}
+	self.lock.Unlock()
+
+	self.saveLifetime()
+}
+
+// Writes the newest count. saveLock orders the writes, and each reads the
+// count when it writes, so a save never lands a count older than the one
+// before it.
+func (self *extenderServeTracker) saveLifetime() {
+	self.saveLock.Lock()
+	defer self.saveLock.Unlock()
+	self.lock.Lock()
+	if !self.loaded {
+		self.lock.Unlock()
+		return
 	}
 	lifetime := self.servedLifetime
 	self.lock.Unlock()
