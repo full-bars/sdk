@@ -201,13 +201,17 @@ func (self *countingLogger) Infof(format string, args ...any) {
 }
 func (self *countingLogger) Warningf(format string, args ...any) {}
 func (self *countingLogger) Errorf(format string, args ...any)   {}
-func (self *countingLogger) V(level int32) connect.Verbose       { return noopVerbose{} }
+func (self *countingLogger) V(level int32) connect.Verbose {
+	return countingVerbose{logger: self}
+}
 
-type noopVerbose struct{}
+type countingVerbose struct {
+	logger *countingLogger
+}
 
-func (noopVerbose) Enabled() bool                    { return false }
-func (noopVerbose) Info(args ...any)                 {}
-func (noopVerbose) Infof(format string, args ...any) {}
+func (self countingVerbose) Enabled() bool                    { return true }
+func (self countingVerbose) Info(args ...any)                 { self.logger.Info(args...) }
+func (self countingVerbose) Infof(format string, args ...any) { self.logger.Infof(format, args...) }
 
 // TestTokenManagerClosedDeviceDoesNotRefresh pins the second, independent half of
 // the cancellation fix: the outer loop must observe cancellation on the

@@ -48,14 +48,31 @@ func (self *testingTokenManagerTransportLogger) Infof(format string, args ...any
 			close(self.scheduled)
 		})
 	}
+	if strings.Contains(format, "sign-in renewal failed") {
+		self.requestErrors.Add(1)
+	}
 }
 
 // Errorf counts refresh request errors so deliberate supersession cannot hide
 // behind an otherwise successful retry.
 func (self *testingTokenManagerTransportLogger) Errorf(format string, args ...any) {
-	if strings.Contains(format, "failed to refresh JWT:") {
+	if strings.Contains(format, "failed to refresh JWT:") || strings.Contains(format, "sign-in renewal failed") {
 		self.requestErrors.Add(1)
 	}
+}
+
+func (self *testingTokenManagerTransportLogger) V(level int32) connect.Verbose {
+	return testingTransportVerbose{logger: self}
+}
+
+type testingTransportVerbose struct {
+	logger *testingTokenManagerTransportLogger
+}
+
+func (self testingTransportVerbose) Enabled() bool    { return true }
+func (self testingTransportVerbose) Info(args ...any) { self.logger.Info(args...) }
+func (self testingTransportVerbose) Infof(format string, args ...any) {
+	self.logger.Infof(format, args...)
 }
 
 // waitForTokenManagerTransportSignal keeps the barriers below bounded if the
