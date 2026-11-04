@@ -362,6 +362,17 @@ func (self *deviceLocalExtender) startServing(tcpListener net.Listener) {
 	if strategySettings == nil {
 		strategySettings = connect.DefaultClientStrategySettings()
 	}
+	// The direct strategy caps requests independently of the activator. Allow
+	// the activation its full budget without changing the caller's settings.
+	activationTimeout := settings.RequestTimeout
+	if activationTimeout <= 0 {
+		activationTimeout = connect.DefaultExtenderActivatorSettings().RequestTimeout
+	}
+	if strategySettings.ConnectSettings.RequestTimeout < activationTimeout {
+		copied := *strategySettings
+		copied.ConnectSettings.RequestTimeout = activationTimeout
+		strategySettings = &copied
+	}
 	self.clientStrategy = connect.NewDirectClientStrategy(self.ctx, strategySettings, 0)
 
 	self.listener = gossip.NewInProcessListener(self.ctx, gossip.DefaultInProcessListenerSettings())
