@@ -31,6 +31,17 @@ func waitServeCondition(t *testing.T, timeout time.Duration, cond func() bool) {
 	}
 }
 
+// The tracker counts in memory, then saves after its lock is released, so the
+// persisted count can trail the in-memory one. Waits for the stored count to
+// reach want before it is read.
+func waitPersistedLifetime(t *testing.T, networkSpace *NetworkSpace, want uint64) {
+	t.Helper()
+	waitServeCondition(t, 5*time.Second, func() bool {
+		lifetime, err := networkSpace.getExtenderServedLifetime()
+		return err == nil && lifetime == want
+	})
+}
+
 // Requirement: The accessor is zero-valued and non-panicking before the role starts,
 // and safe to call on nil or after Close.
 func TestExtenderServeStatsAccessorBeforeStartAndAfterClose(t *testing.T) {
@@ -403,6 +414,7 @@ func TestExtenderServeStatsLifetimePersistence(t *testing.T) {
 	})
 
 	// Verify persistence in local state directly
+	waitPersistedLifetime(t, fixture.networkSpace, 1)
 	persistedLifetime, err := fixture.networkSpace.getExtenderServedLifetime()
 	if err != nil {
 		t.Fatal(err)
@@ -473,6 +485,7 @@ func TestExtenderServeStatsLifetimePersistence(t *testing.T) {
 	}
 
 	// Check persisted store again
+	waitPersistedLifetime(t, fixture.networkSpace, 2)
 	postPersisted, err := fixture.networkSpace.getExtenderServedLifetime()
 	if err != nil {
 		t.Fatal(err)
