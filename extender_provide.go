@@ -323,12 +323,39 @@ func (self *extenderServeTracker) loadLifetime() {
 	self.loaded = true
 }
 
+// Lock held. Raises the count to the stored one when another tracker over the
+// same store saved a newer count since this one loaded, such as a standby
+// provider that shares the space. The count is only ever raised, so a stale
+// tracker cannot save its lower count over the newer one. A failed read keeps
+// the count as it is.
+func (self *extenderServeTracker) adoptStoredLifetime() {
+	stored, err := self.readStoredLifetime()
+	if err == nil && stored > self.servedLifetime {
+		self.servedLifetime = stored
+	}
+}
+
+// Reads the count the store holds now, without changing the tracker. The
+// hook is the store when set, else the space's local state, else there is no
+// store and the count is 0.
+func (self *extenderServeTracker) readStoredLifetime() (uint64, error) {
+	if self.loadHook != nil {
+		return self.loadHook()
+	}
+	if self.space != nil {
+		return self.space.getExtenderServedLifetime()
+	}
+	return 0, nil
+}
+
 func (self *extenderServeTracker) record(connected int, now time.Time) {
 	self.lock.Lock()
 	if !self.loaded {
 		// retried here, so a count is never written over a store that was
 		// not read
 		self.loadLifetime()
+	} else {
+		self.adoptStoredLifetime()
 	}
 	self.servedProcess += 1
 	self.servedLifetime += 1

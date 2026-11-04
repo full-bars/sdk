@@ -169,6 +169,41 @@ func TestExtenderServedLifetimeFailedWriteKeepsCount(t *testing.T) {
 	}
 }
 
+// Two trackers over one store, as a standby provider shares a space with the
+// active one. The standby loaded 5 before the active one counted two sessions,
+// so the store holds 7. Its own session must count on top of 7, and its save
+// must not write its stale 6 over the store.
+func TestExtenderServeTrackerStandbyDoesNotOverwriteNewerCount(t *testing.T) {
+	var storeLock sync.Mutex
+	store := uint64(5)
+	load := func() (uint64, error) {
+		storeLock.Lock()
+		defer storeLock.Unlock()
+		return store, nil
+	}
+	save := func(lifetime uint64) error {
+		storeLock.Lock()
+		defer storeLock.Unlock()
+		store = lifetime
+		return nil
+	}
+	active := newExtenderServeTracker(nil, load, save)
+	standby := newExtenderServeTracker(nil, load, save)
+
+	active.record(1, time.Now())
+	active.record(1, time.Now())
+	standby.record(1, time.Now())
+
+	storeLock.Lock()
+	defer storeLock.Unlock()
+	if store != 8 {
+		t.Fatalf("expected the store to hold 8 after the standby's session, got %d", store)
+	}
+	if _, lifetime, _, _ := standby.snapshot(0); lifetime != 8 {
+		t.Fatalf("expected the standby to count 8, got %d", lifetime)
+	}
+}
+
 // A failed read from the space store leaves the store alone. Corrupted or
 // unreadable files must not be treated as a zero count and overwritten.
 func TestExtenderServeTrackerNetworkSpaceFailedReadDoesNotOverwrite(t *testing.T) {
