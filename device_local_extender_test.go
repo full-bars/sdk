@@ -114,6 +114,9 @@ type testProvideExtenderOperator struct {
 	clientAddress string
 	// non-empty refuses every activation with this message
 	refusal string
+	// refuses every activation of a public key, by its hex, with its message,
+	// as the operator refuses a key another network holds (C2c)
+	keyRefusals map[string]string
 	// the address published for each family, which a test moves to prove a
 	// stale mesh address is dropped rather than kept (G2, D2)
 	publishedIps map[int]string
@@ -208,6 +211,9 @@ func (self *testProvideExtenderOperator) familyHandler(ipVersion int) http.Handl
 		}
 		self.stateLock.Lock()
 		refusal := self.refusal
+		if keyRefusal, ok := self.keyRefusals[args.PublicKeyHex]; ok && refusal == "" {
+			refusal = keyRefusal
+		}
 		self.postCounts[ipVersion] += 1
 		self.stateLock.Unlock()
 		select {
@@ -349,6 +355,17 @@ func (self *testProvideExtenderOperator) setRefusal(refusal string) {
 	self.refusal = refusal
 }
 
+// Refuses every activation of one public key with `refusal`, as the operator
+// refuses a key another network holds (C2c).
+func (self *testProvideExtenderOperator) setKeyRefusal(publicKey []byte, refusal string) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	if self.keyRefusals == nil {
+		self.keyRefusals = map[string]string{}
+	}
+	self.keyRefusals[hex.EncodeToString(publicKey)] = refusal
+}
+
 func (self *testProvideExtenderOperator) postCount(ipVersion int) int {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
@@ -412,6 +429,35 @@ func newTestProvideExtenderFixtureWithSpace(
 	configure func(settings *deviceLocalExtenderSettings),
 ) *testProvideExtenderFixture {
 	t.Helper()
+	return newTestProvideExtenderFixtureWithOptions(t, &testProvideExtenderFixtureOptions{
+		newSpace:        newSpace,
+		configureDevice: configureDevice,
+		configure:       configure,
+	})
+}
+
+// What a fixture is built with beyond the defaults.
+type testProvideExtenderFixtureOptions struct {
+	newSpace        func(ctx context.Context) *NetworkSpace
+	configureDevice func(settings *DeviceLocalSettings)
+	configure       func(settings *deviceLocalExtenderSettings)
+	// the device's client jwt, "" for none, and the client it names; a zero
+	// client takes a new id
+	byJwt    string
+	clientId connect.Id
+	// runs once the space and the operator exist and before the device
+	// provides, so the role's first post already meets what it set
+	prepare func(fixture *testProvideExtenderFixture)
+}
+
+func newTestProvideExtenderFixtureWithOptions(
+	t *testing.T,
+	options *testProvideExtenderFixtureOptions,
+) *testProvideExtenderFixture {
+	t.Helper()
+	newSpace := options.newSpace
+	configureDevice := options.configureDevice
+	configure := options.configure
 	testEnableExtenderNode(t)
 	testEnableExtenderProvideRole(t)
 
@@ -482,8 +528,15 @@ func newTestProvideExtenderFixtureWithSpace(
 	if configureDevice != nil {
 		configureDevice(settings)
 	}
+	if options.prepare != nil {
+		options.prepare(fixture)
+	}
+	clientId := options.clientId
+	if clientId == (connect.Id{}) {
+		clientId = connect.NewId()
+	}
 	device, err := newDeviceLocalWithOverrides(
-		fixture.networkSpace, "", "", "", "", NewId(), settings, connect.NewId())
+		fixture.networkSpace, options.byJwt, "", "", "", NewId(), settings, clientId)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1555,35 +1608,54 @@ func TestDeviceRemoteExtenderProvideStatusPushCarriesTheErrorCase(t *testing.T) 
 	}
 }
 
-// The operator's refusal is the refused case, not a failed request (N2, N3):
+// The operator's refusal is a refused case, not a failed request (N2, N3):
 // after a first activation the operator refuses the daily one, no family stays
-// active, and the status carries the operator's text with the refusal flag.
+// active, and the status carries the operator's text with the refusal flag. A
+// refusal of the required tcp test has a case of its own, which says the device
+// can't be reached from the internet; any other refusal is refused. The texts are
+// the operator's (server extenderProbeStepRun.refusal).
 func TestDeviceLocalProviderExtenderReportsARefusal(t *testing.T) {
-	fixture := newTestProvideExtenderFixture(t, nil)
-	fixture.waitPass()
-	fixture.waitPost()
-	fixture.waitPost()
-	fixture.waitStatus("activated", func(status *ExtenderProvideStatus) bool {
-		return status.ActivatedV4 && status.ActivatedV6
-	})
+	for _, c := range []struct {
+		refusal   string
+		errorCase string
+	}{
+		{
+			refusal:   "the forward failed after 1 s: status 502",
+			errorCase: ExtenderProvideErrorActivationRefused,
+		},
+		{
+			refusal:   "the tcp carrier did not answer within the 10 s probe budget: i/o timeout",
+			errorCase: ExtenderProvideErrorActivationUnreachable,
+		},
+	} {
+		t.Run(c.errorCase, func(t *testing.T) {
+			fixture := newTestProvideExtenderFixture(t, nil)
+			fixture.waitPass()
+			fixture.waitPost()
+			fixture.waitPost()
+			fixture.waitStatus("activated", func(status *ExtenderProvideStatus) bool {
+				return status.ActivatedV4 && status.ActivatedV6
+			})
 
-	fixture.operator.setRefusal("the tcp carrier did not answer")
-	// the daily activation (G3)
-	fixture.step(25 * time.Hour)
-	fixture.waitPost()
+			fixture.operator.setRefusal(c.refusal)
+			// the daily activation (G3)
+			fixture.step(25 * time.Hour)
+			fixture.waitPost()
 
-	status := fixture.waitStatus("refused", func(status *ExtenderProvideStatus) bool {
-		return status.ErrorCase == ExtenderProvideErrorActivationRefused
-	})
-	if status.State != ExtenderProvideStateError || status.ActivatedV4 || status.ActivatedV6 {
-		t.Fatalf("status = %+v, expected an inactive refused extender", status)
-	}
-	if !status.LastActivationRefused {
-		t.Fatalf("status = %+v, expected the refusal flag", status)
-	}
-	if !strings.Contains(status.Reason, "the tcp carrier did not answer") ||
-		status.Reason != status.LastActivationError {
-		t.Fatalf("reason = %q, expected the operator's refusal", status.Reason)
+			status := fixture.waitStatus(c.errorCase, func(status *ExtenderProvideStatus) bool {
+				return status.ErrorCase == c.errorCase
+			})
+			if status.State != ExtenderProvideStateError || status.ActivatedV4 || status.ActivatedV6 {
+				t.Fatalf("status = %+v, expected an inactive refused extender", status)
+			}
+			if !status.LastActivationRefused {
+				t.Fatalf("status = %+v, expected the refusal flag", status)
+			}
+			if !strings.Contains(status.Reason, c.refusal) ||
+				status.Reason != status.LastActivationError {
+				t.Fatalf("reason = %q, expected the operator's refusal", status.Reason)
+			}
+		})
 	}
 }
 

@@ -74,6 +74,10 @@ const (
 	ExtenderProvideErrorActivationFailed = "activation_failed"
 	// The operator refused the last activation and no family is active.
 	ExtenderProvideErrorActivationRefused = "activation_refused"
+	// The operator refused the last activation because its required test of the
+	// tcp carrier found no answer (EXTENDER.md C2a), and no family is active: the
+	// internet can't reach this device on its tcp port. The reason is the operator's.
+	ExtenderProvideErrorActivationUnreachable = "activation_unreachable"
 )
 
 // The provider extender state as the apps render it (F3). Every field is a
@@ -335,6 +339,12 @@ func extenderProvideStateRule(
 // status reports, and this is the one place the rule reads it.
 func extenderProvideActivationErrorCase(status *ExtenderProvideStatus) string {
 	if status.LastActivationRefused {
+		// the operator's words for its required tcp test (server
+		// extenderProbeStepRun.refusal); the answer has no code for it
+		if strings.HasPrefix(status.LastActivationError, "the tcp carrier did not answer") ||
+			strings.HasPrefix(status.LastActivationError, "the tcp carrier failed") {
+			return ExtenderProvideErrorActivationUnreachable
+		}
 		return ExtenderProvideErrorActivationRefused
 	}
 	return ExtenderProvideErrorActivationFailed
@@ -413,6 +423,11 @@ type deviceLocalExtenderSettings struct {
 	// whose server ended, or whose tcp carrier stayed lost, comes back (G2). The
 	// provider fills it. Nil leaves the role reporting what happened.
 	Restart func(role *deviceLocalExtender)
+	// Asks the provider to replace this role with one on a key of the network's
+	// own, which is what a role whose key the operator refused as another
+	// network's asks for (C2c). The provider fills it. Nil leaves the refusal in
+	// the status.
+	RenewKey func(role *deviceLocalExtender)
 	// The spread of the wait before this role asks to be replaced, doubling
 	// with each replacement that did not last (deviceLocalProvider.restartExtender).
 	// Zero takes extenderProvideRestartMinJitter.

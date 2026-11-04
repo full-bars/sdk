@@ -81,6 +81,46 @@ void urnet_invoke_auth_wallet_challenge(urnet_auth_wallet_challenge_cb cb, void*
 	cb(user_data, result_json, err_param);
 }
 
+void urnet_invoke_bittensor_convert_estimate(urnet_bittensor_convert_estimate_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_bittensor_convert_receipt(urnet_bittensor_convert_receipt_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_bittensor_convert_submit(urnet_bittensor_convert_submit_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_bittensor_local_key_flow(urnet_bittensor_local_key_flow_cb cb, void* user_data) {
+	cb(user_data);
+}
+
+bool urnet_invoke_bittensor_local_key_store_add_key(urnet_bittensor_local_key_store_add_key_cb cb, void* user_data, const char* network_id, const char* mnemonic, const char* address) {
+	return cb(user_data, network_id, mnemonic, address);
+}
+
+bool urnet_invoke_bittensor_local_key_store_delete_key(urnet_bittensor_local_key_store_delete_key_cb cb, void* user_data, const char* network_id) {
+	return cb(user_data, network_id);
+}
+
+char* urnet_invoke_bittensor_local_key_store_key_address(urnet_bittensor_local_key_store_key_address_cb cb, void* user_data, const char* network_id) {
+	return cb(user_data, network_id);
+}
+
+char* urnet_invoke_bittensor_local_key_store_key_phrase(urnet_bittensor_local_key_store_key_phrase_cb cb, void* user_data, const char* network_id) {
+	return cb(user_data, network_id);
+}
+
+char* urnet_invoke_bittensor_local_key_store_read_note(urnet_bittensor_local_key_store_read_note_cb cb, void* user_data, const char* network_id, const char* name) {
+	return cb(user_data, network_id, name);
+}
+
+void urnet_invoke_bittensor_local_key_store_write_note(urnet_bittensor_local_key_store_write_note_cb cb, void* user_data, const char* network_id, const char* name, const char* value) {
+	cb(user_data, network_id, name, value);
+}
+
 void urnet_invoke_block_action_overrides_change(urnet_block_action_overrides_change_cb cb, void* user_data, const char* block_action_overrides_json) {
 	cb(user_data, block_action_overrides_json);
 }
@@ -661,6 +701,22 @@ void urnet_invoke_sn_claim_sent(urnet_sn_claim_sent_cb cb, void* user_data, int6
 	cb(user_data, epoch, tx_hash);
 }
 
+void urnet_invoke_sn_claim_now(urnet_sn_claim_now_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_claim_relay(urnet_sn_claim_relay_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_claim_relay_claim_now(urnet_sn_claim_relay_claim_now_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_claim_status(urnet_sn_claim_status_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
 void urnet_invoke_sn_claims(urnet_sn_claims_cb cb, void* user_data, const char* result_json, const char* err_param) {
 	cb(user_data, result_json, err_param);
 }
@@ -671,6 +727,42 @@ void urnet_invoke_sn_connect_wallet(urnet_sn_connect_wallet_cb cb, void* user_da
 
 void urnet_invoke_sn_epoch(urnet_sn_epoch_cb cb, void* user_data, const char* result_json, const char* err_param) {
 	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_fleet_claim(urnet_sn_fleet_claim_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+char* urnet_invoke_sn_fleet_claim_store_load_sn_fleet_coldkey_phrase(urnet_sn_fleet_claim_store_load_sn_fleet_coldkey_phrase_cb cb, void* user_data, const char* network_id) {
+	return cb(user_data, network_id);
+}
+
+char* urnet_invoke_sn_fleet_claim_store_load_sn_fleet_hotkey_seed(urnet_sn_fleet_claim_store_load_sn_fleet_hotkey_seed_cb cb, void* user_data, const char* network_id) {
+	return cb(user_data, network_id);
+}
+
+bool urnet_invoke_sn_fleet_claim_store_save_sn_fleet_hotkey_seed(urnet_sn_fleet_claim_store_save_sn_fleet_hotkey_seed_cb cb, void* user_data, const char* network_id, const char* seed_hex) {
+	return cb(user_data, network_id, seed_hex);
+}
+
+void urnet_invoke_sn_fleet_device_check(urnet_sn_fleet_device_check_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_fleet_device_leave(urnet_sn_fleet_device_leave_cb cb, void* user_data, const char* result_json, const char* err_param) {
+	cb(user_data, result_json, err_param);
+}
+
+void urnet_invoke_sn_fleet_device(urnet_sn_fleet_device_cb cb, void* user_data, const char* result_json) {
+	cb(user_data, result_json);
+}
+
+char* urnet_invoke_sn_fleet_device_store_load_sn_fleet_device_state(urnet_sn_fleet_device_store_load_sn_fleet_device_state_cb cb, void* user_data) {
+	return cb(user_data);
+}
+
+bool urnet_invoke_sn_fleet_device_store_save_sn_fleet_device_state(urnet_sn_fleet_device_store_save_sn_fleet_device_state_cb cb, void* user_data, const char* state_json) {
+	return cb(user_data, state_json);
 }
 
 void urnet_invoke_sn_gas_balance(urnet_sn_gas_balance_cb cb, void* user_data, const char* result_json, const char* err_param) {
