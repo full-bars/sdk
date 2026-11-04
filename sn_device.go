@@ -96,6 +96,16 @@ func (self *DeviceLocal) SnLedgerClaimTransactions() (*SnLedgerUnsignedTxList, e
 	return self.snDevice().SnLedgerClaimTransactions()
 }
 
+// claim relay
+
+func (self *DeviceLocal) SnClaimStatus(callback SnClaimStatusCallback) {
+	self.snDevice().SnClaimStatus(callback)
+}
+
+func (self *DeviceLocal) SnClaimNow(coldkeySs58 string, callback SnClaimNowCallback) {
+	self.snDevice().SnClaimNow(coldkeySs58, callback)
+}
+
 // head spot
 
 func (self *DeviceLocal) GetSnClientKey() string {
@@ -104,6 +114,10 @@ func (self *DeviceLocal) GetSnClientKey() string {
 
 func (self *DeviceLocal) SignSnFleetBinding(bindingJson string) (string, error) {
 	return self.snDevice().SignSnFleetBinding(bindingJson)
+}
+
+func (self *DeviceLocal) SignSnFleetRevoke(revokeJson string) (string, error) {
+	return self.snDevice().SignSnFleetRevoke(revokeJson)
 }
 
 // DeviceRemote
@@ -184,6 +198,16 @@ func (self *DeviceRemote) SnLedgerClaimTransactions() (*SnLedgerUnsignedTxList, 
 	return self.snDevice().SnLedgerClaimTransactions()
 }
 
+// claim relay
+
+func (self *DeviceRemote) SnClaimStatus(callback SnClaimStatusCallback) {
+	self.snDevice().SnClaimStatus(callback)
+}
+
+func (self *DeviceRemote) SnClaimNow(coldkeySs58 string, callback SnClaimNowCallback) {
+	self.snDevice().SnClaimNow(coldkeySs58, callback)
+}
+
 // GetSnClientKey asks the DeviceLocal for the client public key; "" when
 // the extension service is not connected.
 func (self *DeviceRemote) GetSnClientKey() string {
@@ -217,6 +241,24 @@ func (self *DeviceRemote) SignSnFleetBinding(bindingJson string) (string, error)
 	return signature, nil
 }
 
+// SignSnFleetRevoke forwards to the DeviceLocal, which holds the client key.
+// Fails when the extension service is not connected.
+func (self *DeviceRemote) SignSnFleetRevoke(revokeJson string) (string, error) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	if self.service == nil {
+		return "", errors.New("device service not connected")
+	}
+	signature, err := rpcCall[string](self.service, "DeviceLocalRpc.SignSnFleetRevoke", revokeJson, self.closeService)
+	if err != nil {
+		return "", err
+	}
+	if signature == "" {
+		return "", errors.New("the device could not sign the revocation")
+	}
+	return signature, nil
+}
+
 // DeviceLocalRpc
 
 func (self *DeviceLocalRpc) GetSnClientKey(_ RpcNoArg, key *string) error {
@@ -226,6 +268,15 @@ func (self *DeviceLocalRpc) GetSnClientKey(_ RpcNoArg, key *string) error {
 
 func (self *DeviceLocalRpc) SignSnFleetBinding(bindingJson string, signature *string) error {
 	signed, err := self.deviceLocal.SignSnFleetBinding(bindingJson)
+	if err != nil {
+		return err
+	}
+	*signature = signed
+	return nil
+}
+
+func (self *DeviceLocalRpc) SignSnFleetRevoke(revokeJson string, signature *string) error {
+	signed, err := self.deviceLocal.SignSnFleetRevoke(revokeJson)
 	if err != nil {
 		return err
 	}

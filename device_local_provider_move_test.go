@@ -255,7 +255,10 @@ func TestDeviceLocalProviderMoveSwapsToTheTargetMakeBeforeBreak(t *testing.T) {
 	if !waitForProviderCondition(10*time.Second, old.IsConnected) {
 		t.Fatal("the provider did not connect")
 	}
-	oldGroup := old.(*connect.FamilyPlatformTransportGroup)
+	oldPlain, ok := old.(*providerPlainTransport)
+	if !ok {
+		t.Fatalf("provider transport is %T, want a plain transport", old)
+	}
 
 	provider.handleControlFrames(
 		connect.SourceId(connect.ControlId),
@@ -266,14 +269,14 @@ func TestDeviceLocalProviderMoveSwapsToTheTargetMakeBeforeBreak(t *testing.T) {
 	if request.host != testProviderMoveHost || request.serverName != testProviderMoveHost || request.moveVersion != "1" {
 		t.Fatalf("target edge upgrade = %+v", request)
 	}
-	// make before break: the old group still carried when the replacement
+	// make before break: the old transport still carried when the replacement
 	// reached the target edge
 	select {
-	case <-oldGroup.Done():
-		t.Fatal("the old transports closed before the replacement reached the target")
+	case <-oldPlain.agnostic.Done():
+		t.Fatal("the old transport closed before the replacement reached the target")
 	default:
 	}
-	receiveTestProviderMove(t, oldGroup.Done(), "the old transports did not close after the arrival")
+	receiveTestProviderMove(t, oldPlain.agnostic.Done(), "the old transport did not close after the arrival")
 	waitTestProviderMigration(t, provider)
 	provider.stateLock.Lock()
 	current := provider.platformTransport

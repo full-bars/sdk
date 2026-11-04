@@ -125,8 +125,8 @@ func TestDeviceLocalProviderTransportGroupWithFamilyUrls(t *testing.T) {
 	}
 }
 
-// Without family urls (an ip literal, a custom space) the group is the
-// legacy single transport: no pins, the standby dials at once.
+// Without family urls (an ip literal, a custom space) the provider uses a
+// single transport: no pins, the standby dials at once.
 func TestDeviceLocalProviderTransportGroupWithoutFamilyUrls(t *testing.T) {
 	provider := newTestFamilyProvider(t, "", "")
 	transport := provider.newProviderPlatformTransport(
@@ -135,15 +135,15 @@ func TestDeviceLocalProviderTransportGroupWithoutFamilyUrls(t *testing.T) {
 		provider.platformTransportSettings,
 	)
 	defer waitTransportDone(t, transport)
-	group, ok := transport.(*connect.FamilyPlatformTransportGroup)
+	plain, ok := transport.(*providerPlainTransport)
 	if !ok {
-		t.Fatalf("provider transport is %T, want a family transport group", transport)
+		t.Fatalf("provider transport is %T, want a plain transport", transport)
 	}
-	if group.Ipv4Transport() != nil || group.Ipv6Transport() != nil {
-		t.Fatal("legacy group built a pinned transport")
+	if plain.Ipv6Transport() != nil {
+		t.Fatal("plain transport built a pinned transport")
 	}
-	if n := len(group.Transports()); n != 1 {
-		t.Fatalf("group transports = %d, want 1", n)
+	if n := len(plain.Transports()); n != 1 {
+		t.Fatalf("plain transports = %d, want 1", n)
 	}
 	provider.stateLock.Lock()
 	provider.platformTransport = transport
