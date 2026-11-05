@@ -352,10 +352,15 @@ func newExtenderProvideCamouflage(settings *deviceLocalExtenderSettings) (*exten
 // timeout, so a cap below the activation's budget tears the activation down
 // mid-probe, and the operator still spends the caller's budget on a request
 // whose answer nobody reads. A zero or negative activation budget means the
-// activator's own default. The strategy's larger timeout is never lowered.
+// activator's own default. The strategy's larger timeout is never lowered. A
+// zero or negative strategy timeout is no cap at all (connect reads it as
+// unbounded), so it is kept as it is rather than turned into a bounded one.
 func extenderStrategyRequestTimeout(activationTimeout time.Duration, strategyTimeout time.Duration) time.Duration {
 	if activationTimeout <= 0 {
 		activationTimeout = connect.DefaultExtenderActivatorSettings().RequestTimeout
+	}
+	if strategyTimeout <= 0 {
+		return strategyTimeout
 	}
 	if strategyTimeout < activationTimeout {
 		return activationTimeout

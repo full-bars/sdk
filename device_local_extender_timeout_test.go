@@ -37,8 +37,10 @@ func TestExtenderStrategyRequestTimeout(t *testing.T) {
 		{"longer strategy kept", 5 * time.Second, 30 * time.Second, 30 * time.Second},
 		// equal budgets stay put
 		{"equal budgets stay", 60 * time.Second, 60 * time.Second, 60 * time.Second},
-		// a zero strategy is raised like any other shorter cap
-		{"zero strategy raised", 45 * time.Second, 0, 45 * time.Second},
+		// a zero strategy timeout is no cap (connect reads it as unbounded),
+		// so raising it to the budget would add a cap that was never there
+		{"zero strategy stays unbounded", 45 * time.Second, 0, 0},
+		{"negative strategy stays unbounded", 45 * time.Second, -time.Second, -time.Second},
 	}
 
 	for _, c := range cases {
