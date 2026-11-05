@@ -566,6 +566,8 @@ func TestExtenderProvideStatusCarriesEveryPublishedField(t *testing.T) {
 		// the served counters and the last-served time cross as the bindable
 		// forms, so the status carries those values converted
 		switch name {
+		case "Connected":
+			published = 7
 		case "ServedProcess", "ServedLifetime":
 			published = int64(stateValue.Field(i).Uint())
 		case "LastServed":

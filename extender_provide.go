@@ -433,7 +433,7 @@ func (self extenderProvideState) status(connectionCount int) *ExtenderProvideSta
 		LimitedBySubnetsCount: self.LimitedBySubnetsCount,
 		LimitedBySourceCount:  self.LimitedBySourceCount,
 		ConnectionCount:       connectionCount,
-		Connected:             self.Connected,
+		Connected:             connectionCount,
 		// the counters cross as int64 and the time as unix milliseconds, the
 		// bindable forms the other fields use (gomobile has no unsigned type)
 		ServedProcess:  extenderServeCount(self.ServedProcess),
