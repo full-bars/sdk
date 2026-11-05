@@ -135,6 +135,10 @@ const extenderProvideTcpLostTimeout = extenderProvideTcpRetryTimeout
 // it nil.
 var configureExtenderCamouflageRole func(settings *extender.ExtenderCamouflageRoleSettings)
 
+// Builds the role's direct client strategy. Tests capture the settings it is
+// given through it; production leaves it as connect.NewDirectClientStrategy.
+var newExtenderDirectClientStrategy = connect.NewDirectClientStrategy
+
 // How long the measurements setting must stay off before the activation tells
 // the operator of the opt-out (lag.dev/PLAN.md C4, C9). The operator revokes
 // the measurement name's certificate when told, and orders a new one once the
@@ -347,6 +351,55 @@ func newExtenderProvideCamouflage(settings *deviceLocalExtenderSettings) (*exten
 	return extender.NewExtenderCamouflageRole(settings.IdentityKeySeed, camouflageSettings)
 }
 
+// extenderStrategyRequestTimeout returns the request budget the extender's
+// direct strategy must allow. The strategy caps every request at its own
+// timeout, so a cap below the activation's budget tears the activation down
+// mid-probe, and the operator still spends the caller's budget on a request
+// whose answer nobody reads. A zero or negative activation budget means the
+// activator's own default. The strategy's larger timeout is never lowered. A
+// zero or negative strategy timeout is no cap at all (connect reads it as
+// unbounded), so it is kept as it is rather than turned into a bounded one.
+func extenderStrategyRequestTimeout(activationTimeout time.Duration, strategyTimeout time.Duration) time.Duration {
+	if activationTimeout <= 0 {
+		activationTimeout = connect.DefaultExtenderActivatorSettings().RequestTimeout
+	}
+	if strategyTimeout <= 0 {
+		return strategyTimeout
+	}
+	if strategyTimeout < activationTimeout {
+		return activationTimeout
+	}
+	return strategyTimeout
+}
+
+// The role's direct client strategy, built from the role's client strategy
+// settings with the request timeout raised to the activation budget (see
+// startServing). The caller's settings are copied, never written.
+func (self *deviceLocalExtender) newClientStrategy() *connect.ClientStrategy {
+	settings := self.settings
+
+	// direct only: an activation that crossed an extender would tell the
+	// operator that extender's address, not this host's (C2)
+	strategySettings := settings.ClientStrategySettings
+	if strategySettings == nil {
+		strategySettings = connect.DefaultClientStrategySettings()
+	}
+	// The strategy caps every request at its own RequestTimeout, and that cap
+	// wins over the longer budget the activator sets. The operator needs the
+	// longer one: it probes the carrier and the forward, which can take ten
+	// seconds on their own, before it looks up the location, writes the rows
+	// and signs the record. Under the fifteen second default the activation is
+	// torn down mid-probe, the client never reads the answer, and the probe
+	// still spends the caller's budget. This strategy also carries the role's
+	// hello, ping and measurement requests, so they inherit the longer cap too.
+	if timeout := extenderStrategyRequestTimeout(settings.RequestTimeout, strategySettings.ConnectSettings.RequestTimeout); timeout != strategySettings.ConnectSettings.RequestTimeout {
+		copied := *strategySettings
+		copied.ConnectSettings.RequestTimeout = timeout
+		strategySettings = &copied
+	}
+	return newExtenderDirectClientStrategy(self.ctx, strategySettings, 0)
+}
+
 // Builds and starts what the role serves with, on the tcp 443 listener it
 // already holds (G2): the direct strategy, the gossip listener and feed
 // server, the space's node in the extender role, the server on the held tcp
@@ -356,13 +409,7 @@ func newExtenderProvideCamouflage(settings *deviceLocalExtenderSettings) (*exten
 func (self *deviceLocalExtender) startServing(tcpListener net.Listener) {
 	settings := self.settings
 
-	// direct only: an activation that crossed an extender would tell the
-	// operator that extender's address, not this host's (C2)
-	strategySettings := settings.ClientStrategySettings
-	if strategySettings == nil {
-		strategySettings = connect.DefaultClientStrategySettings()
-	}
-	self.clientStrategy = connect.NewDirectClientStrategy(self.ctx, strategySettings, 0)
+	self.clientStrategy = self.newClientStrategy()
 
 	self.listener = gossip.NewInProcessListener(self.ctx, gossip.DefaultInProcessListenerSettings())
 	self.feedServer = gossip.NewFeedServer(
