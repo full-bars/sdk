@@ -402,6 +402,14 @@ func (self *extenderServeTracker) snapshot(connected int) (uint64, uint64, int, 
 	return self.servedProcess, self.servedLifetime, self.peakConnected, self.lastServed
 }
 
+func extenderServeCount(value uint64) int64 {
+	const max = uint64(1<<63 - 1)
+	if value > max {
+		return int64(max)
+	}
+	return int64(value)
+}
+
 func (self extenderProvideState) status(connectionCount int) *ExtenderProvideStatus {
 	return &ExtenderProvideStatus{
 		Enabled:               self.Enabled,
@@ -428,8 +436,8 @@ func (self extenderProvideState) status(connectionCount int) *ExtenderProvideSta
 		Connected:             self.Connected,
 		// the counters cross as int64 and the time as unix milliseconds, the
 		// bindable forms the other fields use (gomobile has no unsigned type)
-		ServedProcess:  int64(self.ServedProcess),
-		ServedLifetime: int64(self.ServedLifetime),
+		ServedProcess:  extenderServeCount(self.ServedProcess),
+		ServedLifetime: extenderServeCount(self.ServedLifetime),
 		PeakConnected:  self.PeakConnected,
 		LastServed:     extenderStatusTimeMs(self.LastServed),
 	}

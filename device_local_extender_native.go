@@ -1457,8 +1457,8 @@ func (self *deviceLocalExtender) serveStats() ExtenderServeStats {
 		}
 		if self.serveTracker != nil {
 			served, lifetime, peak, last := self.serveTracker.snapshot(0)
-			stats.ServedProcess = int64(served)
-			stats.ServedLifetime = int64(lifetime)
+			stats.ServedProcess = extenderServeCount(served)
+			stats.ServedLifetime = extenderServeCount(lifetime)
 			stats.PeakConnected = peak
 			stats.LastServed = extenderStatusTimeMs(last)
 		}
@@ -1467,8 +1467,8 @@ func (self *deviceLocalExtender) serveStats() ExtenderServeStats {
 	state := self.state()
 	return ExtenderServeStats{
 		Connected:      state.Connected,
-		ServedProcess:  int64(state.ServedProcess),
-		ServedLifetime: int64(state.ServedLifetime),
+		ServedProcess:  extenderServeCount(state.ServedProcess),
+		ServedLifetime: extenderServeCount(state.ServedLifetime),
 		PeakConnected:  state.PeakConnected,
 		LastServed:     extenderStatusTimeMs(state.LastServed),
 		Ipv4:           state.Ipv4,
