@@ -331,6 +331,10 @@ func (self *extenderServeTracker) readStoredLifetime() (uint64, error) {
 }
 
 func (self *extenderServeTracker) record(connected int, now time.Time) {
+	if self.space != nil && self.loadHook == nil && self.saveHook == nil {
+		self.space.extenderLifetimeLock.Lock()
+		defer self.space.extenderLifetimeLock.Unlock()
+	}
 	self.loadLock.Lock()
 	self.loadLifetime()
 	self.lock.Lock()

@@ -312,6 +312,8 @@ type NetworkSpace struct {
 	// new ones, and two interleaved would leave a client nobody closes. Taken
 	// before the state lock, never inside it.
 	extenderRestartLock sync.Mutex
+	// Serializes lifetime read-modify-write across providers sharing this space.
+	extenderLifetimeLock sync.Mutex
 	// The attesting provider of the device that provides in this space, and
 	// the reporter its probes go to (connect/DESIGNNOTES4.md §1, GEOMAP §2.5).
 	// Nil while no device in the space provides: a provider installs the pair
