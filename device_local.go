@@ -754,6 +754,14 @@ type DeviceLocalSettings struct {
 	// ports on every extender whatever this is. A plain boolean, so gomobile
 	// binds it and the c abi settings json carries it.
 	ProvideExtenderDnsPrivilegedPort bool
+	// ExtenderLoadServedLifetime, when set, loads the persisted lifetime count of
+	// client sessions served by the provider extender role. When nil, the
+	// space's persistent store (.extender_served_lifetime) is used.
+	ExtenderLoadServedLifetime func() (uint64, error) `json:"-"`
+	// ExtenderSaveServedLifetime, when set, persists the lifetime count of client
+	// sessions served by the provider extender role. When nil, the space's
+	// persistent store (.extender_served_lifetime) is used.
+	ExtenderSaveServedLifetime func(lifetime uint64) error `json:"-"`
 	// providerExtenderSettings, when set, adjusts the provider extender role's
 	// settings before it is built (EXTENDER.md G2). Tests bind ephemeral
 	// carrier ports and point the activation at an in-process operator through
@@ -2131,6 +2139,15 @@ func newDeviceLocalWithOverridesForPlatform(
 		// are installed here (G2, L2)
 		provider.extenderDnsPrivilegedPort = settings.ProvideExtenderDnsPrivilegedPort
 		provider.extenderSettingsConfigure = settings.providerExtenderSettings
+		if settings.ExtenderLoadServedLifetime != nil || settings.ExtenderSaveServedLifetime != nil {
+			provider.extenderLoadServedLifetime = settings.ExtenderLoadServedLifetime
+			provider.extenderSaveServedLifetime = settings.ExtenderSaveServedLifetime
+			provider.extenderServeTracker = newExtenderServeTracker(
+				networkSpace,
+				settings.ExtenderLoadServedLifetime,
+				settings.ExtenderSaveServedLifetime,
+			)
+		}
 		provider.extenderRoleChanged = func() {
 			deviceLocal.extenderProvideMonitor.NotifyAll()
 		}

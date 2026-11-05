@@ -91,6 +91,10 @@ type deviceLocalProvider struct {
 	// starts (lag.dev/PLAN.md C4)
 	extenderMeasurementsEnabled func() bool
 
+	extenderServeTracker       *extenderServeTracker
+	extenderLoadServedLifetime func() (uint64, error)
+	extenderSaveServedLifetime func(lifetime uint64) error
+
 	clientStrategy *connect.ClientStrategy
 	// clientStrategySettings seeds the direct-only strategies of the
 	// family-pinned transports; nil falls back to the connect defaults. They
@@ -399,6 +403,7 @@ func newDeviceLocalProviderWithOverrides(
 		resendQueueBudget:         resendQueueBudget,
 		receiveQueueBudget:        receiveQueueBudget,
 		platformTransportMonitor:  connect.NewMonitor(),
+		extenderServeTracker:      newExtenderServeTracker(networkSpace, nil, nil),
 	}
 	// the provider proves both address families through its family-pinned
 	// transports (IPV6.md A1, A4); nothing else runs on the provider yet, so
@@ -1757,26 +1762,29 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 	}
 
 	settings := &deviceLocalExtenderSettings{
-		Log:                    networkSpace.logger(),
-		NetworkSpace:           networkSpace,
-		AllowedHosts:           networkSpace.extenderAllowedHosts(),
-		IdentityKeySeed:        identityKeySeed,
-		TcpPort:                connect.ExtenderTcpPort,
-		UdpPort:                connect.ExtenderQuicPort,
-		DnsPort:                connect.ExtenderDnsPort,
-		DnsPrivilegedPort:      self.extenderDnsPrivilegedPort,
-		DnsTld:                 connect.DefaultExtenderDnsTld,
-		ApiUrlV4:               networkSpace.GetApiUrlV4(),
-		ApiUrlV6:               networkSpace.GetApiUrlV6(),
-		ApiUrl:                 networkSpace.apiUrl,
-		HelloUrl:               networkSpace.apiUrl,
-		ByJwt:                  self.byJwt,
-		ClientStrategySettings: self.clientStrategySettings,
-		DialContext:            connectSettings.DialContext,
-		Restart:                self.restartExtender,
-		RenewKey:               self.renewExtenderKey,
-		RestartJitter:          self.extenderRestartJitter,
-		ActivatorState:         self.extenderActivatorState,
+		Log:                        networkSpace.logger(),
+		NetworkSpace:               networkSpace,
+		AllowedHosts:               networkSpace.extenderAllowedHosts(),
+		IdentityKeySeed:            identityKeySeed,
+		TcpPort:                    connect.ExtenderTcpPort,
+		UdpPort:                    connect.ExtenderQuicPort,
+		DnsPort:                    connect.ExtenderDnsPort,
+		DnsPrivilegedPort:          self.extenderDnsPrivilegedPort,
+		DnsTld:                     connect.DefaultExtenderDnsTld,
+		ApiUrlV4:                   networkSpace.GetApiUrlV4(),
+		ApiUrlV6:                   networkSpace.GetApiUrlV6(),
+		ApiUrl:                     networkSpace.apiUrl,
+		HelloUrl:                   networkSpace.apiUrl,
+		ByJwt:                      self.byJwt,
+		ClientStrategySettings:     self.clientStrategySettings,
+		DialContext:                connectSettings.DialContext,
+		Restart:                    self.restartExtender,
+		RestartJitter:              self.extenderRestartJitter,
+		ActivatorState:             self.extenderActivatorState,
+		ServeTracker:               self.extenderServeTracker,
+		LoadExtenderServedLifetime: self.extenderLoadServedLifetime,
+		SaveExtenderServedLifetime: self.extenderSaveServedLifetime,
+		RenewKey:                   self.renewExtenderKey,
 	}
 	settings.MeasurementsEnabled = self.extenderMeasurementsEnabled
 	if self.extenderSettingsConfigure != nil {
@@ -1937,6 +1945,19 @@ func (self *deviceLocalProvider) extenderStats() *ExtenderStats {
 	extender := self.extender
 	self.stateLock.Unlock()
 	return extender.stats()
+}
+
+// ExtenderServeStats returns the observable serving posture and client session
+// counters of the provider extender role.
+func (self *deviceLocalProvider) extenderServeStats() ExtenderServeStats {
+	self.stateLock.Lock()
+	extender := self.extender
+	closed := self.closed
+	self.stateLock.Unlock()
+	if closed || extender == nil {
+		return ExtenderServeStats{}
+	}
+	return extender.serveStats()
 }
 
 // A channel armed at the instant of the read, so a consumer is woken when the

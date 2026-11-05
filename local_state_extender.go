@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -351,6 +352,71 @@ func (self *LocalState) GetOrCreateExtenderKeySeed() ([]byte, error) {
 		return nil, err
 	}
 	return seed, nil
+}
+
+// The persisted lifetime count of client sessions served by the provider extender role.
+const extenderServedLifetimeFileName = ".extender_served_lifetime"
+
+// ReadExtenderServedLifetime reads back the persisted lifetime count of client
+// sessions served by the provider extender role. A missing file is treated as
+// an unset count (0, nil); read or parse errors are returned.
+func (self *LocalState) ReadExtenderServedLifetime() (uint64, error) {
+	self.extenderServedLifetimeLock.Lock()
+	defer self.extenderServedLifetimeLock.Unlock()
+	path := filepath.Join(self.localStorageDir, extenderServedLifetimeFileName)
+	stateBytes, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	lifetime, err := strconv.ParseUint(strings.TrimSpace(string(stateBytes)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return lifetime, nil
+}
+
+// GetExtenderServedLifetime reads back the persisted lifetime count of client
+// sessions served by the provider extender role, 0 when unset or unreadable.
+func (self *LocalState) GetExtenderServedLifetime() uint64 {
+	lifetime, _ := self.ReadExtenderServedLifetime()
+	return lifetime
+}
+
+// SetExtenderServedLifetime persists the lifetime count of client sessions
+// served by the provider extender role. The count is staged in a temp file
+// and renamed over the old one, so a crash mid-write leaves the old count, not
+// a truncated one that would read back as zero.
+func (self *LocalState) SetExtenderServedLifetime(lifetime uint64) error {
+	self.extenderServedLifetimeLock.Lock()
+	defer self.extenderServedLifetimeLock.Unlock()
+	path := filepath.Join(self.localStorageDir, extenderServedLifetimeFileName)
+	temp, err := os.CreateTemp(self.localStorageDir, extenderServedLifetimeFileName+".tmp-")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer func() {
+		_ = temp.Close()
+		_ = os.Remove(tempPath)
+	}()
+	if err := temp.Chmod(LocalStorageFilePermissions); err != nil {
+		return err
+	}
+	if _, err := temp.WriteString(strconv.FormatUint(lifetime, 10)); err != nil {
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	// after a successful rename the temp path is gone, so the removal above
+	// finds nothing to remove
+	return os.Rename(tempPath, path)
 }
 
 // The extender identity keys this installation made for a network that

@@ -312,6 +312,8 @@ type NetworkSpace struct {
 	// new ones, and two interleaved would leave a client nobody closes. Taken
 	// before the state lock, never inside it.
 	extenderRestartLock sync.Mutex
+	// Serializes lifetime read-modify-write across providers sharing this space.
+	extenderLifetimeLock sync.Mutex
 	// The attesting provider of the device that provides in this space, and
 	// the reporter its probes go to (connect/DESIGNNOTES4.md §1, GEOMAP §2.5).
 	// Nil while no device in the space provides: a provider installs the pair
@@ -621,6 +623,20 @@ func (self *NetworkSpace) suppliedExtenderMeasurementKeyFile() string {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 	return self.extenderMeasurementKeyFile
+}
+
+func (self *NetworkSpace) getExtenderServedLifetime() (uint64, error) {
+	if self.asyncLocalState != nil {
+		return self.asyncLocalState.GetLocalState().ReadExtenderServedLifetime()
+	}
+	return 0, nil
+}
+
+func (self *NetworkSpace) setExtenderServedLifetime(lifetime uint64) error {
+	if self.asyncLocalState != nil {
+		return self.asyncLocalState.GetLocalState().SetExtenderServedLifetime(lifetime)
+	}
+	return nil
 }
 
 // The space's logger, which a url-only space may have been built without.

@@ -22,6 +22,7 @@ import (
 	"github.com/urnetwork/connect"
 	"github.com/urnetwork/connect/extender"
 	"github.com/urnetwork/connect/gossip"
+	"github.com/urnetwork/connect/protocol"
 )
 
 // device_local_extender_native.go — the provider extender role (EXTENDER.md G1
@@ -206,6 +207,8 @@ type deviceLocalExtender struct {
 	// monitors the loop watches: a bind failure, an activation
 	wakeMonitor *connect.Monitor
 
+	serveTracker *extenderServeTracker
+
 	stateLock sync.Mutex
 	// true while the space runs a node for this role, so the gossip service is
 	// served rather than refused (A8)
@@ -281,6 +284,14 @@ func newDeviceLocalExtender(
 	}
 
 	cancelCtx, cancel := context.WithCancel(ctx)
+	serveTracker := settings.ServeTracker
+	if serveTracker == nil {
+		serveTracker = newExtenderServeTracker(
+			settings.NetworkSpace,
+			settings.LoadExtenderServedLifetime,
+			settings.SaveExtenderServedLifetime,
+		)
+	}
 	self := &deviceLocalExtender{
 		ctx:                 cancelCtx,
 		cancel:              cancel,
@@ -293,6 +304,7 @@ func newDeviceLocalExtender(
 		forwardDialErrorLog: newExtenderForwardDialErrorLog(log, now, forwardDialErrorLogInterval),
 		statusMonitor:       connect.NewMonitorValue(extenderProvideState{Enabled: true}),
 		wakeMonitor:         connect.NewMonitor(),
+		serveTracker:        serveTracker,
 	}
 
 	// tcp 443 first, the one port an extender requires (G2)
@@ -752,7 +764,31 @@ func (self *deviceLocalExtender) serverSettings(nodeRuns bool) *extender.Extende
 	if configureExtenderServer != nil {
 		configureExtenderServer(settings)
 	}
+	configuredHeaderHandler := settings.HeaderHandler
+	settings.HeaderHandler = func(header *protocol.ExtenderHeader) {
+		if configuredHeaderHandler != nil {
+			configuredHeaderHandler(header)
+		}
+		self.recordServed()
+	}
 	return settings
+}
+
+func (self *deviceLocalExtender) recordServed() {
+	now := time.Now
+	if self.settings != nil && self.settings.Now != nil {
+		now = self.settings.Now
+	}
+	connected := 0
+	if server := self.currentServer(); server != nil {
+		connected = server.ConnectionCount()
+	}
+	if self.serveTracker != nil {
+		self.serveTracker.record(connected, now())
+	}
+	// the role loop publishes the served counters, so a session wakes it
+	// rather than waiting for the next event
+	self.wakeMonitor.NotifyAll()
 }
 
 // The measurement key and certificate (lag.dev/PLAN.md C4), on or off as the
@@ -1069,7 +1105,11 @@ func (self *deviceLocalExtender) run() {
 
 // Whether the tcp carrier is serving, the one port an extender requires (G2).
 func (self *deviceLocalExtender) tcpCarrierServing() bool {
-	return slices.Contains(self.server.Carriers(), connect.ExtenderCarrierTcp)
+	server := self.currentServer()
+	if server == nil {
+		return false
+	}
+	return slices.Contains(server.Carriers(), connect.ExtenderCarrierTcp)
 }
 
 // What the status says of a role whose loop failed, until its replacement.
@@ -1235,6 +1275,9 @@ func (self *deviceLocalExtender) startActivator() {
 }
 
 func (self *deviceLocalExtender) directory() *connect.ExtenderDirectory {
+	if self.settings == nil || self.settings.NetworkSpace == nil {
+		return nil
+	}
 	return self.settings.NetworkSpace.extenderDirectory
 }
 
@@ -1325,7 +1368,8 @@ func (self *deviceLocalExtender) updateNode() {
 // One mesh address per activated family (D2). Only the tcp carrier carries the
 // mesh, so a host whose tcp bind failed advertises nothing.
 func (self *deviceLocalExtender) meshListenAddrs() ([]ma.Multiaddr, error) {
-	if !slices.Contains(self.server.Carriers(), connect.ExtenderCarrierTcp) {
+	server := self.currentServer()
+	if server == nil || !slices.Contains(server.Carriers(), connect.ExtenderCarrierTcp) {
 		return nil, nil
 	}
 	ips := []netip.Addr{}
@@ -1347,17 +1391,23 @@ func (self *deviceLocalExtender) publish() {
 }
 
 func (self *deviceLocalExtender) state() extenderProvideState {
-	listenErrors := self.server.ListenErrors()
+	server := self.currentServer()
+	listenErrors := map[string]error{}
+	dnsPorts := []int{}
+	if server != nil {
+		listenErrors = server.ListenErrors()
+		dnsPorts = server.DnsPorts()
+	}
 	state := extenderProvideState{
 		Enabled:     true,
 		Listening:   self.tcpCarrierServing(),
 		ListenError: extenderListenErrorText(listenErrors),
-		DnsPorts:    extenderDnsPortsText(self.server.DnsPorts()),
+		DnsPorts:    extenderDnsPortsText(dnsPorts),
 	}
 	// a server gone for good has lost its carriers to no error of theirs
-	if !state.Listening && state.ListenError == "" {
+	if !state.Listening && state.ListenError == "" && server != nil {
 		select {
-		case <-self.server.Done():
+		case <-server.Done():
 			state.ListenError = extenderListenErrorText(map[string]error{
 				connect.ExtenderCarrierTcp: errors.New("the extender server ended"),
 			})
@@ -1408,20 +1458,73 @@ func (self *deviceLocalExtender) state() extenderProvideState {
 
 	// what this extender measured of its peers and what they answered
 	// (GEOMAP §2.1, §2.3)
-	pingerStatus := self.peerPinger.Status()
-	state.PeerPingCount = pingerStatus.PingCount
-	state.PeerPingCosignedCount = pingerStatus.CosignedCount
-	state.PeerPingRejectedCount = pingerStatus.RejectedCount
-	state.PeerPingUnknownCount = pingerStatus.UnknownCount
-	state.LastPeerPingTime = extenderStatusTimeMs(pingerStatus.LastPingTime)
+	if self.peerPinger != nil {
+		pingerStatus := self.peerPinger.Status()
+		state.PeerPingCount = pingerStatus.PingCount
+		state.PeerPingCosignedCount = pingerStatus.CosignedCount
+		state.PeerPingRejectedCount = pingerStatus.RejectedCount
+		state.PeerPingUnknownCount = pingerStatus.UnknownCount
+		state.LastPeerPingTime = extenderStatusTimeMs(pingerStatus.LastPingTime)
+	}
 
 	// what the admission limits turned away (A12), read at each publish; a
 	// refusal alone wakes nothing, since a flood would be a publish per
 	// refused connection
-	admissionStats := self.server.AdmissionStats()
-	state.LimitedBySubnetsCount = int(admissionStats.LimitedBySubnetsCount)
-	state.LimitedBySourceCount = int(admissionStats.LimitedBySourceCount)
+	if server != nil {
+		admissionStats := server.AdmissionStats()
+		state.LimitedBySubnetsCount = int(admissionStats.LimitedBySubnetsCount)
+		state.LimitedBySourceCount = int(admissionStats.LimitedBySourceCount)
+	}
+
+	connected := 0
+	if server != nil {
+		connected = server.ConnectionCount()
+	}
+	state.Connected = connected
+	if self.serveTracker != nil {
+		state.ServedProcess, state.ServedLifetime, state.PeakConnected, state.LastServed = self.serveTracker.snapshot(connected)
+	}
 	return state
+}
+
+func (self *deviceLocalExtender) serveStats() ExtenderServeStats {
+	if self == nil {
+		return ExtenderServeStats{}
+	}
+	server := self.currentServer()
+	if server == nil {
+		state := self.statusMonitor.Value()
+		stats := ExtenderServeStats{
+			Ipv4:        state.Ipv4,
+			Ipv6:        state.Ipv6,
+			ActivatedV4: state.ActivatedV4,
+			ActivatedV6: state.ActivatedV6,
+			Listening:   state.Listening,
+			Enabled:     state.Enabled,
+		}
+		if self.serveTracker != nil {
+			served, lifetime, peak, last := self.serveTracker.snapshot(0)
+			stats.ServedProcess = extenderServeCount(served)
+			stats.ServedLifetime = extenderServeCount(lifetime)
+			stats.PeakConnected = peak
+			stats.LastServed = extenderStatusTimeMs(last)
+		}
+		return stats
+	}
+	state := self.state()
+	return ExtenderServeStats{
+		Connected:      state.Connected,
+		ServedProcess:  extenderServeCount(state.ServedProcess),
+		ServedLifetime: extenderServeCount(state.ServedLifetime),
+		PeakConnected:  state.PeakConnected,
+		LastServed:     extenderStatusTimeMs(state.LastServed),
+		Ipv4:           state.Ipv4,
+		Ipv6:           state.Ipv6,
+		ActivatedV4:    state.ActivatedV4,
+		ActivatedV6:    state.ActivatedV6,
+		Listening:      state.Listening,
+		Enabled:        state.Enabled,
+	}
 }
 
 // When this extender's key was first seen revoked in the directory, zero while
@@ -1441,7 +1544,7 @@ func (self *deviceLocalExtender) updateRevoked() time.Time {
 	}
 
 	now := time.Now
-	if self.settings.Now != nil {
+	if self.settings != nil && self.settings.Now != nil {
 		now = self.settings.Now
 	}
 	self.stateLock.Lock()

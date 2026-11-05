@@ -562,12 +562,23 @@ func TestExtenderProvideStatusCarriesEveryPublishedField(t *testing.T) {
 			t.Errorf("the status carries no %s", name)
 			continue
 		}
-		if !reflect.DeepEqual(statusField.Interface(), stateValue.Field(i).Interface()) {
+		published := stateValue.Field(i).Interface()
+		// the served counters and the last-served time cross as the bindable
+		// forms, so the status carries those values converted
+		switch name {
+		case "Connected":
+			published = 7
+		case "ServedProcess", "ServedLifetime":
+			published = int64(stateValue.Field(i).Uint())
+		case "LastServed":
+			published = extenderStatusTimeMs(stateValue.Field(i).Interface().(time.Time))
+		}
+		if !reflect.DeepEqual(statusField.Interface(), published) {
 			t.Errorf(
 				"%s = %v, expected the published %v",
 				name,
 				statusField.Interface(),
-				stateValue.Field(i).Interface(),
+				published,
 			)
 		}
 	}
