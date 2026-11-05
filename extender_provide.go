@@ -259,6 +259,7 @@ type ExtenderServeStats struct {
 
 type extenderServeTracker struct {
 	lock           sync.Mutex
+	loadLock       sync.Mutex
 	servedProcess  uint64
 	servedLifetime uint64
 	peakConnected  int
@@ -290,51 +291,28 @@ func newExtenderServeTracker(
 }
 
 func (self *extenderServeTracker) initLifetime() {
+	self.loadLock.Lock()
+	defer self.loadLock.Unlock()
+	self.lock.Lock()
+	loaded := self.loaded
+	self.lock.Unlock()
+	if !loaded {
+		self.loadLifetime()
+	}
+}
+
+// loadLock is held, but the tracker lock is not held while calling the store.
+func (self *extenderServeTracker) loadLifetime() {
+	stored, err := self.readStoredLifetime()
+	if err != nil {
+		return
+	}
 	self.lock.Lock()
 	defer self.lock.Unlock()
-	if self.loaded {
-		return
-	}
-	self.loadLifetime()
-}
-
-// Reads the persisted count from the store it is saved to. Lock held. With a
-// hook, the hook is the only store: a zero it returns is the count, and a
-// failed load is not, so the count is left as it was and not saved over.
-// With space, the space's local state is the store; an unset file is count 0,
-// and a read or parse error leaves loaded false so nothing is saved over it.
-func (self *extenderServeTracker) loadLifetime() {
-	if self.loadHook != nil {
-		val, err := self.loadHook()
-		if err != nil {
-			return
-		}
-		// sessions counted while a retried load was failing are added to
-		// the count the store holds
-		self.servedLifetime += val
+	if !self.loaded {
+		self.servedLifetime += stored
 		self.loaded = true
-		return
-	}
-	if self.space != nil {
-		val, err := self.space.getExtenderServedLifetime()
-		if err != nil {
-			return
-		}
-		self.servedLifetime += val
-		self.loaded = true
-		return
-	}
-	self.loaded = true
-}
-
-// Lock held. Raises the count to the stored one when another tracker over the
-// same store saved a newer count since this one loaded, such as a standby
-// provider that shares the space. The count is only ever raised, so a stale
-// tracker cannot save its lower count over the newer one. A failed read keeps
-// the count as it is.
-func (self *extenderServeTracker) adoptStoredLifetime() {
-	stored, err := self.readStoredLifetime()
-	if err == nil && stored > self.servedLifetime {
+	} else if stored > self.servedLifetime {
 		self.servedLifetime = stored
 	}
 }
@@ -353,14 +331,9 @@ func (self *extenderServeTracker) readStoredLifetime() (uint64, error) {
 }
 
 func (self *extenderServeTracker) record(connected int, now time.Time) {
+	self.loadLock.Lock()
+	self.loadLifetime()
 	self.lock.Lock()
-	if !self.loaded {
-		// retried here, so a count is never written over a store that was
-		// not read
-		self.loadLifetime()
-	} else {
-		self.adoptStoredLifetime()
-	}
 	self.servedProcess += 1
 	self.servedLifetime += 1
 	self.lastServed = now
@@ -368,6 +341,7 @@ func (self *extenderServeTracker) record(connected int, now time.Time) {
 		self.peakConnected = connected
 	}
 	self.lock.Unlock()
+	self.loadLock.Unlock()
 
 	self.saveLifetime()
 }
@@ -405,10 +379,19 @@ func (self *extenderServeTracker) updateConnected(connected int) {
 
 func (self *extenderServeTracker) snapshot(connected int) (uint64, uint64, int, time.Time) {
 	self.lock.Lock()
-	defer self.lock.Unlock()
-	if !self.loaded {
-		self.loadLifetime()
+	loaded := self.loaded
+	self.lock.Unlock()
+	if !loaded && self.loadLock.TryLock() {
+		self.lock.Lock()
+		loaded = self.loaded
+		self.lock.Unlock()
+		if !loaded {
+			self.loadLifetime()
+		}
+		self.loadLock.Unlock()
 	}
+	self.lock.Lock()
+	defer self.lock.Unlock()
 	if connected > self.peakConnected {
 		self.peakConnected = connected
 	}
