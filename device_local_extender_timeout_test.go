@@ -108,3 +108,31 @@ func TestExtenderStrategyTimeoutReachesDirectStrategy(t *testing.T) {
 		})
 	}
 }
+
+// Raising the strategy timeout copies the caller's settings. The caller's
+// strategy settings keep their own timeout, so the same settings can build
+// another role later without picking up this one's budget.
+func TestExtenderStrategyCallerSettingsUntouched(t *testing.T) {
+	captured := captureExtenderDirectStrategy(t)
+	strategySettings := connect.DefaultClientStrategySettings()
+	before := strategySettings.ConnectSettings.RequestTimeout
+	roleSettings := &deviceLocalExtenderSettings{
+		RequestTimeout:         90 * time.Second,
+		ClientStrategySettings: strategySettings,
+	}
+	self := &deviceLocalExtender{ctx: context.Background(), settings: roleSettings}
+	self.newClientStrategy()
+
+	if got := strategySettings.ConnectSettings.RequestTimeout; got != before {
+		t.Fatalf("the caller's strategy RequestTimeout changed from %s to %s", before, got)
+	}
+	if roleSettings.ClientStrategySettings != strategySettings {
+		t.Fatalf("the caller's strategy settings pointer was replaced")
+	}
+	if *captured == strategySettings {
+		t.Fatalf("the strategy was built from the caller's settings, not a copy")
+	}
+	if got := (*captured).ConnectSettings.RequestTimeout; got != 90*time.Second {
+		t.Fatalf("the copy's RequestTimeout = %s, want 90s", got)
+	}
+}
