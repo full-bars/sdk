@@ -135,6 +135,10 @@ const extenderProvideTcpLostTimeout = extenderProvideTcpRetryTimeout
 // it nil.
 var configureExtenderCamouflageRole func(settings *extender.ExtenderCamouflageRoleSettings)
 
+// Builds the role's direct client strategy. Tests capture the settings it is
+// given through it; production leaves it as connect.NewDirectClientStrategy.
+var newExtenderDirectClientStrategy = connect.NewDirectClientStrategy
+
 // How long the measurements setting must stay off before the activation tells
 // the operator of the opt-out (lag.dev/PLAN.md C4, C9). The operator revokes
 // the measurement name's certificate when told, and orders a new one once the
@@ -368,13 +372,10 @@ func extenderStrategyRequestTimeout(activationTimeout time.Duration, strategyTim
 	return strategyTimeout
 }
 
-// Builds and starts what the role serves with, on the tcp 443 listener it
-// already holds (G2): the direct strategy, the gossip listener and feed
-// server, the space's node in the extender role, the server on the held tcp
-// listener and the optional udp carriers, the ping reporter and the peer
-// pinger, and the directory's cap on active records. Runs once, before
-// anything that reads these parts starts.
-func (self *deviceLocalExtender) startServing(tcpListener net.Listener) {
+// The role's direct client strategy, built from the role's client strategy
+// settings with the request timeout raised to the activation budget (see
+// startServing). The caller's settings are copied, never written.
+func (self *deviceLocalExtender) newClientStrategy() *connect.ClientStrategy {
 	settings := self.settings
 
 	// direct only: an activation that crossed an extender would tell the
@@ -396,7 +397,19 @@ func (self *deviceLocalExtender) startServing(tcpListener net.Listener) {
 		copied.ConnectSettings.RequestTimeout = timeout
 		strategySettings = &copied
 	}
-	self.clientStrategy = connect.NewDirectClientStrategy(self.ctx, strategySettings, 0)
+	return newExtenderDirectClientStrategy(self.ctx, strategySettings, 0)
+}
+
+// Builds and starts what the role serves with, on the tcp 443 listener it
+// already holds (G2): the direct strategy, the gossip listener and feed
+// server, the space's node in the extender role, the server on the held tcp
+// listener and the optional udp carriers, the ping reporter and the peer
+// pinger, and the directory's cap on active records. Runs once, before
+// anything that reads these parts starts.
+func (self *deviceLocalExtender) startServing(tcpListener net.Listener) {
+	settings := self.settings
+
+	self.clientStrategy = self.newClientStrategy()
 
 	self.listener = gossip.NewInProcessListener(self.ctx, gossip.DefaultInProcessListenerSettings())
 	self.feedServer = gossip.NewFeedServer(

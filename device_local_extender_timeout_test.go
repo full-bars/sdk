@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -47,6 +48,62 @@ func TestExtenderStrategyRequestTimeout(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := extenderStrategyRequestTimeout(c.activation, c.strategy); got != c.expect {
 				t.Fatalf("extenderStrategyRequestTimeout(%s, %s) = %s, want %s", c.activation, c.strategy, got, c.expect)
+			}
+		})
+	}
+}
+
+// captureExtenderDirectStrategy installs a capture in place of
+// connect.NewDirectClientStrategy and returns the settings the role's client
+// strategy is built from. The capture returns no strategy.
+func captureExtenderDirectStrategy(t *testing.T) **connect.ClientStrategySettings {
+	t.Helper()
+	captured := new(*connect.ClientStrategySettings)
+	original := newExtenderDirectClientStrategy
+	newExtenderDirectClientStrategy = func(ctx context.Context, settings *connect.ClientStrategySettings, ipFamily int) *connect.ClientStrategy {
+		*captured = settings
+		return nil
+	}
+	t.Cleanup(func() {
+		newExtenderDirectClientStrategy = original
+	})
+	return captured
+}
+
+// The raised timeout has to reach the strategy the role builds, not only the
+// helper that computes it: the activator sets its budget after the strategy is
+// configured, so a hook that changes it later never gets there.
+func TestExtenderStrategyTimeoutReachesDirectStrategy(t *testing.T) {
+	cases := []struct {
+		name       string
+		activation time.Duration
+		strategy   time.Duration
+		expect     time.Duration
+	}{
+		{"activation budget reaches the strategy", 90 * time.Second, 15 * time.Second, 90 * time.Second},
+		{"unset activation reaches the strategy as the default", 0, 15 * time.Second, connect.DefaultExtenderActivatorSettings().RequestTimeout},
+		{"longer strategy reaches the strategy", 5 * time.Second, 30 * time.Second, 30 * time.Second},
+		{"unbounded strategy stays unbounded", 90 * time.Second, 0, 0},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			captured := captureExtenderDirectStrategy(t)
+			strategySettings := connect.DefaultClientStrategySettings()
+			strategySettings.ConnectSettings.RequestTimeout = c.strategy
+			self := &deviceLocalExtender{
+				ctx: context.Background(),
+				settings: &deviceLocalExtenderSettings{
+					RequestTimeout:         c.activation,
+					ClientStrategySettings: strategySettings,
+				},
+			}
+			self.newClientStrategy()
+			if *captured == nil {
+				t.Fatalf("the role built no direct client strategy")
+			}
+			if got := (*captured).ConnectSettings.RequestTimeout; got != c.expect {
+				t.Fatalf("direct strategy RequestTimeout = %s, want %s", got, c.expect)
 			}
 		})
 	}
