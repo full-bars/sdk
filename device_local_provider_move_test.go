@@ -83,7 +83,13 @@ type testProviderMoveEdge struct {
 	requests chan testProviderMoveRequest
 }
 
-func newTestProviderMoveEdge(t *testing.T, certificate tls.Certificate) *testProviderMoveEdge {
+type testProviderMoveBarrier struct {
+	arrived chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newTestProviderMoveEdge(t *testing.T, certificate tls.Certificate, barriers ...*testProviderMoveBarrier) *testProviderMoveEdge {
 	t.Helper()
 	self := &testProviderMoveEdge{
 		requests: make(chan testProviderMoveRequest, 16),
@@ -93,6 +99,10 @@ func newTestProviderMoveEdge(t *testing.T, certificate tls.Certificate) *testPro
 		serverName := ""
 		if request.TLS != nil {
 			serverName = request.TLS.ServerName
+		}
+		if len(barriers) != 0 {
+			barriers[0].once.Do(func() { close(barriers[0].arrived) })
+			<-barriers[0].release
 		}
 		conn, err := upgrader.Upgrade(w, request, nil)
 		if err != nil {
@@ -196,7 +206,11 @@ func waitTestProviderMigration(t *testing.T, provider *deviceLocalProvider) {
 func TestDeviceLocalProviderMoveSwapsToTheTargetMakeBeforeBreak(t *testing.T) {
 	certificate, roots := testProviderMoveCertificate(t, testProviderMoveHost)
 	edgeByName := newTestProviderMoveEdge(t, certificate)
-	edgeAtTarget := newTestProviderMoveEdge(t, certificate)
+	barrier := &testProviderMoveBarrier{arrived: make(chan struct{}), release: make(chan struct{})}
+	edgeAtTarget := newTestProviderMoveEdge(t, certificate, barrier)
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(barrier.release) }) }
+	t.Cleanup(release)
 	routes := map[string]string{
 		net.JoinHostPort(testProviderMoveHost, "443"):            edgeByName.address,
 		net.JoinHostPort(testProviderMoveTarget.String(), "443"): edgeAtTarget.address,
@@ -265,16 +279,17 @@ func TestDeviceLocalProviderMoveSwapsToTheTargetMakeBeforeBreak(t *testing.T) {
 		[]*protocol.Frame{testProviderMoveFrame(protocol.ResidentMoveKind_ResidentMoveKindAdvisory, connect.NewId(), testProviderMoveTarget)},
 		connect.Peer{},
 	)
-	request := receiveTestProviderMove(t, edgeAtTarget.requests, "the replacement did not reach the target edge")
-	if request.host != testProviderMoveHost || request.serverName != testProviderMoveHost || request.moveVersion != "1" {
-		t.Fatalf("target edge upgrade = %+v", request)
-	}
-	// make before break: the old transport still carried when the replacement
-	// reached the target edge
+	receiveTestProviderMove(t, barrier.arrived, "the replacement did not reach the target edge")
+	// The upgrade is paused, so the replacement cannot yet be connected.
 	select {
 	case <-oldPlain.agnostic.Done():
-		t.Fatal("the old transport closed before the replacement reached the target")
+		t.Fatal("the old transport closed before the replacement connected")
 	default:
+	}
+	release()
+	request := receiveTestProviderMove(t, edgeAtTarget.requests, "the replacement did not upgrade at the target edge")
+	if request.host != testProviderMoveHost || request.serverName != testProviderMoveHost || request.moveVersion != "1" {
+		t.Fatalf("target edge upgrade = %+v", request)
 	}
 	receiveTestProviderMove(t, oldPlain.agnostic.Done(), "the old transport did not close after the arrival")
 	waitTestProviderMigration(t, provider)
