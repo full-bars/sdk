@@ -532,8 +532,10 @@ func TestDeviceLocalProviderExtenderReplacementKeepsARefusalsHold(t *testing.T) 
 	firstRole.currentActivator().Reactivate()
 	fixture.waitPost()
 	fixture.waitPost()
+	// a refused renewal leaves a valid record standing, so the role stays active and
+	// the refusal is carried by the last activation, not by an error case
 	fixture.waitStatus("refused", func(status *ExtenderProvideStatus) bool {
-		return status.ErrorCase == ExtenderProvideErrorActivationRefused
+		return status.LastActivationRefused
 	})
 	postCountV4 := fixture.operator.postCount(4)
 
@@ -541,7 +543,7 @@ func TestDeviceLocalProviderExtenderReplacementKeepsARefusalsHold(t *testing.T) 
 	restartFire <- time.Time{}
 	testExtenderRoleReplaced(t, fixture, firstRole)
 	fixture.waitStatus("the refusal carried over", func(status *ExtenderProvideStatus) bool {
-		return status.Enabled && status.Listening && status.ErrorCase == ExtenderProvideErrorActivationRefused
+		return status.Enabled && status.Listening && status.LastActivationRefused
 	})
 	fixture.step(time.Minute)
 	fixture.step(time.Minute)
