@@ -31,8 +31,8 @@ github.com/flynn/noise v1.1.0/go.mod h1:xbMo+0i6+IGbYdJhF31t2eR1BIU0CYc12+BNAKwU
 github.com/flynn/noise v1.1.0 h1:KjPQoQCEFdZDiP03phOvGi11+SVVhBG2wOWAorLsstg=
 github.com/full-bars/connect v0.0.0-20261105000819-14274176fb8c/go.mod h1:a/FXsgqF1lnCBs5Jg04URGus+4tiPSMRQ2dUoFu3WLM=
 github.com/full-bars/connect v0.0.0-20261105000819-14274176fb8c h1:Uj27X22iHh5pbZMOMZB7V1DMNjTi2n+pqMADu5pJ0Ok=
-github.com/full-bars/connect v0.0.0-20261105062037-d5ff12dd41b1/go.mod h1:a/FXsgqF1lnCBs5Jg04URGus+4tiPSMRQ2dUoFu3WLM=
-github.com/full-bars/connect v0.0.0-20261105062037-d5ff12dd41b1 h1:oQUhpiDleGgBTRqjpJkF9E2wxCcj7BRvt8wniU58HRQ=
+github.com/full-bars/connect v0.0.0-20261106080434-1e93a602fe50/go.mod h1:a/FXsgqF1lnCBs5Jg04URGus+4tiPSMRQ2dUoFu3WLM=
+github.com/full-bars/connect v0.0.0-20261106080434-1e93a602fe50 h1:1ue2+BtZgxqT1a45zcwL5DukaHjt0bENmOXcEzBUZYg=
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
 github.com/google/btree v1.1.3/go.mod h1:qOPhT0dTNdNzV6Z/lhRX0YXUafgPLFUh+gZMl761Gm4=

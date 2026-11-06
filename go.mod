@@ -104,7 +104,7 @@ require (
 
 retract [v0.0.1, v1.0.0]
 
-replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261105062037-d5ff12dd41b1
+replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261106080434-1e93a602fe50
 
 replace github.com/pion/sctp => ../connect/sctp
 
