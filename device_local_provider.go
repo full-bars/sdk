@@ -94,6 +94,8 @@ type deviceLocalProvider struct {
 	extenderServeTracker       *extenderServeTracker
 	extenderLoadServedLifetime func() (uint64, error)
 	extenderSaveServedLifetime func(lifetime uint64) error
+	// where the role's activation pacing survives a restart; nil keeps none
+	extenderPacingStore connect.ExtenderActivationPacingStore
 
 	clientStrategy *connect.ClientStrategy
 	// clientStrategySettings seeds the direct-only strategies of the
@@ -1784,6 +1786,7 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 		ServeTracker:               self.extenderServeTracker,
 		LoadExtenderServedLifetime: self.extenderLoadServedLifetime,
 		SaveExtenderServedLifetime: self.extenderSaveServedLifetime,
+		PacingStore:                self.extenderPacingStore,
 		RenewKey:                   self.renewExtenderKey,
 	}
 	settings.MeasurementsEnabled = self.extenderMeasurementsEnabled

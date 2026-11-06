@@ -639,6 +639,9 @@ type deviceLocalExtenderSettings struct {
 	// ConfigureActivator, when set, adjusts the activation loop's settings before
 	// it is built. Tests pin when a post goes through it.
 	ConfigureActivator func(settings *connect.ExtenderActivatorSettings)
+	// Where the activation pacing survives a restart. The provider fills it
+	// from DeviceLocalSettings.ExtenderPacingStore. Nil keeps no pacing state.
+	PacingStore connect.ExtenderActivationPacingStore
 
 	// The admission limits of this extender (EXTENDER.md A12), each a rate
 	// per minute: the distinct source subnets it admits, and the actions of

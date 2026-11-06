@@ -1254,6 +1254,7 @@ func (self *deviceLocalExtender) startActivator() {
 	}
 	settings.IpVersionSupported = self.settings.IpVersionSupported
 	settings.PreviousState = self.settings.ActivatorState
+	settings.PacingStore = self.settings.PacingStore
 	if self.settings.ConfigureActivator != nil {
 		self.settings.ConfigureActivator(settings)
 	}
