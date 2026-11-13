@@ -1,6 +1,6 @@
 module github.com/urnetwork/sdk
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/ChainSafe/go-schnorrkel v1.1.0
@@ -13,18 +13,18 @@ require (
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/pion/dtls/v3 v3.1.5
 	github.com/quic-go/quic-go v0.61.0
-	github.com/urnetwork/connect v0.0.0-20261105000819-14274176fb8c
+	github.com/urnetwork/connect v0.0.0-20261113061955-e933487d242d
 	github.com/urnetwork/glog v0.0.0
 	github.com/urnetwork/goidenticons v0.0.0
-	golang.org/x/crypto v0.54.0
-	golang.org/x/net v0.57.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.62.0
+	golang.org/x/sys v0.49.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/andybalholm/brotli v1.0.6 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
@@ -39,7 +39,7 @@ require (
 	github.com/ipfs/go-cid v0.6.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/koron/go-ssdp v0.9.1 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
@@ -92,11 +92,11 @@ require (
 	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
 	golang.org/x/image v0.44.0 // indirect
 	golang.org/x/mobile v0.0.0-20260611195102-4dd8f1dbf5d2 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20260909230408-9b1144b679cb // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	src.agwa.name/tlshacks v0.0.4 // indirect
@@ -104,9 +104,9 @@ require (
 
 retract [v0.0.1, v1.0.0]
 
-replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261105062037-d5ff12dd41b1
+replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261113061955-e933487d242d
 
-replace github.com/pion/sctp => ../connect/sctp
+replace github.com/pion/sctp => github.com/full-bars/connect/sctp v0.0.0-20261113061955-e933487d242d
 
 replace github.com/urnetwork/glog => ../glog
 
