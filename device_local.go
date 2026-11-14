@@ -762,6 +762,12 @@ type DeviceLocalSettings struct {
 	// sessions served by the provider extender role. When nil, the space's
 	// persistent store (.extender_served_lifetime) is used.
 	ExtenderSaveServedLifetime func(lifetime uint64) error `json:"-"`
+	// ExtenderPacingStore, when set, persists the provider extender role's
+	// activation pacing across restarts, so a restarted process resumes the
+	// cadence the record's validity set instead of posting at once. The
+	// embedder supplies the storage (the sn miner a bbolt file). Nil keeps no
+	// pacing state: every start paces as a new process does.
+	ExtenderPacingStore connect.ExtenderActivationPacingStore `json:"-"`
 	// providerExtenderSettings, when set, adjusts the provider extender role's
 	// settings before it is built (EXTENDER.md G2). Tests bind ephemeral
 	// carrier ports and point the activation at an in-process operator through
@@ -2139,6 +2145,7 @@ func newDeviceLocalWithOverridesForPlatform(
 		// are installed here (G2, L2)
 		provider.extenderDnsPrivilegedPort = settings.ProvideExtenderDnsPrivilegedPort
 		provider.extenderSettingsConfigure = settings.providerExtenderSettings
+		provider.extenderPacingStore = settings.ExtenderPacingStore
 		if settings.ExtenderLoadServedLifetime != nil || settings.ExtenderSaveServedLifetime != nil {
 			provider.extenderLoadServedLifetime = settings.ExtenderLoadServedLifetime
 			provider.extenderSaveServedLifetime = settings.ExtenderSaveServedLifetime
