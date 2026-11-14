@@ -29,10 +29,10 @@ github.com/filecoin-project/go-clock v0.1.0 h1:SFbYIM75M8NnFm1yMHhN9Ahy3W5bEZV9g
 github.com/filecoin-project/go-clock v0.1.0/go.mod h1:4uB/O4PvOjlx1VCMdZ9MyDZXRm//gkj1ELEbxfI1AZs=
 github.com/flynn/noise v1.1.0 h1:KjPQoQCEFdZDiP03phOvGi11+SVVhBG2wOWAorLsstg=
 github.com/flynn/noise v1.1.0/go.mod h1:xbMo+0i6+IGbYdJhF31t2eR1BIU0CYc12+BNAKwUTag=
-github.com/full-bars/connect v0.0.0-20261113061955-e933487d242d h1:jqCdgiujlNOnUnOm4ElzWYMK5wcC++SFdx8jpPXc5pc=
-github.com/full-bars/connect v0.0.0-20261113061955-e933487d242d/go.mod h1:/3i/8/OTqc7wWnPHakB6WEzl/ZJCqcl6XHEIfS5HiW8=
-github.com/full-bars/connect/sctp v0.0.0-20261113061955-e933487d242d h1:yKwnzUU3WDfVbVApT4HhCTDMFl6+7spwQHDmPQIeLlg=
-github.com/full-bars/connect/sctp v0.0.0-20261113061955-e933487d242d/go.mod h1:kTsjjdtydsO6o507jR+h9/unEpfoQjXvNHVxAcu2EHw=
+github.com/full-bars/connect v0.0.0-20261114000458-cb9728fb5ebd h1:AMat+39Vn8Cc53AhOh0j0iqEV3/w5TXu/QEGGWrl+yE=
+github.com/full-bars/connect v0.0.0-20261114000458-cb9728fb5ebd/go.mod h1:/3i/8/OTqc7wWnPHakB6WEzl/ZJCqcl6XHEIfS5HiW8=
+github.com/full-bars/connect/sctp v0.0.0-20261114000458-cb9728fb5ebd h1:QPIJT5YejX9SKZ1bxOg+bV6lcpkNSFMJRayk3MK+ERE=
+github.com/full-bars/connect/sctp v0.0.0-20261114000458-cb9728fb5ebd/go.mod h1:kTsjjdtydsO6o507jR+h9/unEpfoQjXvNHVxAcu2EHw=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/google/btree v1.1.3 h1:CVpQJjYgC4VbzxeGVHfvZrv1ctoYCAI8vbl07Fcxlyg=

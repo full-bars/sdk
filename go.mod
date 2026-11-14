@@ -13,7 +13,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/pion/dtls/v3 v3.1.5
 	github.com/quic-go/quic-go v0.61.0
-	github.com/urnetwork/connect v0.0.0-20261113061955-e933487d242d
+	github.com/urnetwork/connect v0.0.0-20261114000458-cb9728fb5ebd
 	github.com/urnetwork/glog v0.0.0
 	github.com/urnetwork/goidenticons v0.0.0
 	golang.org/x/crypto v0.58.0
@@ -104,9 +104,9 @@ require (
 
 retract [v0.0.1, v1.0.0]
 
-replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261113061955-e933487d242d
+replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261114000458-cb9728fb5ebd
 
-replace github.com/pion/sctp => github.com/full-bars/connect/sctp v0.0.0-20261113061955-e933487d242d
+replace github.com/pion/sctp => github.com/full-bars/connect/sctp v0.0.0-20261114000458-cb9728fb5ebd
 
 replace github.com/urnetwork/glog => ../glog
 
