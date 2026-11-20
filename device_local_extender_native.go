@@ -1265,7 +1265,7 @@ func (self *deviceLocalExtender) requiredCarrierServing() bool {
 // setting as the role started. The provider replaces a role whose setting
 // changed.
 func (self *deviceLocalExtender) portMappingEnabled() bool {
-	return self.settings.PortMapping
+	return self.settings != nil && self.settings.PortMapping
 }
 
 // Asks the router to forward the carriers that bound (S10), unless the setting
@@ -1455,7 +1455,7 @@ func (self *deviceLocalExtender) offeredDnsPorts() []int {
 
 // The port mapping of the status (S10, F3).
 func (self *deviceLocalExtender) portMappingState(state *extenderProvideState) {
-	if !self.settings.PortMapping {
+	if !self.portMappingEnabled() {
 		state.PortMapping = ExtenderPortMappingOff
 		return
 	}
