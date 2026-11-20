@@ -282,7 +282,7 @@ func TestProviderPinSettingsKeepH1Plus(t *testing.T) {
 	settings.AltUrl = "wss://alt.test.invalid"
 	settings.IpFamily = 0
 
-	pinned := providerIpv6PinSettings(settings)
+	pinned := providerIpv6PinSettings(settings, false)
 	if pinned.EnableH1Plus != settings.EnableH1Plus ||
 		pinned.V2H1Auth != settings.V2H1Auth ||
 		pinned.H1PlusStats != settings.H1PlusStats ||
@@ -297,6 +297,33 @@ func TestProviderPinSettingsKeepH1Plus(t *testing.T) {
 	if settings.IpFamily != 0 || settings.AltUrl == "" {
 		t.Fatal("building the pin's settings mutated the caller's")
 	}
+	if pinned.DialsThroughProxy {
+		t.Fatal("a pin that does not dial through a proxy is marked as one")
+	}
+	if !providerIpv6PinSettings(settings, true).DialsThroughProxy {
+		t.Fatal("a pin that dials through a proxy is not marked, so the local family probe would hold it")
+	}
+	if settings.DialsThroughProxy {
+		t.Fatal("building the pin's settings mutated the caller's")
+	}
+}
+
+// Only an injected dial (a proxied identity's proxy dial) marks the pin.
+func TestProviderPinDialsThroughProxyFollowsTheInjectedDial(t *testing.T) {
+	direct := connect.DefaultClientStrategySettings()
+	direct.ConnectSettings.DialContextSettings = nil
+	if providerIpv6PinDialsThroughProxy(direct) {
+		t.Fatal("a direct identity's pin is marked as dialing through a proxy")
+	}
+	proxied := connect.DefaultClientStrategySettings()
+	proxied.ConnectSettings.DialContextSettings = &connect.DialContextSettings{
+		DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return nil, errors.New("not dialed in this test")
+		},
+	}
+	if !providerIpv6PinDialsThroughProxy(proxied) {
+		t.Fatal("a proxied identity's pin is not marked as dialing through a proxy")
+	}
 }
 
 // The pin is H1 only and dials the v6 url with the settings above. No seam
@@ -308,7 +335,7 @@ func TestProviderPinBuilderIsH1Only(t *testing.T) {
 	}
 	for _, want := range []string{
 		"connect.NewDirectClientStrategy(self.client.Ctx(), strategySettings, 6)",
-		"connect.TransportModeH1,\n\t\tproviderIpv6PinSettings(settings),",
+		"connect.TransportModeH1,\n\t\tproviderIpv6PinSettings(settings, throughProxy),",
 		"self.client.RouteManager(),\n\t\tself.pinnedIpv6PlatformUrl,",
 	} {
 		if !strings.Contains(string(source), want) {

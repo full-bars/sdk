@@ -207,14 +207,24 @@ func (self *providerPlainTransport) detachPin() *providerIpv6Pin {
 // takes no part in a move's dial (the move is planned over the agnostic
 // transport alone, which is the Step 1 behaviour, and a pin redials by name).
 // The caller's settings are not mutated.
-func providerIpv6PinSettings(settings *connect.PlatformTransportSettings) *connect.PlatformTransportSettings {
+func providerIpv6PinSettings(settings *connect.PlatformTransportSettings, throughProxy bool) *connect.PlatformTransportSettings {
 	copied := *settings
 	copied.IpFamily = 6
+	// a pin that dials through a proxy gets its exit from the proxy, so the
+	// host needs no IPv6 address of its own for it
+	copied.DialsThroughProxy = throughProxy
 	copied.StartDisabled = false
 	copied.PlatformTransportBudgetPriority = connect.PlatformTransportBudgetPriorityBackground
 	copied.AltUrl = ""
 	copied.ResidentMoveDial = nil
 	return &copied
+}
+
+// providerIpv6PinDialsThroughProxy reports whether the pin's dial leaves through
+// an injected dial, which is how a proxied identity reaches its proxy.
+func providerIpv6PinDialsThroughProxy(settings *connect.ClientStrategySettings) bool {
+	injected := settings.ConnectSettings.DialContextSettings
+	return injected != nil && injected.DialContext != nil
 }
 
 // providerIpv6PinStrategySettings is the strategy settings the pin's direct
@@ -293,6 +303,7 @@ func (self *deviceLocalProvider) newProviderIpv6Pin(
 	if clientStrategySettings == nil {
 		clientStrategySettings = connect.DefaultClientStrategySettings()
 	}
+	throughProxy := providerIpv6PinDialsThroughProxy(clientStrategySettings)
 	strategySettings := providerIpv6PinStrategySettings(
 		clientStrategySettings,
 		func(ctx context.Context, err error) {
@@ -307,7 +318,7 @@ func (self *deviceLocalProvider) newProviderIpv6Pin(
 		self.pinnedIpv6PlatformUrl,
 		auth,
 		connect.TransportModeH1,
-		providerIpv6PinSettings(settings),
+		providerIpv6PinSettings(settings, throughProxy),
 	)
 	return &providerIpv6Pin{transport: transport, strategy: strategy}
 }
