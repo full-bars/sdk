@@ -55,6 +55,8 @@ const (
 // takes any credential. TestApiAdminRoutesMatchTheServer compares the two
 // tables when the server checkout is beside the sdk.
 var apiAdminRouteAccess = map[string]apiRouteAccess{
+	"GET /lag/drift-test":                     apiRouteAccessNetwork,
+	"POST /lag/drift-test":                    apiRouteAccessNetwork,
 	"GET /network/sessions":                   apiRouteAccessNetwork,
 	"POST /network/revoke-session":            apiRouteAccessNetwork,
 	"POST /network/revoke-other-sessions":     apiRouteAccessNetwork,
@@ -74,18 +76,21 @@ var apiAdminRouteAccess = map[string]apiRouteAccess{
 	"POST /network/unblock-location":          apiRouteAccessAppAdmin,
 	"POST /preferences/set-preferences":       apiRouteAccessAppAdmin,
 	"POST /stripe/customer-portal":            apiRouteAccessAppAdmin,
-	"POST /account/payout-wallet":             apiRouteAccessAppAdmin,
-	"GET /account/payout-wallet":              apiRouteAccessAppAdmin,
-	"POST /account/wallet":                    apiRouteAccessAppAdmin,
-	"GET /account/wallets":                    apiRouteAccessAppAdmin,
-	"POST /account/wallets/remove":            apiRouteAccessAppAdmin,
-	"POST /account/wallets/verify-seeker":     apiRouteAccessAppAdmin,
-	"GET /account/payments":                   apiRouteAccessAppAdmin,
-	"GET /account/unlink-referral-network":    apiRouteAccessAppAdmin,
-	"POST /account/set-referral":              apiRouteAccessAppAdmin,
-	"POST /account/change-name":               apiRouteAccessAppAdmin,
-	"POST /account/claim-name":                apiRouteAccessAppAdmin,
-	"GET /account/balance-codes":              apiRouteAccessAppAdmin,
+	// the server's class for the USDC payout wallet routes, which the sdk no
+	// longer calls since USDC payouts ended (2026-11-12); drop these with the
+	// server's routes
+	"POST /account/payout-wallet":          apiRouteAccessAppAdmin,
+	"GET /account/payout-wallet":           apiRouteAccessAppAdmin,
+	"POST /account/wallet":                 apiRouteAccessAppAdmin,
+	"GET /account/wallets":                 apiRouteAccessAppAdmin,
+	"POST /account/wallets/remove":         apiRouteAccessAppAdmin,
+	"POST /account/wallets/verify-seeker":  apiRouteAccessAppAdmin,
+	"GET /account/payments":                apiRouteAccessAppAdmin,
+	"GET /account/unlink-referral-network": apiRouteAccessAppAdmin,
+	"POST /account/set-referral":           apiRouteAccessAppAdmin,
+	"POST /account/change-name":            apiRouteAccessAppAdmin,
+	"POST /account/claim-name":             apiRouteAccessAppAdmin,
+	"GET /account/balance-codes":           apiRouteAccessAppAdmin,
 
 	"POST /auth/network-refresh":            apiRouteAccessNetwork,
 	"GET /stats/providers":                  apiRouteAccessNetwork,
@@ -97,6 +102,7 @@ var apiAdminRouteAccess = map[string]apiRouteAccess{
 	"POST /network/register-client-v1":      apiRouteAccessNetwork,
 	"POST /network/remove-clients":          apiRouteAccessNetwork,
 	"GET /network/proxies":                  apiRouteAccessNetwork,
+	"POST /network/proxy/rotate-exit":       apiRouteAccessNetwork,
 	"POST /network/user/update":             apiRouteAccessNetwork,
 	"POST /network/client-data-cap":         apiRouteAccessNetwork,
 	"GET /network/client-data-caps":         apiRouteAccessNetwork,
@@ -130,6 +136,9 @@ var apiAdminRouteAccess = map[string]apiRouteAccess{
 	"GET /account/api-keys":                 apiRouteAccessNetwork,
 	"POST /oauth/authorize":                 apiRouteAccessNetwork,
 	"POST /oauth/consent":                   apiRouteAccessNetwork,
+	// Pay with Gamma's automatic charge switches
+	"GET /pay/gamma/settings":  apiRouteAccessNetwork,
+	"POST /pay/gamma/settings": apiRouteAccessNetwork,
 }
 
 type apiAdminRoutePattern struct {
@@ -155,6 +164,17 @@ var apiAdminRoutePatterns = func() []apiAdminRoutePattern {
 	}
 	return patterns
 }()
+
+// apiSessionRenewingRoutes carry the network credential when the API holds
+// one, and no credential otherwise: never the device's client token. The
+// server signs a session in for each, and reads an optional bearer to renew
+// that sign-in's session instead (2026-11-18): an add-sign-in's verify sent
+// with the sign-in renews it, where one sent with none minted a session that
+// nothing used, counted against the account's cap. A sign-in's own verify
+// (signed out) sends none, and gets a session of its own.
+var apiSessionRenewingRoutes = map[string]bool{
+	"POST /auth/verify": true,
+}
 
 func apiRouteAccessFor(method string, path string) apiRouteAccess {
 	if access, ok := apiAdminRouteAccess[method+" "+path]; ok {
@@ -324,9 +344,17 @@ func (self *Api) apiRequestPath(requestUrl string) (string, bool) {
 
 // requestByJwt is the credential a request carries. A route that administers
 // the network carries the network credential, even when the caller read the
-// device's client token; every other request carries byJwt unchanged.
+// device's client token; a session-renewing route (apiSessionRenewingRoutes)
+// carries the network credential or none; every other request carries byJwt
+// unchanged.
 func (self *Api) requestByJwt(method string, requestUrl string, byJwt string) (string, error) {
 	path, ok := self.apiRequestPath(requestUrl)
+	if ok && apiSessionRenewingRoutes[method+" "+path] {
+		if isNetworkCredential(byJwt) {
+			return byJwt, nil
+		}
+		return self.networkCredential(), nil
+	}
 	if !ok || apiRouteAccessFor(method, path) == apiRouteAccessClient {
 		return byJwt, nil
 	}
@@ -342,7 +370,9 @@ func (self *Api) requestByJwt(method string, requestUrl string, byJwt string) (s
 // The request seams every API call goes through. Each sends the credential
 // requestByJwt selects for its route over the installed transport. A confirmed
 // rejection of the network credential it sent rejects that credential, with
-// the response's cause (api_auth_logout_cause.go).
+// the response's cause (api_auth_logout_cause.go). Each reports its result to
+// the can't-reach rule (cant_reach.go), for which an answer ends a run of
+// failures.
 
 // An invocation-bound request supplies its credential generation so dispatch
 // cannot attribute its rejection to a later sign-in with equal token bytes.
@@ -359,6 +389,7 @@ func (self *Api) getHttpPostRaw(expectedNetworkGeneration ...uint64) connect.Htt
 		}
 		ctx = self.clientInfoContext(ctx)
 		result, requestErr := httpPostRaw(ctx, requestUrl, requestBodyBytes, byJwt)
+		noteCantReachApiResult(requestErr)
 		if tracked && ConfirmedClientRefreshRejection(requestErr) {
 			if self.rejectNetworkCredential(target, confirmedRejectionCause(requestErr)) {
 				requestErr = errors.Join(requestErr, self.GetCredentialPersistenceError())
@@ -378,6 +409,7 @@ func (self *Api) getHttpGetRaw() connect.HttpGetRawFunction {
 		target, tracked := self.networkRequestTarget(byJwt)
 		ctx = self.clientInfoContext(ctx)
 		result, requestErr := httpGetRaw(ctx, requestUrl, byJwt)
+		noteCantReachApiResult(requestErr)
 		if tracked && ConfirmedClientRefreshRejection(requestErr) {
 			if self.rejectNetworkCredential(target, confirmedRejectionCause(requestErr)) {
 				requestErr = errors.Join(requestErr, self.GetCredentialPersistenceError())
@@ -397,6 +429,7 @@ func (self *Api) getHttpPostStreamRaw() connect.HttpPostStreamRawFunction {
 		target, tracked := self.networkRequestTarget(byJwt)
 		ctx = self.clientInfoContext(ctx)
 		result, requestErr := httpPostStreamRaw(ctx, requestUrl, body, byJwt)
+		noteCantReachApiResult(requestErr)
 		if tracked && ConfirmedClientRefreshRejection(requestErr) {
 			if self.rejectNetworkCredential(target, confirmedRejectionCause(requestErr)) {
 				requestErr = errors.Join(requestErr, self.GetCredentialPersistenceError())

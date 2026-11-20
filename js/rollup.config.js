@@ -1,6 +1,8 @@
-import typescript from "@rollup/plugin-typescript";
-import resolve from "@rollup/plugin-node-resolve";
 import { readFile } from "node:fs/promises";
+import ts from "typescript";
+import { typescript } from "./rollup-typescript.js";
+
+const compile = () => typescript(ts, "./tsconfig.json");
 
 // The lag SDK starts its download Worker from its own module,
 // `new Worker(new URL("./downloadWorker.ts", import.meta.url))`, which a
@@ -22,6 +24,19 @@ const downloadWorkerUrl = {
   },
 };
 
+// The drift test's world map (src/lag/drift/world.generated.json,
+// lag.dev/DRIFTTEST.md G2) is imported dynamically, so the lag entry builds
+// it as a chunk of its own that only `loadDriftWorld()` loads.
+const jsonModule = {
+  name: "lag-json-module",
+  transform(code, id) {
+    if (!id.endsWith(".json")) {
+      return null;
+    }
+    return { code: `export default JSON.parse(${JSON.stringify(JSON.stringify(JSON.parse(code)))});\n`, map: null };
+  },
+};
+
 export default [
   // Main entry point (core SDK)
   {
@@ -40,11 +55,7 @@ export default [
     ],
     external: ["react"],
     plugins: [
-      resolve(),
-      typescript({
-        tsconfig: "./tsconfig.json",
-        declaration: false, // handled by build:types script
-      }),
+      compile(),
       {
         name: "wasm-assets",
         async buildStart() {
@@ -74,37 +85,33 @@ export default [
         sourcemap: true,
       },
     ],
-    plugins: [
-      resolve(),
-      typescript({
-        tsconfig: "./tsconfig.json",
-        declaration: false,
-      }),
-    ],
+    plugins: [compile()],
   },
   // The lag.dev SDK (lag.dev/PLAN.md S): plain TypeScript that never loads
   // the wasm, so a page that imports only it never downloads sdk.wasm
   {
     input: "src/lag/index.ts",
+    // a directory, not a file, for the world map's chunk beside the entry
     output: [
       {
-        file: "dist/lag/index.js",
+        dir: "dist/lag",
+        entryFileNames: "index.js",
+        chunkFileNames: "[name]-[hash].js",
         format: "es",
         sourcemap: true,
       },
       {
-        file: "dist/lag/index.cjs",
+        dir: "dist/lag",
+        entryFileNames: "index.cjs",
+        chunkFileNames: "[name]-[hash].cjs",
         format: "cjs",
         sourcemap: true,
       },
     ],
     plugins: [
       downloadWorkerUrl,
-      resolve(),
-      typescript({
-        tsconfig: "./tsconfig.json",
-        declaration: false,
-      }),
+      jsonModule,
+      compile(),
     ],
   },
   // The lag SDK's download Worker (src/lag/downloadWorker.ts), a module of
@@ -116,13 +123,7 @@ export default [
       format: "es",
       sourcemap: true,
     },
-    plugins: [
-      resolve(),
-      typescript({
-        tsconfig: "./tsconfig.json",
-        declaration: false,
-      }),
-    ],
+    plugins: [compile()],
   },
   // React entry point
   {
@@ -145,12 +146,6 @@ export default [
       "@tanstack/react-query",
       "@urnetwork/sdk",
     ],
-    plugins: [
-      resolve(),
-      typescript({
-        tsconfig: "./tsconfig.json",
-        declaration: false,
-      }),
-    ],
+    plugins: [compile()],
   },
 ];

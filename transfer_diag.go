@@ -75,6 +75,7 @@ type transferDiagState struct {
 	LocationClientID    string      `json:"location_client_id,omitempty"`
 	QualityClientCount  int         `json:"quality_client_count"`
 	SpeedClientCount    int         `json:"speed_client_count"`
+	LimitedClientCount  int         `json:"limited_client_count"`
 	WindowClientCount   int         `json:"window_client_count"`
 	// Window-lifetime evidence includes retired peers; never substitutes for live totals.
 	QualityAckRouteWriteLifetimeFailures *connect.AckRouteWriteFailureStatsSnapshot `json:"quality_ack_route_write_lifetime_failures,omitempty"`
@@ -181,59 +182,69 @@ type transferDiagDeviceCarrierBudget struct {
 // transfer ownership proof. Root and role/NAT groups are one coherent budget
 // snapshot; Pack is a diagnostic subset of client, not an additive owner.
 type transferDiagDeviceTransferBudget struct {
-	Part                   string `json:"part"`
-	UnixMillis             int64  `json:"unix_millis"`
-	RootTotalByteCount     int64  `json:"transfer_root_total_bytes"`
-	RootUsedByteCount      int64  `json:"transfer_root_used_bytes"`
-	RootReservedByteCount  int64  `json:"transfer_root_reserved_bytes"`
-	RootReleasedByteCount  int64  `json:"transfer_root_released_bytes"`
-	ClientTotalByteCount   int64  `json:"client_transfer_total_bytes"`
-	ClientUsedByteCount    int64  `json:"client_transfer_used_bytes"`
-	ProviderTotalByteCount int64  `json:"provider_transfer_total_bytes"`
-	ProviderUsedByteCount  int64  `json:"provider_transfer_used_bytes"`
-	NatTotalByteCount      int64  `json:"nat_budget_total_bytes"`
-	NatUsedByteCount       int64  `json:"nat_budget_used_bytes"`
-	NatReservedByteCount   int64  `json:"nat_budget_reserved_bytes"`
-	NatReleasedByteCount   int64  `json:"nat_budget_released_bytes"`
-	PackTotalByteCount     int64  `json:"pack_queue_total_bytes"`
-	PackUsedByteCount      int64  `json:"pack_queue_used_bytes"`
-	PinTotalByteCount      int64  `json:"peer_pin_total_bytes"`
-	PinUsedByteCount       int64  `json:"peer_pin_used_bytes"`
-	PinReservedByteCount   int64  `json:"peer_pin_reserved_bytes"`
-	PinReleasedByteCount   int64  `json:"peer_pin_released_bytes"`
-	PinCount               int    `json:"peer_pin_count"`
-	PinCapacityRefusals    int64  `json:"peer_pin_capacity_refusals"`
-	PinPersistenceFailures int64  `json:"peer_pin_persistence_failures"`
-	PinRollbackRefusals    int64  `json:"peer_pin_rollback_refusals"`
-	PinStateFailures       int64  `json:"peer_pin_state_failures"`
+	Part                          string `json:"part"`
+	UnixMillis                    int64  `json:"unix_millis"`
+	RootTotalByteCount            int64  `json:"transfer_root_total_bytes"`
+	RootUsedByteCount             int64  `json:"transfer_root_used_bytes"`
+	RootReservedByteCount         int64  `json:"transfer_root_reserved_bytes"`
+	RootReleasedByteCount         int64  `json:"transfer_root_released_bytes"`
+	ClientTotalByteCount          int64  `json:"client_transfer_total_bytes"`
+	ClientUsedByteCount           int64  `json:"client_transfer_used_bytes"`
+	ProviderTotalByteCount        int64  `json:"provider_transfer_total_bytes"`
+	ProviderUsedByteCount         int64  `json:"provider_transfer_used_bytes"`
+	NatTotalByteCount             int64  `json:"nat_budget_total_bytes"`
+	NatUsedByteCount              int64  `json:"nat_budget_used_bytes"`
+	NatReservedByteCount          int64  `json:"nat_budget_reserved_bytes"`
+	NatReleasedByteCount          int64  `json:"nat_budget_released_bytes"`
+	PackTotalByteCount            int64  `json:"pack_queue_total_bytes"`
+	PackUsedByteCount             int64  `json:"pack_queue_used_bytes"`
+	HeadRecoveryTotalByteCount    int64  `json:"consumer_head_recovery_total_bytes"`
+	HeadRecoveryUsedByteCount     int64  `json:"consumer_head_recovery_used_bytes"`
+	HeadRecoveryReservedByteCount int64  `json:"consumer_head_recovery_reserved_bytes"`
+	HeadRecoveryReleasedByteCount int64  `json:"consumer_head_recovery_released_bytes"`
+	PinTotalByteCount             int64  `json:"peer_pin_total_bytes"`
+	PinUsedByteCount              int64  `json:"peer_pin_used_bytes"`
+	PinReservedByteCount          int64  `json:"peer_pin_reserved_bytes"`
+	PinReleasedByteCount          int64  `json:"peer_pin_released_bytes"`
+	PinCount                      int    `json:"peer_pin_count"`
+	PinCapacityRefusals           int64  `json:"peer_pin_capacity_refusals"`
+	PinEvictions                  int64  `json:"peer_pin_evictions"`
+	PinPersistenceFailures        int64  `json:"peer_pin_persistence_failures"`
+	PinRollbackRefusals           int64  `json:"peer_pin_rollback_refusals"`
+	PinStateFailures              int64  `json:"peer_pin_state_failures"`
 }
 
 func transferDiagTransferBudget(usage *DeviceLocalMemoryUsage, millis int64) transferDiagDeviceTransferBudget {
 	return transferDiagDeviceTransferBudget{
 		Part: "memory_device_transfer", UnixMillis: millis,
-		RootTotalByteCount:     usage.TransferRootBudgetByteCount,
-		RootUsedByteCount:      usage.TransferRootUsedByteCount,
-		RootReservedByteCount:  usage.TransferRootReservedByteCount,
-		RootReleasedByteCount:  usage.TransferRootReleasedByteCount,
-		ClientTotalByteCount:   usage.ClientTransferBudgetByteCount,
-		ClientUsedByteCount:    usage.ClientTransferUsedByteCount,
-		ProviderTotalByteCount: usage.ProviderTransferBudgetByteCount,
-		ProviderUsedByteCount:  usage.ProviderTransferUsedByteCount,
-		NatTotalByteCount:      usage.NatBudgetByteCount,
-		NatUsedByteCount:       usage.NatUsedByteCount,
-		NatReservedByteCount:   usage.NatReservedByteCount,
-		NatReleasedByteCount:   usage.NatReleasedByteCount,
-		PackTotalByteCount:     usage.PackQueueCapacityByteCount,
-		PackUsedByteCount:      usage.PackQueueUsedByteCount,
-		PinTotalByteCount:      usage.PeerKeyPinBudgetByteCount,
-		PinUsedByteCount:       usage.PeerKeyPinUsedByteCount,
-		PinReservedByteCount:   usage.PeerKeyPinReservedByteCount,
-		PinReleasedByteCount:   usage.PeerKeyPinReleasedByteCount,
-		PinCount:               usage.PeerKeyPinCount,
-		PinCapacityRefusals:    usage.PeerKeyPinCapacityRefusals,
-		PinPersistenceFailures: usage.PeerKeyPinPersistenceFailures,
-		PinRollbackRefusals:    usage.PeerKeyPinRollbackRefusals,
-		PinStateFailures:       usage.PeerKeyPinStateFailures,
+		RootTotalByteCount:            usage.TransferRootBudgetByteCount,
+		RootUsedByteCount:             usage.TransferRootUsedByteCount,
+		RootReservedByteCount:         usage.TransferRootReservedByteCount,
+		RootReleasedByteCount:         usage.TransferRootReleasedByteCount,
+		ClientTotalByteCount:          usage.ClientTransferBudgetByteCount,
+		ClientUsedByteCount:           usage.ClientTransferUsedByteCount,
+		ProviderTotalByteCount:        usage.ProviderTransferBudgetByteCount,
+		ProviderUsedByteCount:         usage.ProviderTransferUsedByteCount,
+		NatTotalByteCount:             usage.NatBudgetByteCount,
+		NatUsedByteCount:              usage.NatUsedByteCount,
+		NatReservedByteCount:          usage.NatReservedByteCount,
+		NatReleasedByteCount:          usage.NatReleasedByteCount,
+		PackTotalByteCount:            usage.PackQueueCapacityByteCount,
+		PackUsedByteCount:             usage.PackQueueUsedByteCount,
+		HeadRecoveryTotalByteCount:    usage.ClientReceiveHeadRecoveryBudgetByteCount,
+		HeadRecoveryUsedByteCount:     usage.ClientReceiveHeadRecoveryUsedByteCount,
+		HeadRecoveryReservedByteCount: usage.ClientReceiveHeadRecoveryReservedByteCount,
+		HeadRecoveryReleasedByteCount: usage.ClientReceiveHeadRecoveryReleasedByteCount,
+		PinTotalByteCount:             usage.PeerKeyPinBudgetByteCount,
+		PinUsedByteCount:              usage.PeerKeyPinUsedByteCount,
+		PinReservedByteCount:          usage.PeerKeyPinReservedByteCount,
+		PinReleasedByteCount:          usage.PeerKeyPinReleasedByteCount,
+		PinCount:                      usage.PeerKeyPinCount,
+		PinCapacityRefusals:           usage.PeerKeyPinCapacityRefusals,
+		PinEvictions:                  usage.PeerKeyPinEvictions,
+		PinPersistenceFailures:        usage.PeerKeyPinPersistenceFailures,
+		PinRollbackRefusals:           usage.PeerKeyPinRollbackRefusals,
+		PinStateFailures:              usage.PeerKeyPinStateFailures,
 	}
 }
 
@@ -402,11 +413,16 @@ func (self *DeviceLocal) collectTransferDiag(millis int64) []any {
 		memory := multi.MemorySnapshot()
 		state.QualityClientCount = memory.QualityClientCount
 		state.SpeedClientCount = memory.SpeedClientCount
+		state.LimitedClientCount = memory.LimitedClientCount
 		state.QualityAckRouteWriteLifetimeFailures, state.SpeedAckRouteWriteLifetimeFailures = multi.AckRouteWriteLifetimeFailures()
 		for _, stats := range multi.ClientTransferStats() {
 			window := "speed"
-			if stats.WindowType == connect.WindowTypeQuality {
+			switch stats.WindowType {
+			case connect.WindowTypeQuality:
 				window = "quality"
+			case connect.WindowTypeLimited:
+				// it has no rank mode of its own (server FP2-PROTOCOL.md §7.4)
+				window = ExitWindowTypeLimited
 			}
 			destination := stats.Destination.String()
 			state.WindowClientCount += 1

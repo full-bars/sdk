@@ -8,7 +8,7 @@ import (
 
 	// "fmt"
 	"math"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"sync"
 	"time"
 
@@ -1306,8 +1306,9 @@ func (self *ConnectGrid) windowMonitorEventCallback(windowExpandEvent *connect.W
 					point.Active = providerEvent.State.IsActive()
 					providerGridPointChanged = true
 				}
-				// the category can change on a live point: a dualstack exit
-				// whose v6 dials keep failing is downgraded locally (IPV6.md B5)
+				// the category of a live point follows its event. Connect no
+				// longer downgrades an exit's v6 locally (IPV6.md B5 retired by
+				// server FP2-PROTOCOL.md D11.8), but an event may still re-label it
 				if ipFamily := ipFamilyValue(providerEvent.IpFamily); point.IpFamily != ipFamily {
 					point.IpFamily = ipFamily
 					point.IpFamilyLabel = ipFamilyLabel(providerEvent.IpFamily)
@@ -1335,8 +1336,8 @@ func (self *ConnectGrid) windowMonitorEventCallback(windowExpandEvent *connect.W
 
 					for range 8 {
 						c := gridPointCoord{
-							X: mathrand.Intn(self.sideLength),
-							Y: mathrand.Intn(self.sideLength),
+							X: mathrand.IntN(self.sideLength),
+							Y: mathrand.IntN(self.sideLength),
 						}
 						if gridPoint, ok := self.gridPoints[c]; ok && gridPoint.Plottable && !gridPoint.Occupied {
 							return gridPoint
@@ -1352,7 +1353,7 @@ func (self *ConnectGrid) windowMonitorEventCallback(windowExpandEvent *connect.W
 					if len(unoccupiedGridPoints) == 0 {
 						return nil
 					}
-					return unoccupiedGridPoints[mathrand.Intn(len(unoccupiedGridPoints))]
+					return unoccupiedGridPoints[mathrand.IntN(len(unoccupiedGridPoints))]
 				}
 
 				self.resize()

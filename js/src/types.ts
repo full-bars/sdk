@@ -1,7 +1,8 @@
 import type { ClientSessionSnapshot, SessionSignOutResult, SnNetworkConsentChallengeResult, SnNetworkConsentStatus, SnSetWalletResult } from "./generated/types";
-export type { ClientInfo, ClientSessionSnapshot, ClientSessionAction, ClientSessionError, SessionLastUsed, NetworkSessionInfo, NetworkSessionsResult, SessionOperationResult, SnNetworkConsentChallengeResult, SnNetworkConsentStatus, SnSetWalletResult } from "./generated/types";
+export type { ClientInfo, ClientSessionSnapshot, ClientSessionAction, ClientSessionError, ClientSessionGroup, SessionLastUsed, NetworkSessionInfo, NetworkSessionsResult, SessionOperationResult, SnNetworkConsentChallengeResult, SnNetworkConsentStatus, SnSetWalletResult } from "./generated/types";
 import type { SocketDevice } from "./socket";
 import type { SubprotocolDevice } from "./subprotocol";
+import type { ClientDistribution } from "./client_info";
 
 /**
  * Configuration for proxy behavior
@@ -227,10 +228,14 @@ export type ProvideMode = number;
  * "" (no hold) or "client_limit_exceeded": the platform closed the device for
  * its network's concurrent client limit, and the device holds off
  * reconnecting until `retryTime` (unix milliseconds; 0 with no hold).
+ * `prompt` is what to offer while held: "upgrade" (UR Pro lifts the limit) or
+ * "remove_client" (the plan's most clients are connected: free a slot); ""
+ * with no hold. After the user acts on it, `retryClientLimit()` dials again.
  */
 export interface ClientLimitStatus {
   status: "" | "client_limit_exceeded";
   retryTime: number;
+  prompt: "" | "upgrade" | "remove_client";
 }
 
 /**
@@ -322,6 +327,14 @@ export interface DeviceRemote extends SocketDevice, SubprotocolDevice {
   /** see ClientLimitStatus; never null from the device */
   getClientLimitStatus(): ClientLimitStatus;
   addClientLimitStatusChangeListener(cb: (status: ClientLimitStatus) => void): Unsubscribe;
+  /** ends the client limit hold once the user acted on its prompt, at most
+   * once per retry interval; true when a hold was ended */
+  retryClientLimit(): boolean;
+  /** ends the client limit hold at once after a change the server confirmed
+   * that frees a slot or raises the limit (a removal, a purchase), past the
+   * retry backoff, at most once per change retry interval; true when a hold
+   * was ended (sdk.Device.RetryClientLimitAfterChange) */
+  retryClientLimitAfterChange(): boolean;
 
   // provider traffic: what the device's provider relayed for clients. null
   // when the device has no provider. Contract rows arrive one per listener
@@ -401,6 +414,16 @@ export interface DeviceRemote extends SocketDevice, SubprotocolDevice {
   addDnsResolverSettingsChangeListener(
     cb: (settings: DnsResolverSettings | null) => void,
   ): Unsubscribe;
+  /** see DnsResolverStatus; never null from the device */
+  getDnsResolverStatus(): DnsResolverStatus;
+  /** fires on a change of state, verification or selection, not of the count */
+  addDnsResolverStatusChangeListener(cb: (status: DnsResolverStatus) => void): Unsubscribe;
+  /**
+   * this connection's count of lookups the selected resolver answered with a
+   * recognizable block; a floor, kept on the device and never sent anywhere.
+   * Poll it: it changes without a callback. 0 while the device is unreachable
+   */
+  getDnsBlockedCount(): number;
 
   // performance profile (over the device-rpc): the connect options as the
   // native apps write them. The device applies a change to the live
@@ -424,8 +447,12 @@ export interface DeviceRemote extends SocketDevice, SubprotocolDevice {
   openLocationsViewController(): LocationsViewController;
   openDevicesViewController(): DevicesViewController;
   openClientSessionViewController(): ClientSessionViewController;
-  /** Supply display metadata before connecting or making account requests. */
-  setClientInfo(deviceType: string, appVersion: string): void;
+  /**
+   * Supply the client info before connecting or making account requests: the
+   * device type, the app's version and, when the build knows it, its
+   * distribution. Without one the distribution is unknown.
+   */
+  setClientInfo(deviceType: string, appVersion: string, distribution?: ClientDistribution): void;
   openPointsLeaderboardViewController(): PointsLeaderboardViewController;
   openPeerViewController(): PeerViewController;
   openProviderLocationsViewController(): ProviderLocationsViewController;
@@ -972,6 +999,13 @@ export interface ProviderLocationsViewController {
  * an upstream resolver.
  */
 export interface DnsResolverSettings {
+  /**
+   * the selection the device derives the lists from: "default" for URnetwork's
+   * dns, a preset id, "regional-<cc>", or "" for the explicit lists below
+   */
+  presetId: string;
+  /** a personal preset's configuration id, else "" */
+  presetPersonalId: string;
   enableRemoteDoh: boolean;
   enableLocalDoh: boolean;
   enableRemoteDns: boolean;
@@ -987,6 +1021,22 @@ export interface DnsResolverSettings {
   remoteDnsIpv6: string[];
   localDnsIpv4: string[];
   localDnsIpv6: string[];
+}
+
+/**
+ * The status of the device's dns resolver. `state` is whether the selected
+ * resolver answers ("ok"), has failed over to URnetwork's dns ("failedOver"),
+ * fails closed ("failing"), or has not answered or failed yet ("unknown").
+ * `verification` is what the device found out about the selected preset.
+ * `sinceTime` is the unix millisecond time the state last changed, 0 for
+ * never; `blockedCount` is this connection's blocked lookups when read.
+ */
+export interface DnsResolverStatus {
+  state: "unknown" | "ok" | "failing" | "failedOver";
+  verification: "none" | "confirmed" | "notFiltering" | "rejected" | "malformed" | "unconfirmed";
+  presetId: string;
+  sinceTime: number;
+  blockedCount: number;
 }
 
 /** the connection mode: "auto", "quality" (Web) or "speed" (Streaming) */
@@ -1160,6 +1210,13 @@ export interface BalanceCodeRedeemOutcome {
     end_time: string;
     balance_byte_count: number;
   };
+  /**
+   * a gift code's year of Pro, when the redeem granted one (the code's kind is
+   * pro_gift, and transfer_balance carries 0 bytes over the same window).
+   * queued: the year starts after the network's current paid Pro period, at
+   * start_time, instead of now.
+   */
+  pro?: { start_time: string; end_time: string; queued: boolean };
   /** the server's rejection, when it answered */
   error?: { message: string };
   /** the redeem call's own failure, when it got no answer */
@@ -1289,8 +1346,12 @@ export interface AccountHost {
   openLocationsViewController(): LocationsViewController;
   openDevicesViewController(): DevicesViewController;
   openClientSessionViewController(): ClientSessionViewController;
-  /** Supply display metadata before connecting or making account requests. */
-  setClientInfo(deviceType: string, appVersion: string): void;
+  /**
+   * Supply the client info before connecting or making account requests: the
+   * device type, the app's version and, when the build knows it, its
+   * distribution. Without one the distribution is unknown.
+   */
+  setClientInfo(deviceType: string, appVersion: string, distribution?: ClientDistribution): void;
   openAccountPreferencesViewController(): AccountPreferencesViewController;
   openNetworkUserViewController(): NetworkUserViewController;
   openFeedbackViewController(): FeedbackViewController;
@@ -1399,5 +1460,9 @@ export interface ClientSessionViewController {
  getSnapshot(): ClientSessionSnapshot;
  revokeSession(sessionId: string): void;
  revokeOtherSessions(): void;
+ /** Opens a client group (snapshot `groups[].kind`) to its first page of rows, or closes it. */
+ setGroupExpanded(kind: string, expanded: boolean): void;
+ /** Another page of rows: a group's kind, or "sign_ins" for the device sign-ins. */
+ showMoreSessions(kind: string): void;
  addClientSessionListener(callback: (snapshot: ClientSessionSnapshot) => void): Unsubscribe;
 }

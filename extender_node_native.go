@@ -121,16 +121,17 @@ func newSpaceExtenderNodeWithRole(
 		seed = identityKeySeed()
 	}
 
-	settings := gossip.DefaultNodeSettings(nodeRole)
-	settings.Log = log
-	settings.NetworkHost = extenderNetworkHostName(key, values)
-	settings.Directory = directory
-	settings.IdentityKeySeed = seed
-	settings.ExtenderListener = listener
-	settings.ListenAddrs = listenAddrs
-	if clientStrategySettings != nil {
-		settings.ConnectSettings = &clientStrategySettings.ConnectSettings
-	}
+	settings := spaceExtenderNodeSettings(
+		key,
+		values,
+		nodeRole,
+		listener,
+		listenAddrs,
+		directory,
+		seed,
+		clientStrategySettings,
+		log,
+	)
 
 	cancelCtx, cancel := context.WithCancel(ctx)
 	node, err := gossip.NewNode(cancelCtx, settings)
@@ -154,6 +155,37 @@ func newSpaceExtenderNodeWithRole(
 		self.watchOperator(cancelCtx)
 	}, cancel)
 	return self
+}
+
+// The settings of one space's node in one gossip role (D1). The node dials
+// every connection through the space's connect settings: the operator link's
+// tcp, tls and websocket upgrade through `ConnectSettings.DialContext`, and the
+// extender carrier through the settings as a whole (connect#227). So the mesh
+// traffic of every space leaves the way the rest of its traffic does: an app's
+// under its egress binding (R1) and DialControl, a miner proxy slot's through
+// its proxy, a test harness's through its dialer.
+func spaceExtenderNodeSettings(
+	key *NetworkSpaceKey,
+	values *NetworkSpaceValues,
+	nodeRole string,
+	listener *gossip.InProcessListener,
+	listenAddrs []ma.Multiaddr,
+	directory *connect.ExtenderDirectory,
+	seed []byte,
+	clientStrategySettings *connect.ClientStrategySettings,
+	log connect.Logger,
+) *gossip.NodeSettings {
+	settings := gossip.DefaultNodeSettings(nodeRole)
+	settings.Log = log
+	settings.NetworkHost = extenderNetworkHostName(key, values)
+	settings.Directory = directory
+	settings.IdentityKeySeed = seed
+	settings.ExtenderListener = listener
+	settings.ListenAddrs = listenAddrs
+	if clientStrategySettings != nil {
+		settings.ConnectSettings = &clientStrategySettings.ConnectSettings
+	}
+	return settings
 }
 
 // Hands the node the operator address as soon as hello carries the operator's

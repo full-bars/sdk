@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"net/http"
 	"strings"
@@ -28,6 +29,24 @@ import (
 // payout root), and the claim transaction is signed here with the device gas
 // key and sent to the chain endpoint. No URnetwork api is involved at claim
 // time.
+//
+// These are the v1 claims, and v1 ends at the pool's switch to settlement
+// v2: from vault2's pools(noId).firstEpoch on, v2 settles every epoch and the
+// v1 driver closes and commits nothing for the pool (sn VERSION2-FINAL.md
+// SV-4), except the one-time carry sweep (§16). The sweep's v1 root is a
+// single leaf that pays vault2's own coldkey, and its artifact hash names a
+// sweep record, a ledger object, not a payout list. So no claimant has a v1
+// share from the first v2 epoch on, and v1 epochs are read only before it
+// (firstV2Epoch); a claimant's later earnings are its v2 account
+// (sn_ledger.go). Without vault2 configured, or when its pool cannot be read,
+// the switch is unknown and every epoch is read as v1.
+//
+// The artifact host answers 404 for a hash it holds no payout artifact
+// under. That is final for the hash, which is content addressed: the epoch
+// holds no share this device can show, so it lists as an epoch without a
+// share, never as an open error, and the hash is not asked for again while
+// the artifact store lives. Any other failure to read an artifact is
+// transient: the epoch stays open, and the next read asks again.
 
 // SnEpochClaim.Status values.
 const (
@@ -179,37 +198,68 @@ type snPayoutArtifact struct {
 
 type snArtifactFetcher func(ctx context.Context, url string) ([]byte, error)
 
+// Verified artifacts by content hash, and the hashes the artifact host
+// answered 404 for, which are final (errSnArtifactNotPublished).
 type snArtifactStore interface {
 	get(hashHex string) []byte
 	put(hashHex string, raw []byte)
+	notPublished(hashHex string) bool
+	putNotPublished(hashHex string)
 }
 
+// Safe for concurrent use.
 type snMemoryArtifactStore struct {
-	mutex     sync.Mutex
-	artifacts map[string][]byte
+	stateLock          sync.Mutex
+	artifacts          map[string][]byte
+	notPublishedHashes map[string]bool
 }
 
 func newSnMemoryArtifactStore() *snMemoryArtifactStore {
-	return &snMemoryArtifactStore{artifacts: map[string][]byte{}}
+	return &snMemoryArtifactStore{
+		artifacts:          map[string][]byte{},
+		notPublishedHashes: map[string]bool{},
+	}
 }
 
 func (self *snMemoryArtifactStore) get(hashHex string) []byte {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
 	return self.artifacts[hashHex]
 }
 
 func (self *snMemoryArtifactStore) put(hashHex string, raw []byte) {
-	self.mutex.Lock()
-	defer self.mutex.Unlock()
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
 	self.artifacts[hashHex] = raw
 }
 
+func (self *snMemoryArtifactStore) notPublished(hashHex string) bool {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	return self.notPublishedHashes[hashHex]
+}
+
+func (self *snMemoryArtifactStore) putNotPublished(hashHex string) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.notPublishedHashes[hashHex] = true
+}
+
 // snLocalArtifactStore keeps verified artifacts in memory and on disk
-// (content addressed, so they never go stale).
+// (content addressed, so they never go stale). A 404 is kept in memory only,
+// for the device's life: a later process asks once more, so a payout list
+// the operator publishes late is still found.
 type snLocalArtifactStore struct {
 	localState *LocalState
 	memory     *snMemoryArtifactStore
+}
+
+func (self *snLocalArtifactStore) notPublished(hashHex string) bool {
+	return self.memory.notPublished(hashHex)
+}
+
+func (self *snLocalArtifactStore) putNotPublished(hashHex string) {
+	self.memory.putNotPublished(hashHex)
 }
 
 func (self *snLocalArtifactStore) get(hashHex string) []byte {
@@ -236,8 +286,30 @@ func snHttpFetch(ctx context.Context, url string) ([]byte, error) {
 	return snHttpGet(ctx, url, "the payout artifact")
 }
 
+// snHttpGet's answer with a status other than 2xx; what names the document.
+type snHttpStatusError struct {
+	statusCode int
+	what       string
+}
+
+func (self *snHttpStatusError) Error() string {
+	return fmt.Sprintf("http %d fetching %s", self.statusCode, self.what)
+}
+
+// Reports a 404 answer: snHttpGet's, or the api transport's
+// connect.HttpStatusError, which the device rpc also carries from the
+// extension to the app.
+func snHttpNotFound(err error) bool {
+	var plainErr *snHttpStatusError
+	if errors.As(err, &plainErr) {
+		return plainErr.statusCode == http.StatusNotFound
+	}
+	var apiErr *connect.HttpStatusError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+}
+
 // snHttpGet reads a public document with a plain http client; what names the
-// document in the error for a status other than 2xx.
+// document in the error for a status other than 2xx (snHttpStatusError).
 func snHttpGet(ctx context.Context, url string, what string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -251,7 +323,7 @@ func snHttpGet(ctx context.Context, url string, what string) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("http %d fetching %s", res.StatusCode, what)
+		return nil, &snHttpStatusError{statusCode: res.StatusCode, what: what}
 	}
 	return io.ReadAll(io.LimitReader(res.Body, snArtifactMaxBytes))
 }
@@ -382,12 +454,15 @@ type snClaimPlan struct {
 }
 
 type snClaimEngine struct {
-	settings        *SnChainSettings
-	client          *evm.Client
-	chainId         *big.Int
-	coldkeySs58     string
-	coldkey         [32]byte
-	vault           [20]byte
+	settings    *SnChainSettings
+	client      *evm.Client
+	chainId     *big.Int
+	coldkeySs58 string
+	coldkey     [32]byte
+	vault       [20]byte
+	// the settlement v2 vault whose pool dates the end of v1; zero when none
+	// is configured
+	vault2          [20]byte
 	coordinator     [20]byte
 	noId            *big.Int
 	artifactBaseUrl string
@@ -406,6 +481,11 @@ func newSnClaimEngine(settings *SnChainSettings, coldkeySs58 string, artifactBas
 		return nil, newSnError(SnErrorCodeInvalidAddress, err.Error())
 	}
 	vault, _ := settings.vault()
+	// an unset or unparsable v2 vault leaves the switch from v1 unknown
+	vault2, vault2Err := settings.vault2()
+	if vault2Err != nil {
+		vault2 = [20]byte{}
+	}
 	coordinator, _ := settings.coordinator()
 	noId, _ := settings.noId()
 	if artifactBaseUrl == "" {
@@ -430,6 +510,7 @@ func newSnClaimEngine(settings *SnChainSettings, coldkeySs58 string, artifactBas
 		coldkeySs58:     strings.TrimSpace(coldkeySs58),
 		coldkey:         coldkey,
 		vault:           vault,
+		vault2:          vault2,
 		coordinator:     coordinator,
 		noId:            noId,
 		artifactBaseUrl: strings.TrimSuffix(artifactBaseUrl, "/"),
@@ -452,6 +533,27 @@ func (self *snClaimEngine) currentEpoch(ctx context.Context) (int64, error) {
 		return 0, errors.New("current epoch overflows int64")
 	}
 	return v.Int64(), nil
+}
+
+// The epoch from which settlement v2 settles the pool, read from vault2's
+// pools(noId), as STSettlement2.settlementAt and the monitor's cutover
+// (server monitor SIGNALS.md §22.7) read it. The first epoch is set once, when
+// the pool registers. false when no v2 vault is configured, the pool is not
+// registered, or the read fails or does not decode: the switch is unknown, and
+// every epoch is read as v1.
+func (self *snClaimEngine) firstV2Epoch(ctx context.Context) (int64, bool) {
+	if self.vault2 == ([20]byte{}) || !self.noId.IsUint64() {
+		return 0, false
+	}
+	ret, err := self.client.EthCall(ctx, self.vault2, evm.PackVault2Pools(self.noId.Uint64()))
+	if err != nil {
+		return 0, false
+	}
+	pool, err := evm.DecodeVault2Pool(ret)
+	if err != nil || !pool.Registered || pool.FirstEpoch == 0 || uint64(math.MaxInt64) < pool.FirstEpoch {
+		return 0, false
+	}
+	return int64(pool.FirstEpoch), true
 }
 
 func (self *snClaimEngine) entitlements(ctx context.Context, epochs []int64) (map[int64]*evm.Entitlement, error) {
@@ -522,6 +624,13 @@ func (self *snClaimEngine) artifactUrl(hash [32]byte) string {
 	return fmt.Sprintf("%s/sn/artifact?hash=sha256:%s", self.artifactBaseUrl, hex.EncodeToString(hash[:]))
 }
 
+// The artifact host's 404 for the chain's artifact hash: no payout list is
+// stored under it, which is final for the hash.
+var errSnArtifactNotPublished = errors.New("no payout list is published under the chain's artifact hash")
+
+// Reads the epoch's payout artifact from the store, else from the artifact
+// host. A 404 is errSnArtifactNotPublished, kept in the store so the hash is
+// not asked for again; any other failure is transient and returned as it is.
 func (self *snClaimEngine) artifact(ctx context.Context, hash [32]byte, epoch int64, payoutRoot [32]byte) (*snPayoutArtifact, error) {
 	if hash == ([32]byte{}) {
 		return nil, errors.New("the chain has no artifact hash for this epoch yet")
@@ -532,9 +641,16 @@ func (self *snClaimEngine) artifact(ctx context.Context, hash [32]byte, epoch in
 			return artifact, nil
 		}
 	}
+	if self.store.notPublished(hashHex) {
+		return nil, errSnArtifactNotPublished
+	}
 	fetchCtx, cancel := context.WithTimeout(ctx, snArtifactFetchTimeout)
 	defer cancel()
 	raw, err := self.fetch(fetchCtx, self.artifactUrl(hash))
+	if snHttpNotFound(err) {
+		self.store.putNotPublished(hashHex)
+		return nil, errSnArtifactNotPublished
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -598,6 +714,16 @@ func (self *snClaimEngine) views(ctx context.Context, epochs []int64, block uint
 		switch ent.Status {
 		case evm.StatusFinalized:
 			artifact, err := self.artifact(ctx, ent.ArtifactHash, epoch, ent.PayoutRoot)
+			if errors.Is(err, errSnArtifactNotPublished) {
+				// final: no share of this coldkey can be shown, as with no share
+				if txHash == "" {
+					continue
+				}
+				claim.Status = SnClaimStatusNotFinalized
+				claim.Message = "no payout list is published for this epoch"
+				claims = append(claims, claim)
+				continue
+			}
 			if err != nil {
 				if !recent && txHash == "" {
 					continue
@@ -755,7 +881,8 @@ func (self *snClaimEngine) schedule(ctx context.Context, epoch int64) (*SnEpochS
 	return snEpochScheduleAt(epoch, start.Uint64(), policy, headBlock, int64(headTime)*1000), nil
 }
 
-// claims scans from max(fromEpoch, current - lookback) to the current epoch.
+// claims scans from max(fromEpoch, current - lookback) to the current epoch,
+// and only up to the epoch before the pool's first v2 epoch (firstV2Epoch).
 func (self *snClaimEngine) claims(ctx context.Context, fromEpoch int64) *SnClaimsResult {
 	result := &SnClaimsResult{Claims: NewSnEpochClaimList(), ColdkeySs58: self.coldkeySs58}
 	block, currentEpoch, err := self.chainHead(ctx)
@@ -773,8 +900,12 @@ func (self *snClaimEngine) claims(ctx context.Context, fromEpoch int64) *SnClaim
 	if fromEpoch > start {
 		start = fromEpoch
 	}
-	epochs := make([]int64, 0, max(currentEpoch-start+1, 0))
-	for epoch := start; epoch <= currentEpoch; epoch++ {
+	end := currentEpoch
+	if firstV2Epoch, ok := self.firstV2Epoch(ctx); ok {
+		end = min(end, firstV2Epoch-1)
+	}
+	epochs := make([]int64, 0, max(end-start+1, 0))
+	for epoch := start; epoch <= end; epoch++ {
 		epochs = append(epochs, epoch)
 	}
 	claims, plans, err := self.views(ctx, epochs, block, currentEpoch)
@@ -800,11 +931,15 @@ func (self *snClaimEngine) calldata(plan *snClaimPlan) ([]byte, error) {
 	return evm.PackClaim(big.NewInt(plan.epoch), self.noId, self.coldkey, plan.shareBps, plan.proof)
 }
 
-// plan resolves a single epoch; a nil plan comes with the reason.
+// plan resolves a single epoch; a nil plan comes with the reason. An epoch
+// from the pool's first v2 epoch on is not read: v2 settles it.
 func (self *snClaimEngine) plan(ctx context.Context, epoch int64) (*snClaimPlan, string, error) {
 	block, currentEpoch, err := self.chainHead(ctx)
 	if err != nil {
 		return nil, "", err
+	}
+	if firstV2Epoch, ok := self.firstV2Epoch(ctx); ok && firstV2Epoch <= epoch {
+		return nil, fmt.Sprintf("%s: settlement v2 settles epoch %d, from epoch %d; its share is in the v2 account", SnErrorCodeNotClaimable, epoch, firstV2Epoch), nil
 	}
 	claims, plans, err := self.views(ctx, []int64{epoch}, block, currentEpoch)
 	if err != nil {
@@ -924,15 +1059,19 @@ const snClaimGasFloor uint64 = 2_700_000
 // gas key, at the chain's current price: EIP-1559 at twice the base fee plus
 // the tip when txType asks for it and the chain has a base fee, else legacy
 // at 1.1 × eth_gasPrice. It returns the raw transaction and the most it can
-// cost, the gas limit × the price.
-func snSignClaim(ctx context.Context, client *evm.Client, chainId *big.Int, txType string, key *secp.PrivateKey, to [20]byte, data []byte, gas uint64) ([]byte, *big.Int, error) {
+// cost, the gas limit × the price. It is signed with the nonce of the gas key's
+// turn on the chain (snGasKeyTurn.nonce), which the transaction is sent within.
+func snSignClaim(ctx context.Context, client *evm.Client, chainId *big.Int, txType string, turn *snGasKeyTurn, key *secp.PrivateKey, to [20]byte, data []byte, gas uint64) ([]byte, *big.Int, error) {
+	if turn.id != (snGasKeyId{chainId: chainId.Int64(), address: evm.AddressOf(key)}) {
+		return nil, nil, errors.New("the turn is another key's or another chain's")
+	}
 	var baseFee *big.Int
 	if txType == SnTxTypeEip1559 {
 		if fee, err := client.LatestBaseFee(ctx); err == nil && fee != nil && fee.Sign() > 0 {
 			baseFee = fee
 		}
 	}
-	nonce, err := client.Nonce(ctx, evm.AddressOf(key))
+	nonce, err := turn.nonce(ctx, client)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -958,6 +1097,33 @@ func snSignClaim(ctx context.Context, client *evm.Client, chainId *big.Int, txTy
 	tx := &evm.LegacyTx{Nonce: nonce, GasPrice: gasPrice, Gas: gas, To: to, Value: big.NewInt(0), Data: data}
 	raw, _, err := tx.Signed(chainId, key)
 	return raw, new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(gas)), err
+}
+
+// snSendClaim signs a claim (snSignClaim) and broadcasts it unless balance
+// cannot pay for it, within the gas key's turn (snGasKeyTurn): from the nonce
+// read until a node has answered the broadcast, and not while the caller waits
+// for the receipt. It returns the transaction's hash, or the message the claim
+// fails with and nothing sent: needs_gas when balance is less than the gas
+// limit × the price.
+func snSendClaim(ctx context.Context, client *evm.Client, chainId *big.Int, txType string, key *secp.PrivateKey, to [20]byte, data []byte, gas uint64, balance *big.Int) (txHash string, failure string) {
+	turn, err := snTakeGasKeyTurn(ctx, chainId, key)
+	if err != nil {
+		return "", snFailMessage(err)
+	}
+	defer turn.release()
+	raw, maxCost, err := snSignClaim(ctx, client, chainId, txType, turn, key, to, data, gas)
+	if err != nil {
+		return "", snFailMessage(err)
+	}
+	if balance.Cmp(maxCost) < 0 {
+		return "", snNeedsGasMessage(maxCost, balance, snGasKeyInfo(key))
+	}
+	txHash, err = client.SendRawTransaction(ctx, raw)
+	if err != nil {
+		return "", snFailMessage(err)
+	}
+	turn.sent()
+	return txHash, ""
 }
 
 // send claims one epoch with the gas key and reports through the callback.
@@ -994,18 +1160,9 @@ func (self *snClaimEngine) send(ctx context.Context, key *secp.PrivateKey, epoch
 	}
 	// the estimate plus a quarter, and never less than a claim needs to pay
 	gas = max(gas+gas/4, snClaimGasFloor)
-	raw, maxCost, err := snSignClaim(ctx, self.client, self.chainId, self.settings.TxType, key, self.vault, data, gas)
-	if err != nil {
-		callback.Failed(epoch, snFailMessage(err))
-		return
-	}
-	if balance.Cmp(maxCost) < 0 {
-		callback.Failed(epoch, snNeedsGasMessage(maxCost, balance, gasKey))
-		return
-	}
-	txHash, err := self.client.SendRawTransaction(ctx, raw)
-	if err != nil {
-		callback.Failed(epoch, snFailMessage(err))
+	txHash, failure := snSendClaim(ctx, self.client, self.chainId, self.settings.TxType, key, self.vault, data, gas, balance)
+	if failure != "" {
+		callback.Failed(epoch, failure)
 		return
 	}
 	self.txHashes[epoch] = txHash
@@ -1096,7 +1253,9 @@ func (self *snDevice) SnClaims(callback SnClaimsCallback) {
 }
 
 // SnClaim sends claim transactions for the epochs, one after another,
-// signed with the device gas key.
+// signed with the device gas key. Claims from the same gas key take turns
+// to sign and send (snGasKeyTurn), so one started beside an SnLedgerClaim, or
+// beside another SnClaim, sends with the next nonce.
 func (self *snDevice) SnClaim(epochs *Int64List, callback SnClaimCallback) {
 	go connect.HandleError(func() {
 		defer callback.Done()

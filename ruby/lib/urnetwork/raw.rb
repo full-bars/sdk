@@ -69,6 +69,7 @@ module URnetwork
       callback :urnet_device_recreated_cb, [:pointer], :void
       callback :urnet_device_set_name_cb, [:pointer, :string, :string], :void
       callback :urnet_dns_resolver_settings_change_cb, [:pointer, :string], :void
+      callback :urnet_dns_resolver_status_change_cb, [:pointer, :string], :void
       callback :urnet_extender_provide_status_change_cb, [:pointer, :string], :void
       callback :urnet_extender_status_change_cb, [:pointer, :string], :void
       callback :urnet_extender_view_controller_cb, [:pointer, :string], :void
@@ -95,13 +96,11 @@ module URnetwork
       callback :urnet_get_network_reliability_cb, [:pointer, :string, :string], :void
       callback :urnet_get_network_sessions_cb, [:pointer, :uint64, :string], :void
       callback :urnet_get_network_user_cb, [:pointer, :string, :string], :void
-      callback :urnet_get_payout_wallet_cb, [:pointer, :string, :string], :void
       callback :urnet_get_points_leaderboard_cb, [:pointer, :string, :string], :void
       callback :urnet_get_provider_status_cb, [:pointer, :string, :string], :void
       callback :urnet_get_referral_network_cb, [:pointer, :string, :string], :void
       callback :urnet_get_transfer_stats_cb, [:pointer, :string, :string], :void
       callback :urnet_grid_cb, [:pointer], :void
-      callback :urnet_is_creating_external_wallet_cb, [:pointer, :bool], :void
       callback :urnet_is_network_user_loading_cb, [:pointer, :bool], :void
       callback :urnet_is_network_user_updating_cb, [:pointer, :bool], :void
       callback :urnet_is_removing_wallet_cb, [:pointer, :bool], :void
@@ -111,6 +110,8 @@ module URnetwork
       callback :urnet_local_override_app_ids_cb, [:pointer], :void
       callback :urnet_local_state_save_cb, [:pointer, :uint64], :void
       callback :urnet_location_match_cb, [:pointer], :void
+      callback :urnet_manage_devices_cb, [:pointer, :string], :void
+      callback :urnet_manage_devices_sign_in_retry_cb, [:pointer], :void
       callback :urnet_network_block_location_cb, [:pointer, :string, :string], :void
       callback :urnet_network_check_cb, [:pointer, :string, :string], :void
       callback :urnet_network_clients_cb, [:pointer, :string], :void
@@ -132,11 +133,11 @@ module URnetwork
       callback :urnet_packet_stats_change_cb, [:pointer, :string], :void
       callback :urnet_parse_by_jwt_cb, [:pointer, :string, :bool], :void
       callback :urnet_payments_cb, [:pointer], :void
-      callback :urnet_payout_wallet_cb, [:pointer, :string], :void
       callback :urnet_peers_cb, [:pointer, :string], :void
       callback :urnet_performance_profile_change_cb, [:pointer, :string], :void
       callback :urnet_points_leaderboard_cb, [:pointer], :void
       callback :urnet_post_quantum_identity_cb, [:pointer], :void
+      callback :urnet_pro_features_cb, [:pointer, :string], :void
       callback :urnet_provide_change_cb, [:pointer, :bool], :void
       callback :urnet_provide_control_mode_change_cb, [:pointer, :string], :void
       callback :urnet_provide_mode_change_cb, [:pointer, :int64], :void
@@ -160,6 +161,7 @@ module URnetwork
       callback :urnet_remove_auth_cb, [:pointer, :string, :string], :void
       callback :urnet_remove_network_client_cb, [:pointer, :string, :string], :void
       callback :urnet_remove_wallet_cb, [:pointer, :string, :string], :void
+      callback :urnet_rotate_proxy_exit_cb, [:pointer, :string, :string], :void
       callback :urnet_route_local_change_cb, [:pointer, :bool], :void
       callback :urnet_selected_location_cb, [:pointer, :string], :void
       callback :urnet_selected_provider_location_change_cb, [:pointer], :void
@@ -169,7 +171,6 @@ module URnetwork
       callback :urnet_set_emoji_tag_cb, [:pointer, :string, :string], :void
       callback :urnet_set_network_leaderboard_public_cb, [:pointer, :string, :string], :void
       callback :urnet_set_network_referral_cb, [:pointer, :string, :string], :void
-      callback :urnet_set_payout_wallet_cb, [:pointer, :string, :string], :void
       callback :urnet_set_points_leaderboard_public_cb, [:pointer, :string, :string], :void
       callback :urnet_setup_new_device_cb, [:pointer, :uint64, :string], :bool
       callback :urnet_sn_claim_confirmed_cb, [:pointer, :int64, :string, :int64], :void
@@ -182,6 +183,7 @@ module URnetwork
       callback :urnet_sn_claim_status_cb, [:pointer, :string, :string], :void
       callback :urnet_sn_claims_cb, [:pointer, :string, :string], :void
       callback :urnet_sn_connect_wallet_cb, [:pointer, :string, :string], :void
+      callback :urnet_sn_ctf_client_cb, [:pointer, :string, :string], :void
       callback :urnet_sn_epoch_cb, [:pointer, :string, :string], :void
       callback :urnet_sn_fleet_claim_cb, [:pointer, :string, :string], :void
       callback :urnet_sn_fleet_claim_store_load_sn_fleet_coldkey_phrase_cb, [:pointer, :string], :pointer
@@ -235,6 +237,7 @@ module URnetwork
       callback :urnet_verify_apple_transaction_cb, [:pointer, :string, :string], :void
       callback :urnet_verify_play_purchase_cb, [:pointer, :string, :string], :void
       callback :urnet_verify_seeker_nft_holder_cb, [:pointer, :string, :string], :void
+      callback :urnet_verify_stripe_checkout_cb, [:pointer, :string, :string], :void
       callback :urnet_view_controller_close_cb, [:pointer], :void
       callback :urnet_view_controller_start_cb, [:pointer], :void
       callback :urnet_view_controller_stop_cb, [:pointer], :void
@@ -322,6 +325,7 @@ module URnetwork
       attach_function :urnet_api_create_stripe_payment_intent, [:uint64, :string, :urnet_stripe_payment_intent_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_delete_api_key, [:uint64, :string, :urnet_delete_api_key_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_device_set_name, [:uint64, :string, :urnet_device_set_name_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_dismiss_account_sign_in_notice, [:uint64], :void, blocking: true
       attach_function :urnet_api_find_locations, [:uint64, :string, :urnet_find_locations_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_find_provider_locations, [:uint64, :string, :urnet_find_locations_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_find_providers, [:uint64, :string, :urnet_find_providers_cb, :pointer], :void, blocking: true
@@ -329,6 +333,7 @@ module URnetwork
       attach_function :urnet_api_generate_seedphrase, [:uint64, :string, :urnet_generate_seedphrase_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_account_payments, [:uint64, :urnet_get_account_payments_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_account_points, [:uint64, :urnet_get_account_points_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_get_account_sign_in_required_cause, [:uint64], :pointer, blocking: true
       attach_function :urnet_api_get_account_wallets, [:uint64, :urnet_get_account_wallets_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_auth_logout_cause, [:uint64], :pointer, blocking: true
       attach_function :urnet_api_get_by_jwt, [:uint64], :pointer, blocking: true
@@ -337,6 +342,8 @@ module URnetwork
       attach_function :urnet_api_get_crypto_payment_assets, [:uint64, :urnet_crypto_payment_assets_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_crypto_payment_status, [:uint64, :string, :urnet_crypto_payment_status_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_leaderboard, [:uint64, :string, :urnet_get_leaderboard_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_get_mail_locale_time_zone, [:uint64], :pointer, blocking: true
+      attach_function :urnet_api_get_mail_locales, [:uint64], :pointer, blocking: true
       attach_function :urnet_api_get_network_blocked_locations, [:uint64, :urnet_get_network_blocked_locations_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_network_clients, [:uint64, :urnet_get_network_clients_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_network_leaderboard_ranking, [:uint64, :urnet_get_network_leaderboard_ranking_cb, :pointer], :void, blocking: true
@@ -346,12 +353,12 @@ module URnetwork
       attach_function :urnet_api_get_network_session_operation, [:uint64, :string, :urnet_session_operation_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_network_sessions, [:uint64, :urnet_get_network_sessions_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_network_user, [:uint64, :urnet_get_network_user_cb, :pointer], :void, blocking: true
-      attach_function :urnet_api_get_payout_wallet, [:uint64, :urnet_get_payout_wallet_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_points_leaderboard, [:uint64, :string, :urnet_get_points_leaderboard_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_provider_locations, [:uint64, :urnet_find_locations_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_provider_status, [:uint64, :urnet_get_provider_status_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_referral_network, [:uint64, :urnet_get_referral_network_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_get_transfer_stats, [:uint64, :urnet_get_transfer_stats_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_has_account_sign_in_notice, [:uint64], :bool, blocking: true
       attach_function :urnet_api_has_network_credential, [:uint64], :bool, blocking: true
       attach_function :urnet_api_is_auth_logout_current, [:uint64, :int64], :bool, blocking: true
       attach_function :urnet_api_list_api_keys, [:uint64, :urnet_list_api_keys_cb, :pointer], :void, blocking: true
@@ -366,6 +373,8 @@ module URnetwork
       attach_function :urnet_api_onboarding_feedback_token, [:uint64, :string, :int64, :string, :urnet_onboarding_feedback_token_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_onboarding_offer_issue, [:uint64, :string, :urnet_onboarding_offer_issue_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_open_client_session_view_controller, [:uint64], :uint64, blocking: true
+      attach_function :urnet_api_open_manage_devices_view_controller, [:uint64], :uint64, blocking: true
+      attach_function :urnet_api_open_pro_features_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_api_redeem_balance_code, [:uint64, :string, :urnet_redeem_balance_code_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_refresh_jwt, [:uint64, :urnet_refresh_jwt_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_refresh_jwt_sync, [:uint64, :pointer], :pointer, blocking: true
@@ -374,18 +383,21 @@ module URnetwork
       attach_function :urnet_api_remove_network_client, [:uint64, :string, :urnet_remove_network_client_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_remove_network_client_sync, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_api_remove_wallet, [:uint64, :string, :urnet_remove_wallet_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_report_stripe_purchase, [:uint64, :string, :urnet_verify_stripe_checkout_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_request_jwt_refresh, [:uint64], :void, blocking: true
       attach_function :urnet_api_requote_crypto_payment, [:uint64, :string, :urnet_crypto_payment_intent_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_revoke_network_session, [:uint64, :string, :urnet_session_operation_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_revoke_other_network_sessions, [:uint64, :string, :urnet_session_operation_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_rotate_proxy_exit, [:uint64, :string, :urnet_rotate_proxy_exit_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_rotate_proxy_exit_sync, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_api_send_feedback, [:uint64, :string, :urnet_send_feedback_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_set_by_jwt, [:uint64, :string], :void, blocking: true
       attach_function :urnet_api_set_client_info, [:uint64, :string], :void, blocking: true
       attach_function :urnet_api_set_emoji_tag, [:uint64, :string, :urnet_set_emoji_tag_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_set_mail_locale, [:uint64, :string, :string], :void, blocking: true
       attach_function :urnet_api_set_network_credential_store, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_api_set_network_leaderboard_public, [:uint64, :string, :urnet_set_network_leaderboard_public_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_set_network_referral, [:uint64, :string, :urnet_set_network_referral_cb, :pointer], :void, blocking: true
-      attach_function :urnet_api_set_payout_wallet, [:uint64, :string, :urnet_set_payout_wallet_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_set_points_leaderboard_public, [:uint64, :string, :urnet_set_points_leaderboard_public_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_sign_out, [:uint64, :urnet_session_sign_out_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_sn_claim_relay, [:uint64, :urnet_sn_claim_relay_cb, :pointer], :void, blocking: true
@@ -426,6 +438,7 @@ module URnetwork
       attach_function :urnet_api_verify_play_purchase, [:uint64, :string, :urnet_verify_play_purchase_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_verify_play_purchase_sync, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_api_verify_seeker_holder, [:uint64, :string, :urnet_verify_seeker_nft_holder_cb, :pointer], :void, blocking: true
+      attach_function :urnet_api_verify_stripe_checkout, [:uint64, :string, :urnet_verify_stripe_checkout_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_wallet_balance, [:uint64, :urnet_wallet_balance_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_wallet_circle_init, [:uint64, :urnet_wallet_circle_init_cb, :pointer], :void, blocking: true
       attach_function :urnet_api_wallet_circle_transfer_out, [:uint64, :string, :urnet_wallet_circle_transfer_out_cb, :pointer], :void, blocking: true
@@ -518,6 +531,8 @@ module URnetwork
       attach_function :urnet_client_event_queue_pending_count, [:uint64], :int64, blocking: true
       attach_function :urnet_client_event_queue_set_app_version, [:uint64, :string], :void, blocking: true
       attach_function :urnet_client_event_queue_set_locale, [:uint64, :string], :void, blocking: true
+      attach_function :urnet_client_limit_notice_tracker_reset, [:uint64], :pointer, blocking: true
+      attach_function :urnet_client_limit_notice_tracker_update, [:uint64, :string, :bool], :pointer, blocking: true
       attach_function :urnet_client_refresh_integrity_notice_close_api_if_current, [:uint64], :bool, blocking: true
       attach_function :urnet_client_session_action_get_error, [:uint64], :uint64, blocking: true
       attach_function :urnet_client_session_action_get_loading, [:uint64], :bool, blocking: true
@@ -536,18 +551,33 @@ module URnetwork
       attach_function :urnet_client_session_error_get_session_revoked, [:uint64], :bool, blocking: true
       attach_function :urnet_client_session_error_get_sign_in_required, [:uint64], :bool, blocking: true
       attach_function :urnet_client_session_error_get_unsupported, [:uint64], :bool, blocking: true
+      attach_function :urnet_client_session_group_get_count, [:uint64], :int64, blocking: true
+      attach_function :urnet_client_session_group_get_expanded, [:uint64], :bool, blocking: true
+      attach_function :urnet_client_session_group_get_has_more, [:uint64], :bool, blocking: true
+      attach_function :urnet_client_session_group_get_kind, [:uint64], :pointer, blocking: true
+      attach_function :urnet_client_session_group_get_sessions, [:uint64], :uint64, blocking: true
+      attach_function :urnet_client_session_group_list_add, [:uint64, :uint64], :void, blocking: true
+      attach_function :urnet_client_session_group_list_contains, [:uint64, :uint64], :bool, blocking: true
+      attach_function :urnet_client_session_group_list_get, [:uint64, :int64], :uint64, blocking: true
+      attach_function :urnet_client_session_group_list_len, [:uint64], :int64, blocking: true
+      attach_function :urnet_client_session_group_list_unmarshal_json, [:uint64, :pointer, :int32, :pointer], :bool, blocking: true
       attach_function :urnet_client_session_snapshot_get_actions, [:uint64], :uint64, blocking: true
       attach_function :urnet_client_session_snapshot_get_bulk_action, [:uint64], :uint64, blocking: true
       attach_function :urnet_client_session_snapshot_get_current_session_id, [:uint64], :pointer, blocking: true
       attach_function :urnet_client_session_snapshot_get_error, [:uint64], :uint64, blocking: true
       attach_function :urnet_client_session_snapshot_get_event_id, [:uint64], :int64, blocking: true
       attach_function :urnet_client_session_snapshot_get_generation, [:uint64], :pointer, blocking: true
+      attach_function :urnet_client_session_snapshot_get_groups, [:uint64], :uint64, blocking: true
       attach_function :urnet_client_session_snapshot_get_legacy_coverage, [:uint64], :pointer, blocking: true
       attach_function :urnet_client_session_snapshot_get_loaded, [:uint64], :bool, blocking: true
       attach_function :urnet_client_session_snapshot_get_loading, [:uint64], :bool, blocking: true
+      attach_function :urnet_client_session_snapshot_get_other_session_count, [:uint64], :int64, blocking: true
       attach_function :urnet_client_session_snapshot_get_refreshing, [:uint64], :bool, blocking: true
+      attach_function :urnet_client_session_snapshot_get_session_count, [:uint64], :int64, blocking: true
       attach_function :urnet_client_session_snapshot_get_sessions, [:uint64], :uint64, blocking: true
+      attach_function :urnet_client_session_snapshot_get_sessions_has_more, [:uint64], :bool, blocking: true
       attach_function :urnet_client_session_snapshot_get_supported, [:uint64], :bool, blocking: true
+      attach_function :urnet_client_session_snapshot_get_truncated, [:uint64], :bool, blocking: true
       attach_function :urnet_client_session_view_controller_add_client_session_listener, [:uint64, :urnet_client_session_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_client_session_view_controller_close, [:uint64], :void, blocking: true
       attach_function :urnet_client_session_view_controller_get_snapshot, [:uint64], :uint64, blocking: true
@@ -556,7 +586,9 @@ module URnetwork
       attach_function :urnet_client_session_view_controller_revoke_other_sessions, [:uint64], :void, blocking: true
       attach_function :urnet_client_session_view_controller_revoke_session, [:uint64, :string], :void, blocking: true
       attach_function :urnet_client_session_view_controller_set_foreground, [:uint64, :bool], :void, blocking: true
+      attach_function :urnet_client_session_view_controller_set_group_expanded, [:uint64, :string, :bool], :void, blocking: true
       attach_function :urnet_client_session_view_controller_set_visible, [:uint64, :bool], :void, blocking: true
+      attach_function :urnet_client_session_view_controller_show_more_sessions, [:uint64, :string], :void, blocking: true
       attach_function :urnet_client_session_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_client_session_view_controller_stop, [:uint64], :void, blocking: true
       attach_function :urnet_connect_grid_get_height, [:uint64], :int64, blocking: true
@@ -633,6 +665,7 @@ module URnetwork
       attach_function :urnet_device_add_contract_status_change_listener, [:uint64, :urnet_contract_status_change_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_device_add_default_location_change_listener, [:uint64, :urnet_default_location_change_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_device_add_dns_resolver_settings_change_listener, [:uint64, :urnet_dns_resolver_settings_change_cb, :pointer], :uint64, blocking: true
+      attach_function :urnet_device_add_dns_resolver_status_change_listener, [:uint64, :urnet_dns_resolver_status_change_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_device_add_egress_contract_details_change_listener, [:uint64, :urnet_contract_details_change_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_device_add_egress_contract_stats_change_listener, [:uint64, :urnet_contract_stats_change_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_device_add_extender_provide_status_change_listener, [:uint64, :urnet_extender_provide_status_change_cb, :pointer], :uint64, blocking: true
@@ -688,7 +721,9 @@ module URnetwork
       attach_function :urnet_device_get_control_ip_family_policy, [:uint64], :int64, blocking: true
       attach_function :urnet_device_get_control_ip_family_status, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_get_default_location, [:uint64], :pointer, blocking: true
+      attach_function :urnet_device_get_dns_blocked_count, [:uint64], :int64, blocking: true
       attach_function :urnet_device_get_dns_resolver_settings, [:uint64], :pointer, blocking: true
+      attach_function :urnet_device_get_dns_resolver_status, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_get_done, [:uint64], :bool, blocking: true
       attach_function :urnet_device_get_egress_contract_details, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_get_egress_contract_stats, [:uint64], :pointer, blocking: true
@@ -710,6 +745,7 @@ module URnetwork
       attach_function :urnet_device_get_provide_control_mode, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_get_provide_enabled, [:uint64], :bool, blocking: true
       attach_function :urnet_device_get_provide_extender, [:uint64], :bool, blocking: true
+      attach_function :urnet_device_get_provide_extender_port_mapping, [:uint64], :bool, blocking: true
       attach_function :urnet_device_get_provide_mode, [:uint64], :int64, blocking: true
       attach_function :urnet_device_get_provide_network_mode, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_get_provide_paused, [:uint64], :bool, blocking: true
@@ -742,6 +778,8 @@ module URnetwork
       attach_function :urnet_device_remove_connected_provider, [:uint64, :string], :void, blocking: true
       attach_function :urnet_device_remove_destination, [:uint64], :void, blocking: true
       attach_function :urnet_device_reset_extenders, [:uint64], :void, blocking: true
+      attach_function :urnet_device_retry_client_limit, [:uint64], :bool, blocking: true
+      attach_function :urnet_device_retry_client_limit_after_change, [:uint64], :bool, blocking: true
       attach_function :urnet_device_set_allow_foreground, [:uint64, :bool], :void, blocking: true
       attach_function :urnet_device_set_block_action_overrides, [:uint64, :string], :void, blocking: true
       attach_function :urnet_device_set_blocker_enabled, [:uint64, :bool], :void, blocking: true
@@ -759,6 +797,7 @@ module URnetwork
       attach_function :urnet_device_set_performance_profile, [:uint64, :string], :void, blocking: true
       attach_function :urnet_device_set_provide_control_mode, [:uint64, :string], :void, blocking: true
       attach_function :urnet_device_set_provide_extender, [:uint64, :bool], :void, blocking: true
+      attach_function :urnet_device_set_provide_extender_port_mapping, [:uint64, :bool], :void, blocking: true
       attach_function :urnet_device_set_provide_mode, [:uint64, :int64], :void, blocking: true
       attach_function :urnet_device_set_provide_network_mode, [:uint64, :string], :void, blocking: true
       attach_function :urnet_device_set_provide_paused, [:uint64, :bool], :void, blocking: true
@@ -784,6 +823,7 @@ module URnetwork
       attach_function :urnet_device_local_close_crypto_invoice_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_local_close_devices_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_local_close_locations_view_controller, [:uint64, :uint64], :void, blocking: true
+      attach_function :urnet_device_local_close_manage_devices_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_local_close_peer_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_local_close_points_leaderboard_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_local_close_post_quantum_identity_view_controller, [:uint64, :uint64], :void, blocking: true
@@ -803,10 +843,12 @@ module URnetwork
       attach_function :urnet_device_local_get_first_load_timeline_json, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_local_get_key_material, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_local_get_last_local_state_save_result, [:uint64], :uint64, blocking: true
+      attach_function :urnet_device_local_get_limited_window_size_fraction, [:uint64], :double, blocking: true
       attach_function :urnet_device_local_get_memory_stats, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_local_get_pinned_app_ids, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_local_get_probe_results, [:uint64], :pointer, blocking: true
       attach_function :urnet_device_local_get_provide_secret_keys, [:uint64], :pointer, blocking: true
+      attach_function :urnet_device_local_get_provider_client_key_published, [:uint64], :bool, blocking: true
       attach_function :urnet_device_local_get_provider_client_key_registered, [:uint64], :bool, blocking: true
       attach_function :urnet_device_local_get_provider_connected, [:uint64], :bool, blocking: true
       attach_function :urnet_device_local_get_provider_ready, [:uint64], :bool, blocking: true
@@ -836,6 +878,7 @@ module URnetwork
       attach_function :urnet_device_local_open_extender_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_local_open_feedback_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_local_open_locations_view_controller, [:uint64], :uint64, blocking: true
+      attach_function :urnet_device_local_open_manage_devices_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_local_open_network_user_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_local_open_peer_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_local_open_points_leaderboard_view_controller, [:uint64], :uint64, blocking: true
@@ -851,6 +894,7 @@ module URnetwork
       attach_function :urnet_device_local_probe_suite_running, [:uint64], :bool, blocking: true
       attach_function :urnet_device_local_query_subprotocols, [:uint64, :string, :int64, :urnet_subprotocols_query_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_reconnect_checked, [:uint64, :string, :pointer], :bool, blocking: true
+      attach_function :urnet_device_local_reset_limited_window_size_fraction, [:uint64], :void, blocking: true
       attach_function :urnet_device_local_reset_reliability_metrics, [:uint64], :void, blocking: true
       attach_function :urnet_device_local_reset_reliability_settings, [:uint64], :void, blocking: true
       attach_function :urnet_device_local_save_key_material, [:uint64, :pointer], :bool, blocking: true
@@ -865,6 +909,7 @@ module URnetwork
       attach_function :urnet_device_local_set_default_location_checked, [:uint64, :string, :pointer], :bool, blocking: true
       attach_function :urnet_device_local_set_flow_owner_lookup, [:uint64, :urnet_flow_owner_lookup_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_set_key_material, [:uint64, :uint64], :void, blocking: true
+      attach_function :urnet_device_local_set_limited_window_size_fraction, [:uint64, :double], :void, blocking: true
       attach_function :urnet_device_local_set_network_metered, [:uint64, :bool], :void, blocking: true
       attach_function :urnet_device_local_set_performance_degraded, [:uint64, :bool], :void, blocking: true
       attach_function :urnet_device_local_set_reliability_settings, [:uint64, :string], :void, blocking: true
@@ -884,10 +929,12 @@ module URnetwork
       attach_function :urnet_device_local_sn_claim_status, [:uint64, :urnet_sn_claim_status_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_sn_claim_transactions, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_device_local_sn_claims, [:uint64, :urnet_sn_claims_cb, :pointer], :void, blocking: true
+      attach_function :urnet_device_local_sn_ctf_client, [:uint64, :urnet_sn_ctf_client_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_sn_gas_balance, [:uint64, :urnet_sn_gas_balance_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_sn_ledger_accounts, [:uint64, :urnet_sn_ledger_accounts_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_sn_ledger_claim, [:uint64, :urnet_sn_ledger_claim_confirmed_cb, :urnet_sn_ledger_claim_done_cb, :urnet_sn_ledger_claim_failed_cb, :urnet_sn_ledger_claim_sent_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_local_sn_ledger_claim_transactions, [:uint64, :pointer], :pointer, blocking: true
+      attach_function :urnet_device_local_sn_ledger_claim_transactions_for_payer, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_device_local_stall_exit, [:uint64, :string, :bool], :bool, blocking: true
       attach_function :urnet_device_local_start_probe_suite, [:uint64, :string], :bool, blocking: true
       attach_function :urnet_device_local_stop_probe_suite, [:uint64], :void, blocking: true
@@ -935,6 +982,7 @@ module URnetwork
       attach_function :urnet_device_remote_close_crypto_invoice_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_remote_close_devices_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_remote_close_locations_view_controller, [:uint64, :uint64], :void, blocking: true
+      attach_function :urnet_device_remote_close_manage_devices_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_remote_close_peer_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_remote_close_points_leaderboard_view_controller, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_device_remote_close_post_quantum_identity_view_controller, [:uint64, :uint64], :void, blocking: true
@@ -971,6 +1019,7 @@ module URnetwork
       attach_function :urnet_device_remote_open_extender_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_remote_open_feedback_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_remote_open_locations_view_controller, [:uint64], :uint64, blocking: true
+      attach_function :urnet_device_remote_open_manage_devices_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_remote_open_network_user_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_remote_open_peer_view_controller, [:uint64], :uint64, blocking: true
       attach_function :urnet_device_remote_open_points_leaderboard_view_controller, [:uint64], :uint64, blocking: true
@@ -998,10 +1047,12 @@ module URnetwork
       attach_function :urnet_device_remote_sn_claim_status, [:uint64, :urnet_sn_claim_status_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_remote_sn_claim_transactions, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_device_remote_sn_claims, [:uint64, :urnet_sn_claims_cb, :pointer], :void, blocking: true
+      attach_function :urnet_device_remote_sn_ctf_client, [:uint64, :urnet_sn_ctf_client_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_remote_sn_gas_balance, [:uint64, :urnet_sn_gas_balance_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_remote_sn_ledger_accounts, [:uint64, :urnet_sn_ledger_accounts_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_remote_sn_ledger_claim, [:uint64, :urnet_sn_ledger_claim_confirmed_cb, :urnet_sn_ledger_claim_done_cb, :urnet_sn_ledger_claim_failed_cb, :urnet_sn_ledger_claim_sent_cb, :pointer], :void, blocking: true
       attach_function :urnet_device_remote_sn_ledger_claim_transactions, [:uint64, :pointer], :pointer, blocking: true
+      attach_function :urnet_device_remote_sn_ledger_claim_transactions_for_payer, [:uint64, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_device_remote_stall_exit, [:uint64, :string, :bool], :bool, blocking: true
       attach_function :urnet_device_remote_start_probe_suite, [:uint64, :string], :bool, blocking: true
       attach_function :urnet_device_remote_stop_probe_suite, [:uint64], :void, blocking: true
@@ -1050,6 +1101,7 @@ module URnetwork
       attach_function :urnet_feedback_view_controller_send_feedback, [:uint64, :string, :int64], :void, blocking: true
       attach_function :urnet_feedback_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_feedback_view_controller_stop, [:uint64], :void, blocking: true
+      attach_function :urnet_local_auth_state_snapshot_get_account_sign_in_required, [:uint64], :bool, blocking: true
       attach_function :urnet_local_auth_state_snapshot_get_by_client_jwt, [:uint64], :pointer, blocking: true
       attach_function :urnet_local_auth_state_snapshot_get_by_jwt, [:uint64], :pointer, blocking: true
       attach_function :urnet_local_auth_state_snapshot_get_empty, [:uint64], :bool, blocking: true
@@ -1083,6 +1135,7 @@ module URnetwork
       attach_function :urnet_local_state_get_performance_profile, [:uint64], :pointer, blocking: true
       attach_function :urnet_local_state_get_provide_control_mode, [:uint64], :pointer, blocking: true
       attach_function :urnet_local_state_get_provide_extender, [:uint64], :bool, blocking: true
+      attach_function :urnet_local_state_get_provide_extender_port_mapping, [:uint64], :bool, blocking: true
       attach_function :urnet_local_state_get_provide_mode, [:uint64], :int64, blocking: true
       attach_function :urnet_local_state_get_provide_network_mode, [:uint64], :pointer, blocking: true
       attach_function :urnet_local_state_get_provide_secret_keys, [:uint64], :pointer, blocking: true
@@ -1125,6 +1178,7 @@ module URnetwork
       attach_function :urnet_local_state_set_performance_profile, [:uint64, :string, :pointer], :bool, blocking: true
       attach_function :urnet_local_state_set_provide_control_mode, [:uint64, :string, :pointer], :bool, blocking: true
       attach_function :urnet_local_state_set_provide_extender, [:uint64, :bool, :pointer], :bool, blocking: true
+      attach_function :urnet_local_state_set_provide_extender_port_mapping, [:uint64, :bool, :pointer], :bool, blocking: true
       attach_function :urnet_local_state_set_provide_mode, [:uint64, :int64, :pointer], :bool, blocking: true
       attach_function :urnet_local_state_set_provide_network_mode, [:uint64, :string, :pointer], :bool, blocking: true
       attach_function :urnet_local_state_set_provide_secret_keys, [:uint64, :string, :pointer], :bool, blocking: true
@@ -1150,11 +1204,20 @@ module URnetwork
       attach_function :urnet_login_view_controller_close, [:uint64], :void, blocking: true
       attach_function :urnet_login_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_login_view_controller_stop, [:uint64], :void, blocking: true
+      attach_function :urnet_manage_devices_view_controller_add_manage_devices_listener, [:uint64, :urnet_manage_devices_cb, :pointer], :uint64, blocking: true
+      attach_function :urnet_manage_devices_view_controller_close, [:uint64], :void, blocking: true
+      attach_function :urnet_manage_devices_view_controller_get_can_manage, [:uint64], :bool, blocking: true
+      attach_function :urnet_manage_devices_view_controller_get_snapshot, [:uint64], :pointer, blocking: true
+      attach_function :urnet_manage_devices_view_controller_refresh, [:uint64], :void, blocking: true
+      attach_function :urnet_manage_devices_view_controller_remove_device, [:uint64, :string], :void, blocking: true
+      attach_function :urnet_manage_devices_view_controller_start, [:uint64], :void, blocking: true
+      attach_function :urnet_manage_devices_view_controller_stop, [:uint64], :void, blocking: true
       attach_function :urnet_network_name_validation_view_controller_close, [:uint64], :void, blocking: true
       attach_function :urnet_network_name_validation_view_controller_network_check, [:uint64, :string, :urnet_network_check_cb, :pointer], :void, blocking: true
       attach_function :urnet_network_name_validation_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_network_name_validation_view_controller_stop, [:uint64], :void, blocking: true
       attach_function :urnet_network_session_info_get_accept_until, [:uint64], :int64, blocking: true
+      attach_function :urnet_network_session_info_get_client_kind, [:uint64], :pointer, blocking: true
       attach_function :urnet_network_session_info_get_create_time, [:uint64], :int64, blocking: true
       attach_function :urnet_network_session_info_get_current, [:uint64], :bool, blocking: true
       attach_function :urnet_network_session_info_get_kind, [:uint64], :pointer, blocking: true
@@ -1162,6 +1225,7 @@ module URnetwork
       attach_function :urnet_network_session_info_get_last_used, [:uint64], :uint64, blocking: true
       attach_function :urnet_network_session_info_get_origin_session_id, [:uint64], :pointer, blocking: true
       attach_function :urnet_network_session_info_get_session_id, [:uint64], :pointer, blocking: true
+      attach_function :urnet_network_session_info_get_session_kind, [:uint64], :pointer, blocking: true
       attach_function :urnet_network_session_info_get_token_expire_time, [:uint64], :int64, blocking: true
       attach_function :urnet_network_session_info_list_add, [:uint64, :uint64], :void, blocking: true
       attach_function :urnet_network_session_info_list_contains, [:uint64, :uint64], :bool, blocking: true
@@ -1172,6 +1236,7 @@ module URnetwork
       attach_function :urnet_network_sessions_result_get_event_id, [:uint64], :int64, blocking: true
       attach_function :urnet_network_sessions_result_get_generation, [:uint64], :pointer, blocking: true
       attach_function :urnet_network_sessions_result_get_legacy_coverage, [:uint64], :pointer, blocking: true
+      attach_function :urnet_network_sessions_result_get_next_cursor, [:uint64], :pointer, blocking: true
       attach_function :urnet_network_sessions_result_get_sessions, [:uint64], :uint64, blocking: true
       attach_function :urnet_network_sessions_revision_get_event_id, [:uint64], :int64, blocking: true
       attach_function :urnet_network_sessions_revision_get_generation, [:uint64], :pointer, blocking: true
@@ -1301,6 +1366,17 @@ module URnetwork
       attach_function :urnet_post_quantum_identity_view_controller_provider_identities_changed, [:uint64], :void, blocking: true
       attach_function :urnet_post_quantum_identity_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_post_quantum_identity_view_controller_stop, [:uint64], :void, blocking: true
+      attach_function :urnet_pro_features_notice_tracker_dismiss, [:uint64], :pointer, blocking: true
+      attach_function :urnet_pro_features_notice_tracker_get_shown_prompt, [:uint64], :pointer, blocking: true
+      attach_function :urnet_pro_features_notice_tracker_reset, [:uint64], :pointer, blocking: true
+      attach_function :urnet_pro_features_notice_tracker_update, [:uint64, :string], :pointer, blocking: true
+      attach_function :urnet_pro_features_view_controller_add_pro_features_listener, [:uint64, :urnet_pro_features_cb, :pointer], :uint64, blocking: true
+      attach_function :urnet_pro_features_view_controller_close, [:uint64], :void, blocking: true
+      attach_function :urnet_pro_features_view_controller_dismiss_main_notice, [:uint64], :void, blocking: true
+      attach_function :urnet_pro_features_view_controller_get_snapshot, [:uint64], :pointer, blocking: true
+      attach_function :urnet_pro_features_view_controller_refresh, [:uint64], :void, blocking: true
+      attach_function :urnet_pro_features_view_controller_start, [:uint64], :void, blocking: true
+      attach_function :urnet_pro_features_view_controller_stop, [:uint64], :void, blocking: true
       attach_function :urnet_provide_view_controller_close, [:uint64], :void, blocking: true
       attach_function :urnet_provide_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_provide_view_controller_stop, [:uint64], :void, blocking: true
@@ -1348,7 +1424,9 @@ module URnetwork
       attach_function :urnet_session_last_used_get_city, [:uint64], :pointer, blocking: true
       attach_function :urnet_session_last_used_get_country, [:uint64], :pointer, blocking: true
       attach_function :urnet_session_last_used_get_country_code, [:uint64], :pointer, blocking: true
+      attach_function :urnet_session_last_used_get_device_kind, [:uint64], :pointer, blocking: true
       attach_function :urnet_session_last_used_get_device_type, [:uint64], :pointer, blocking: true
+      attach_function :urnet_session_last_used_get_distribution, [:uint64], :pointer, blocking: true
       attach_function :urnet_session_last_used_get_region, [:uint64], :pointer, blocking: true
       attach_function :urnet_session_last_used_get_unix_time, [:uint64], :int64, blocking: true
       attach_function :urnet_session_operation_result_get_cleanup_pending, [:uint64], :bool, blocking: true
@@ -1404,6 +1482,7 @@ module URnetwork
       attach_function :urnet_subscription_balance_view_controller_get_pending_byte_count, [:uint64], :int64, blocking: true
       attach_function :urnet_subscription_balance_view_controller_get_purchase_confirmation_give_up_reason, [:uint64], :pointer, blocking: true
       attach_function :urnet_subscription_balance_view_controller_get_purchase_confirmation_state, [:uint64], :pointer, blocking: true
+      attach_function :urnet_subscription_balance_view_controller_get_shown_plan, [:uint64], :pointer, blocking: true
       attach_function :urnet_subscription_balance_view_controller_get_start_balance_byte_count, [:uint64], :int64, blocking: true
       attach_function :urnet_subscription_balance_view_controller_get_subscription_balance_result, [:uint64], :pointer, blocking: true
       attach_function :urnet_subscription_balance_view_controller_get_subscriptions, [:uint64], :pointer, blocking: true
@@ -1418,33 +1497,32 @@ module URnetwork
       attach_function :urnet_subscription_balance_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_subscription_balance_view_controller_start_purchase_confirmation, [:uint64], :void, blocking: true
       attach_function :urnet_subscription_balance_view_controller_stop, [:uint64], :void, blocking: true
+      attach_function :urnet_subscription_pro_tracker_balance_failed, [:uint64], :bool, blocking: true
+      attach_function :urnet_subscription_pro_tracker_balance_loaded, [:uint64, :bool], :bool, blocking: true
+      attach_function :urnet_subscription_pro_tracker_get_is_pro, [:uint64], :bool, blocking: true
+      attach_function :urnet_subscription_pro_tracker_get_last_read_failed, [:uint64], :bool, blocking: true
+      attach_function :urnet_subscription_pro_tracker_get_shown_plan, [:uint64], :pointer, blocking: true
+      attach_function :urnet_subscription_pro_tracker_reset, [:uint64], :void, blocking: true
+      attach_function :urnet_subscription_pro_tracker_set_jwt, [:uint64, :string], :bool, blocking: true
       attach_function :urnet_tunnel_cancel, [:uint64], :void, blocking: true
       attach_function :urnet_tunnel_close, [:uint64], :void, blocking: true
       attach_function :urnet_tunnel_get_done, [:uint64], :bool, blocking: true
       attach_function :urnet_wallet_view_controller_add_account_wallets_listener, [:uint64, :urnet_account_wallets_cb, :pointer], :uint64, blocking: true
-      attach_function :urnet_wallet_view_controller_add_external_wallet, [:uint64, :string, :string], :void, blocking: true
-      attach_function :urnet_wallet_view_controller_add_is_creating_external_wallet_listener, [:uint64, :urnet_is_creating_external_wallet_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_wallet_view_controller_add_is_removing_wallet_listener, [:uint64, :urnet_is_removing_wallet_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_wallet_view_controller_add_payments_listener, [:uint64, :urnet_payments_cb, :pointer], :uint64, blocking: true
-      attach_function :urnet_wallet_view_controller_add_payout_wallet_listener, [:uint64, :urnet_payout_wallet_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_wallet_view_controller_add_unpaid_byte_count_listener, [:uint64, :urnet_unpaid_byte_count_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_wallet_view_controller_close, [:uint64], :void, blocking: true
       attach_function :urnet_wallet_view_controller_fetch_account_wallets, [:uint64], :void, blocking: true
       attach_function :urnet_wallet_view_controller_fetch_payments, [:uint64], :void, blocking: true
-      attach_function :urnet_wallet_view_controller_fetch_payout_wallet, [:uint64], :void, blocking: true
       attach_function :urnet_wallet_view_controller_fetch_transfer_stats, [:uint64], :void, blocking: true
       attach_function :urnet_wallet_view_controller_filter_wallets_by_id, [:uint64, :string], :pointer, blocking: true
       attach_function :urnet_wallet_view_controller_get_account_payments, [:uint64], :pointer, blocking: true
-      attach_function :urnet_wallet_view_controller_get_next_payout_date, [:uint64], :pointer, blocking: true
-      attach_function :urnet_wallet_view_controller_get_payout_wallet_id, [:uint64], :pointer, blocking: true
       attach_function :urnet_wallet_view_controller_get_unpaid_byte_count, [:uint64], :int64, blocking: true
       attach_function :urnet_wallet_view_controller_get_wallets, [:uint64], :pointer, blocking: true
       attach_function :urnet_wallet_view_controller_remove_wallet, [:uint64, :string], :void, blocking: true
       attach_function :urnet_wallet_view_controller_set_is_polling_account_wallets, [:uint64, :bool], :void, blocking: true
-      attach_function :urnet_wallet_view_controller_set_is_polling_payout_wallet, [:uint64, :bool], :void, blocking: true
       attach_function :urnet_wallet_view_controller_start, [:uint64], :void, blocking: true
       attach_function :urnet_wallet_view_controller_stop, [:uint64], :void, blocking: true
-      attach_function :urnet_wallet_view_controller_update_payout_wallet, [:uint64, :string, :pointer], :bool, blocking: true
       attach_function :urnet_wallet_view_controller_validate_address, [:uint64, :string, :string, :urnet_validate_address_cb, :pointer], :void, blocking: true
       attach_function :urnet_websocket_device_rpc_listener_close, [:uint64, :pointer], :bool, blocking: true
       attach_function :urnet_alpha_from_rao, [:int64], :double, blocking: true
@@ -1464,6 +1542,7 @@ module URnetwork
       attach_function :urnet_build_checkout_bridge_url_with_redirect, [:string, :string], :pointer, blocking: true
       attach_function :urnet_build_inline_checkout_bridge_url, [:string], :pointer, blocking: true
       attach_function :urnet_build_solana_payment_url, [:string, :pointer], :pointer, blocking: true
+      attach_function :urnet_cant_reach_on_stall, [:string, :string], :bool, blocking: true
       attach_function :urnet_check_crypto_payment_uri, [:string, :string, :string], :bool, blocking: true
       attach_function :urnet_classify_balance_code_redeem, [:string, :string, :string], :pointer, blocking: true
       attach_function :urnet_classify_subscription_store, [:string], :pointer, blocking: true
@@ -1475,9 +1554,26 @@ module URnetwork
       attach_function :urnet_compare_points_leaderboard_values, [:string, :string, :string], :int64, blocking: true
       attach_function :urnet_compute_price_equivalent, [:double, :double, :int64], :pointer, blocking: true
       attach_function :urnet_connect_link_url, [:string, :string, :string], :pointer, blocking: true
+      attach_function :urnet_copy_dns_resolver_settings, [:string], :pointer, blocking: true
       attach_function :urnet_create_payment_reference, [], :pointer, blocking: true
+      attach_function :urnet_crypto_asset_decimals, [:string], :int64, blocking: true
+      attach_function :urnet_crypto_asset_icon_key, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_asset_label, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_asset_label_key, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_asset_lines_for, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_asset_market, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_asset_quote_decimals, [:string], :int64, blocking: true
       attach_function :urnet_crypto_asset_sells, [:string, :string, :string], :bool, blocking: true
       attach_function :urnet_crypto_asset_ticker, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_paid_asset, [:string, :string], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_event_product, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_qr_text, [:string, :string, :string], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_shows_memo, [:string, :string], :bool, blocking: true
+      attach_function :urnet_crypto_payment_steps, [:string, :string, :int64, :int64], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_tab_coin, [:string, :string, :string], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_tab_id, [:string], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_tabs, [:string, :string, :string], :pointer, blocking: true
+      attach_function :urnet_crypto_payment_uri_scheme, [:string], :pointer, blocking: true
       attach_function :urnet_crypto_term_notice_due, [:string], :bool, blocking: true
       attach_function :urnet_crypto_wallet_suggestions, [:string], :pointer, blocking: true
       attach_function :urnet_default_device_local_settings, [], :pointer, blocking: true
@@ -1489,6 +1585,11 @@ module URnetwork
       attach_function :urnet_default_transport_mode_priority, [:string], :int64, blocking: true
       attach_function :urnet_default_transport_settings, [], :pointer, blocking: true
       attach_function :urnet_default_tunnel_dns_setting, [], :pointer, blocking: true
+      attach_function :urnet_describe_dns_resolver_settings, [:string, :string], :pointer, blocking: true
+      attach_function :urnet_describe_dns_resolver_status, [:string, :string], :pointer, blocking: true
+      attach_function :urnet_dns_resolver_settings_as_custom, [:string], :pointer, blocking: true
+      attach_function :urnet_dns_resolver_settings_with_fallback, [:string, :bool], :pointer, blocking: true
+      attach_function :urnet_dns_resolver_settings_with_preset, [:string, :string, :string], :pointer, blocking: true
       attach_function :urnet_encode_base58, [:pointer, :int32], :pointer, blocking: true
       attach_function :urnet_encrypt_data, [:pointer, :int32, :string, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_evm_mirror_ss58, [:string], :pointer, blocking: true
@@ -1516,6 +1617,10 @@ module URnetwork
       attach_function :urnet_get_default_tunnel_dns_address_ipv4, [], :pointer, blocking: true
       attach_function :urnet_get_default_tunnel_dns_address_ipv6, [], :pointer, blocking: true
       attach_function :urnet_get_default_tunnel_mtu, [], :int64, blocking: true
+      attach_function :urnet_get_dns_picks, [:string], :pointer, blocking: true
+      attach_function :urnet_get_dns_preset, [:string], :pointer, blocking: true
+      attach_function :urnet_get_dns_preset_personal_id_for_edit, [:string, :string], :pointer, blocking: true
+      attach_function :urnet_get_dns_preset_providers, [], :pointer, blocking: true
       attach_function :urnet_get_extender_color_hex, [:string], :pointer, blocking: true
       attach_function :urnet_get_extender_store_read_only, [], :bool, blocking: true
       attach_function :urnet_get_filtered_locations_from_result, [:string, :string], :pointer, blocking: true
@@ -1536,9 +1641,11 @@ module URnetwork
       attach_function :urnet_ingress_doh_urls, [:string], :pointer, blocking: true
       attach_function :urnet_ingress_plain_dns_servers, [:string], :pointer, blocking: true
       attach_function :urnet_is_balance_code_format_valid, [:string], :bool, blocking: true
+      attach_function :urnet_is_cant_reach_error, [:string], :bool, blocking: true
       attach_function :urnet_is_checkout_redirect, [:string], :bool, blocking: true
       attach_function :urnet_is_points_leaderboard_sort, [:string], :bool, blocking: true
       attach_function :urnet_is_purchase_report_terminal, [:string], :bool, blocking: true
+      attach_function :urnet_is_sandbox_purchase_refusal, [:string], :bool, blocking: true
       attach_function :urnet_is_valid_payment_reference, [:string], :bool, blocking: true
       attach_function :urnet_log_app_info, [:string, :string], :void, blocking: true
       attach_function :urnet_log_inventory, [], :pointer, blocking: true
@@ -1552,6 +1659,8 @@ module URnetwork
       attach_function :urnet_new_bittensor_wallet_session, [:string, :string, :string, :string, :pointer], :uint64, blocking: true
       attach_function :urnet_new_client_event_queue, [:uint64, :string, :string, :string], :uint64, blocking: true
       attach_function :urnet_new_client_info, [:string, :string], :pointer, blocking: true
+      attach_function :urnet_new_client_info_with_distribution, [:string, :string, :string], :pointer, blocking: true
+      attach_function :urnet_new_client_limit_notice_tracker, [], :uint64, blocking: true
       attach_function :urnet_new_connect_first_event, [], :pointer, blocking: true
       attach_function :urnet_new_crypto_invoice_view_controller, [:uint64, :string], :uint64, blocking: true
       attach_function :urnet_new_device_local, [:uint64, :string, :string, :string, :string, :string, :string, :pointer], :uint64, blocking: true
@@ -1578,17 +1687,20 @@ module URnetwork
       attach_function :urnet_new_onboarding_step_shown_event, [:string, :int64, :int64], :pointer, blocking: true
       attach_function :urnet_new_onboarding_step_skipped_event, [:string, :int64, :int64], :pointer, blocking: true
       attach_function :urnet_new_platform_device_remote, [:uint64, :string, :string, :string, :string, :pointer], :uint64, blocking: true
+      attach_function :urnet_new_pro_features_notice_tracker, [], :uint64, blocking: true
       attach_function :urnet_new_proxy_device_with_defaults, [:string, :urnet_setup_new_device_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_new_purchase_cancelled_event, [:string, :string, :string, :bool, :double, :string], :pointer, blocking: true
       attach_function :urnet_new_purchase_completed_event, [:string, :string, :string, :bool, :double, :string], :pointer, blocking: true
       attach_function :urnet_new_purchase_failed_event, [:string, :string, :string, :bool, :double, :string, :string], :pointer, blocking: true
       attach_function :urnet_new_purchase_started_event, [:string, :string, :string, :bool, :double, :string], :pointer, blocking: true
+      attach_function :urnet_new_sign_in_manage_devices_view_controller, [:uint64, :string, :urnet_manage_devices_sign_in_retry_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_new_signup_optout_changed_event, [:bool], :pointer, blocking: true
       attach_function :urnet_new_sn_chain_settings, [], :pointer, blocking: true
       attach_function :urnet_new_sn_fleet_claim, [:uint64, :string, :urnet_sn_fleet_claim_store_load_sn_fleet_coldkey_phrase_cb, :urnet_sn_fleet_claim_store_load_sn_fleet_hotkey_seed_cb, :urnet_sn_fleet_claim_store_save_sn_fleet_hotkey_seed_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_new_sn_fleet_device_for_local, [:uint64, :uint64, :urnet_sn_fleet_device_store_load_sn_fleet_device_state_cb, :urnet_sn_fleet_device_store_save_sn_fleet_device_state_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_new_sn_fleet_device_for_remote, [:uint64, :uint64, :urnet_sn_fleet_device_store_load_sn_fleet_device_state_cb, :urnet_sn_fleet_device_store_save_sn_fleet_device_state_cb, :pointer], :uint64, blocking: true
       attach_function :urnet_new_subscription_balance_view_controller, [:uint64], :uint64, blocking: true
+      attach_function :urnet_new_subscription_pro_tracker, [], :uint64, blocking: true
       attach_function :urnet_new_time_unix_milli, [:int64], :int64, blocking: true
       attach_function :urnet_new_transfer_path, [:string, :string, :string], :pointer, blocking: true
       attach_function :urnet_new_tunnel, [], :uint64, blocking: true
@@ -1599,6 +1711,7 @@ module URnetwork
       attach_function :urnet_normal_env_name, [:string], :pointer, blocking: true
       attach_function :urnet_normal_extender_gossip_mode, [:string], :pointer, blocking: true
       attach_function :urnet_normalize_bittensor_signature, [:string], :pointer, blocking: true
+      attach_function :urnet_normalize_dns_preset_personal_id, [:string, :string], :pointer, blocking: true
       attach_function :urnet_order_connected_provider_locations, [:string], :pointer, blocking: true
       attach_function :urnet_parse_bittensor_challenge_message, [:string, :pointer], :pointer, blocking: true
       attach_function :urnet_parse_bittensor_wallet_return, [:string, :string, :pointer], :pointer, blocking: true
@@ -1608,11 +1721,14 @@ module URnetwork
       attach_function :urnet_parse_vless_link, [:string], :pointer, blocking: true
       attach_function :urnet_payment_method_allows_plan, [:string, :string], :bool, blocking: true
       attach_function :urnet_payment_methods, [:string, :string], :pointer, blocking: true
+      attach_function :urnet_plan_account_name, [:string, :bool], :pointer, blocking: true
       attach_function :urnet_points_leaderboard_key_of, [:string], :pointer, blocking: true
       attach_function :urnet_points_leaderboard_scroll_label, [:int64, :int64], :pointer, blocking: true
       attach_function :urnet_points_to_nano_points, [:double], :int64, blocking: true
+      attach_function :urnet_pro_features_status_for, [:string], :pointer, blocking: true
       attach_function :urnet_public_identity_key_hash, [:pointer, :int32], :pointer, blocking: true
       attach_function :urnet_purchase_report_backoff_millis, [:int64], :int64, blocking: true
+      attach_function :urnet_purchase_report_error_code, [:string], :pointer, blocking: true
       attach_function :urnet_record_tunnel_recovery_stage, [:string, :string, :bool, :bool, :bool, :int64, :int64], :pointer, blocking: true
       attach_function :urnet_regional_control_doh_urls, [:string], :pointer, blocking: true
       attach_function :urnet_report_memory_trim_level, [:int64], :void, blocking: true
@@ -1622,6 +1738,7 @@ module URnetwork
       attach_function :urnet_service_url, [:string, :string, :string, :string], :pointer, blocking: true
       attach_function :urnet_set_control_ip_family_policy, [:int64], :void, blocking: true
       attach_function :urnet_set_device_rpc_h1_plus_enabled, [:bool], :void, blocking: true
+      attach_function :urnet_set_dns_presets_hide_ad_blocking, [:bool], :void, blocking: true
       attach_function :urnet_set_egress_interface_index, [:int64, :int64], :void, blocking: true
       attach_function :urnet_set_extender_network_client_enabled, [:bool], :bool, blocking: true
       attach_function :urnet_set_extender_store_read_only, [:bool], :void, blocking: true
@@ -1636,12 +1753,18 @@ module URnetwork
       attach_function :urnet_short_ss58, [:string], :pointer, blocking: true
       attach_function :urnet_sn_claim_transactions_for, [:string, :string, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_sn_claims_for, [:string, :string, :int64, :urnet_sn_claims_cb, :pointer], :void, blocking: true
+      attach_function :urnet_sn_ctf_client_of, [:string], :pointer, blocking: true
+      attach_function :urnet_sn_ctf_client_of_response, [:int64, :string, :bool], :pointer, blocking: true
       attach_function :urnet_sn_fleet_binding_digest, [:string, :pointer], :pointer, blocking: true
       attach_function :urnet_sn_gas_balance_for, [:string, :string, :urnet_sn_gas_balance_cb, :pointer], :void, blocking: true
       attach_function :urnet_sn_ledger_accounts_for, [:string, :string, :urnet_sn_ledger_accounts_cb, :pointer], :void, blocking: true
+      attach_function :urnet_sn_ledger_claim_outcomes_for, [:string, :string, :string, :string, :pointer], :pointer, blocking: true
+      attach_function :urnet_sn_ledger_claim_outcomes_of, [:string, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_sn_ledger_claim_transactions_for, [:string, :string, :pointer], :pointer, blocking: true
+      attach_function :urnet_sn_ledger_claim_transactions_for_payer, [:string, :string, :string, :pointer], :pointer, blocking: true
       attach_function :urnet_sn_payout_leaf_hex, [:string, :int64], :pointer, blocking: true
       attach_function :urnet_sn_testnet_chain_settings, [], :pointer, blocking: true
+      attach_function :urnet_solana_wallet_failure_for, [:string, :string, :string], :pointer, blocking: true
       attach_function :urnet_suggest_emoji_tag, [:int64], :pointer, blocking: true
       attach_function :urnet_transport_settings_auto_modes, [:string], :pointer, blocking: true
       attach_function :urnet_transport_settings_enabled_transport_types, [:string], :pointer, blocking: true
@@ -1652,6 +1775,7 @@ module URnetwork
       attach_function :urnet_upload_logs_inventory, [], :pointer, blocking: true
       attach_function :urnet_usd_to_nano_cents, [:double], :int64, blocking: true
       attach_function :urnet_validate_control_doh_url, [:string], :pointer, blocking: true
+      attach_function :urnet_validate_dns_preset_personal_id, [:string, :string], :pointer, blocking: true
       attach_function :urnet_validate_emoji_tag, [:string], :pointer, blocking: true
       attach_function :urnet_validate_ss58, [:string], :bool, blocking: true
       attach_function :urnet_validate_vless_settings, [:string], :pointer, blocking: true

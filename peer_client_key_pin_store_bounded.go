@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -40,6 +41,14 @@ type boundedPeerPinEntry struct {
 // One fixed owner, not a growing map or a global serialization pool. The
 // admission includes 29 KiB of entries, 129 KiB of owned input/output, and
 // bounded JSON decoder/token/scanner scratch below the 1 MiB envelope.
+//
+// Entries are ordered least recently committed or admitted first, in memory
+// and in the file. A new peer in a full store takes the place of the first
+// entry (owner decision, 2026-11-16: refusing it ended every new post-quantum
+// session once a phone had pinned 256 providers, since a required session
+// treats a refused pin as terminal). The evicted peer is unpinned, a first
+// contact again; the store-wide signed-history latch stays set, so its next
+// session still needs signed evidence and can never fall back to unsigned.
 type boundedPeerPinData struct {
 	entries    [peerPinStoreMaxPeerCount]boundedPeerPinEntry
 	buffer     [peerPinStoreMaxFileByteCount + 1]byte
@@ -48,28 +57,32 @@ type boundedPeerPinData struct {
 }
 
 type boundedPeerPinStats struct {
-	PeerCount           int
+	PeerCount int
+	// stays 0 since a commit to a full store evicts (Evictions); kept for the
+	// transfer diagnostics' peer_pin_capacity_refusals field
 	CapacityRefusals    uint64
+	Evictions           uint64
 	PersistenceFailures uint64
 	RollbackRefusals    uint64
 	StateFailures       uint64
 }
 
 type boundedPeerClientKeyPinStore struct {
-	stateLock  sync.Mutex
-	localState *LocalState
-	owner      *deviceAuthPublicationGate
-	generation uint64
-	budget     *connect.TransferMemoryBudget
-	path       string
-	data       *boundedPeerPinData
-	failure    error
-	stats      boundedPeerPinStats
+	stateLock     sync.Mutex
+	localState    *LocalState
+	owner         *deviceAuthPublicationGate
+	generation    uint64
+	budget        *connect.TransferMemoryBudget
+	path          string
+	durableRename peerPinDurableRename
+	data          *boundedPeerPinData
+	failure       error
+	stats         boundedPeerPinStats
 	// Installed only by tests before concurrent operations begin.
 	testingCommitStep func(string) error
 }
 
-var _ connect.CheckedPeerClientKeyPinStore = (*boundedPeerClientKeyPinStore)(nil)
+var _ connect.AtomicPeerClientKeyPinStore = (*boundedPeerClientKeyPinStore)(nil)
 
 func newBoundedPeerClientKeyPinStore(state *LocalState, owner *deviceAuthPublicationGate, budget *connect.TransferMemoryBudget) (*boundedPeerClientKeyPinStore, error) {
 	store, err := prepareBoundedPeerClientKeyPinStore(state, owner, budget)
@@ -95,8 +108,9 @@ func prepareBoundedPeerClientKeyPinStore(state *LocalState, owner *deviceAuthPub
 	}
 	store := &boundedPeerClientKeyPinStore{
 		localState: state, owner: owner, budget: budget,
-		path: filepath.Join(state.localStorageDir, peerClientKeyPinsFileName),
-		data: new(boundedPeerPinData),
+		path:          filepath.Join(state.localStorageDir, peerClientKeyPinsFileName),
+		durableRename: peerPinDurableRenameFor(runtime.GOOS),
+		data:          new(boundedPeerPinData),
 	}
 	state.authStateLock.Lock()
 	err := store.loadWithLock()
@@ -213,6 +227,9 @@ func (self *boundedPeerClientKeyPinStore) loadWithLock() error {
 	if _, err := decoder.Token(); err != io.EOF {
 		return errPeerPinStoreCorrupt
 	}
+	// Recover the global ratchet from a complete pin left by an older writer
+	// that crashed before its separate signed-history-latch write.
+	self.data.signedSeen = self.data.signedSeen || self.data.count != 0
 	clear(self.data.buffer[:n])
 	return nil
 }
@@ -456,19 +473,69 @@ func (self *boundedPeerClientKeyPinStore) checkWithLock() error {
 	return nil
 }
 
-func (self *boundedPeerClientKeyPinStore) GetPeerClientKeyPinChecked(peer connect.Id) (connect.ClientKeyPin, bool, error) {
+// Reads peer evidence and the global ratchet under the same live-owner fence.
+func (self *boundedPeerClientKeyPinStore) ReadPeerClientKeyPinSnapshot(peer connect.Id) (connect.ClientKeyPinSnapshot, error) {
 	self.localState.authStateLock.Lock()
 	defer self.localState.authStateLock.Unlock()
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 	if err := self.checkWithLock(); err != nil {
 		self.stats.StateFailures++
-		return connect.ClientKeyPin{}, false, err
+		return connect.ClientKeyPinSnapshot{}, err
 	}
+	return self.snapshotWithLock(peer), nil
+}
+
+// Callers hold both authStateLock and stateLock after checking the live owner.
+func (self *boundedPeerClientKeyPinStore) snapshotWithLock(peer connect.Id) connect.ClientKeyPinSnapshot {
+	snapshot := connect.ClientKeyPinSnapshot{SignedHistorySeen: self.data.signedSeen}
 	if i := self.indexWithLock(peer); i >= 0 {
-		return self.data.entries[i].pin, true, nil
+		snapshot.Pin, snapshot.Pinned = self.data.entries[i].pin, true
 	}
-	return connect.ClientKeyPin{}, false, nil
+	return snapshot
+}
+
+// A stale verification result requests retry without changing state. A nil
+// next pin admits fallback only against the same peer pin and global latch.
+// Non-nil pins must be fully verified against expected and the caller's signer
+// policy before this conditional path may persist a forward signer transition.
+func (self *boundedPeerClientKeyPinStore) CompareAndSwapPeerClientKeyPin(peer connect.Id, expected connect.ClientKeyPinSnapshot, nextPin *connect.ClientKeyPin) (bool, error) {
+	self.localState.authStateLock.Lock()
+	defer self.localState.authStateLock.Unlock()
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	if err := self.checkWithLock(); err != nil {
+		self.stats.StateFailures++
+		return false, err
+	}
+	if self.snapshotWithLock(peer) != expected {
+		return false, nil
+	}
+	if nextPin == nil {
+		// an admission against the unchanged pin is a use: the peer becomes
+		// the most recent entry (in memory; the next write persists the order)
+		if i := self.indexWithLock(peer); 0 <= i {
+			self.moveToEndWithLock(i)
+		}
+		return true, nil
+	}
+	if err := self.commitPeerClientKeyPinWithLock(peer, *nextPin, true); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// Moves entry i to the end, the most recent place, keeping the others' order.
+func (self *boundedPeerClientKeyPinStore) moveToEndWithLock(i int) {
+	entry := self.data.entries[i]
+	copy(self.data.entries[i:self.data.count-1], self.data.entries[i+1:self.data.count])
+	self.data.entries[self.data.count-1] = entry
+}
+
+// Preserves the checked compatibility API without splitting snapshot evidence.
+func (self *boundedPeerClientKeyPinStore) GetPeerClientKeyPinChecked(peer connect.Id) (connect.ClientKeyPin, bool, error) {
+	snapshot, err := self.ReadPeerClientKeyPinSnapshot(peer)
+	return snapshot.Pin, snapshot.Pinned, err
 }
 
 func (self *boundedPeerClientKeyPinStore) GetPeerClientKeyPin(peer connect.Id) (connect.ClientKeyPin, bool) {
@@ -485,29 +552,42 @@ func (self *boundedPeerClientKeyPinStore) CommitPeerClientKeyPin(peer connect.Id
 		self.stats.StateFailures++
 		return err
 	}
+	return self.commitPeerClientKeyPinWithLock(peer, pin, false)
+}
+
+// The live owner and its exact snapshot remain locked through durable commit.
+// The committed peer becomes the most recent entry; a new peer in a full store
+// evicts the least recent one (see boundedPeerPinData). A failed write changes
+// nothing, so it never drops a pin.
+func (self *boundedPeerClientKeyPinStore) commitPeerClientKeyPinWithLock(peer connect.Id, pin connect.ClientKeyPin, allowSignerRotation bool) error {
 	i := self.indexWithLock(peer)
+	evict := -1
 	if i < 0 && self.data.count == peerPinStoreMaxPeerCount {
-		self.stats.CapacityRefusals++
-		return errPeerPinStoreCapacity
+		evict = 0
 	}
 	if i >= 0 {
 		previous := self.data.entries[i].pin
-		if pin.Generation < previous.Generation || pin.DomainDigest != previous.DomainDigest || pin.Signer != previous.Signer ||
-			(pin.Generation == previous.Generation && pin.PublicKey != previous.PublicKey) {
+		if !peerClientKeyPinCanAdvance(previous, pin, allowSignerRotation) {
 			self.stats.RollbackRefusals++
 			return errPeerPinStoreRollback
 		}
 	}
-	if err := self.persistWithLock(peer, pin, i, true); err != nil {
+	if err := self.persistWithLock(peer, pin, i, evict, true); err != nil {
 		self.stats.PersistenceFailures++
 		self.failure = errPeerPinStoreIO
 		return errPeerPinStoreIO
 	}
-	if i < 0 {
-		i = self.data.count
+	if 0 <= i {
+		self.moveToEndWithLock(i)
+	} else {
+		if 0 <= evict {
+			copy(self.data.entries[evict:self.data.count-1], self.data.entries[evict+1:self.data.count])
+			self.data.count--
+			self.stats.Evictions++
+		}
 		self.data.count++
 	}
-	self.data.entries[i] = boundedPeerPinEntry{peer: peer, pin: pin}
+	self.data.entries[self.data.count-1] = boundedPeerPinEntry{peer: peer, pin: pin}
 	self.data.signedSeen = true
 	self.stats.PeerCount = self.data.count
 	return nil
@@ -531,7 +611,7 @@ func (self *boundedPeerClientKeyPinStore) SetSignedHistorySeen() {
 	if self.checkWithLock() != nil || self.data.signedSeen {
 		return
 	}
-	if err := self.persistWithLock(connect.Id{}, connect.ClientKeyPin{}, -1, false); err != nil {
+	if err := self.persistWithLock(connect.Id{}, connect.ClientKeyPin{}, -1, -1, false); err != nil {
 		self.stats.PersistenceFailures++
 		self.failure = errPeerPinStoreIO
 		return
@@ -565,71 +645,41 @@ func appendBoundedPeerPin(dst []byte, entry boundedPeerPinEntry) []byte {
 	return append(dst, '}')
 }
 
-func (self *boundedPeerClientKeyPinStore) persistWithLock(peer connect.Id, pin connect.ClientKeyPin, replace int, hasPin bool) error {
+// Writes the store as it will be after the commit, least recent first: every
+// entry but replace (the committed peer's old place) and evict, then the
+// committed pin last when hasPin. Negative indexes name no entry.
+func (self *boundedPeerClientKeyPinStore) persistWithLock(peer connect.Id, pin connect.ClientKeyPin, replace int, evict int, hasPin bool) error {
 	buffer := append(self.data.buffer[:0:peerPinStoreMaxFileByteCount], `{"signed_history_seen":true,"pins":{`...)
-	count := self.data.count
-	if hasPin && replace < 0 {
-		count++
-	}
-	for i := 0; i < count; i++ {
+	written := 0
+	write := func(entry boundedPeerPinEntry) error {
 		// A canonical entry is <512 bytes even with every byte 255 and a
 		// maximum uint64 generation. Never allow append to grow this owner.
 		if len(buffer)+512+3 > peerPinStoreMaxFileByteCount {
 			return errPeerPinStoreOversize
 		}
-		if i != 0 {
+		if written != 0 {
 			buffer = append(buffer, ',')
 		}
-		entry := boundedPeerPinEntry{peer: peer, pin: pin}
-		if i < self.data.count && (!hasPin || i != replace) {
-			entry = self.data.entries[i]
-		}
 		buffer = appendBoundedPeerPin(buffer, entry)
+		written++
+		return nil
+	}
+	for i := 0; i < self.data.count; i++ {
+		if i == replace || i == evict {
+			continue
+		}
+		if err := write(self.data.entries[i]); err != nil {
+			return err
+		}
+	}
+	if hasPin {
+		if err := write(boundedPeerPinEntry{peer: peer, pin: pin}); err != nil {
+			return err
+		}
 	}
 	buffer = append(buffer, '}', '}')
-	// An attacker-controlled leaf is never used as either input or a commit
-	// target. Rename itself never follows the leaf; the app-private parent
-	// directory must not be concurrently replaced outside this LocalState.
-	if info, err := os.Lstat(self.path); (err == nil && !info.Mode().IsRegular()) ||
-		(err != nil && !errors.Is(err, os.ErrNotExist)) {
-		return errPeerPinStoreIO
-	}
-	if self.failCommitStep("create") {
-		return errPeerPinStoreIO
-	}
-	file, err := os.CreateTemp(filepath.Dir(self.path), ".peer_client_key_pins-*")
-	if err != nil {
-		return fmt.Errorf("%w: %v", errPeerPinStoreIO, err)
-	}
-	temporary := file.Name()
-	defer os.Remove(temporary)
-	defer file.Close()
-	if self.failCommitStep("write") {
-		return errPeerPinStoreIO
-	}
-	if n, err := file.Write(buffer); err != nil || n != len(buffer) {
-		return errPeerPinStoreIO
-	}
-	if self.failCommitStep("sync") || file.Sync() != nil || self.failCommitStep("close") || file.Close() != nil {
-		return errPeerPinStoreIO
-	}
-	if self.failCommitStep("rename") || os.Rename(temporary, self.path) != nil {
-		return errPeerPinStoreIO
-	}
-	directory, err := os.Open(filepath.Dir(self.path))
-	if err != nil {
-		return errPeerPinStoreIO
-	}
-	defer directory.Close()
-	if self.failCommitStep("directory sync") || directory.Sync() != nil {
-		return errPeerPinStoreIO
-	}
-	clear(buffer)
-	return nil
-}
-
-func (self *boundedPeerClientKeyPinStore) failCommitStep(step string) bool {
-	return self.testingCommitStep != nil && self.testingCommitStep(step) != nil
+	defer clear(buffer)
+	return persistPeerClientKeyPinsWithLock(self.path, buffer, self.durableRename, self.testingCommitStep)
 }
 
 func (self *boundedPeerClientKeyPinStore) Stats() boundedPeerPinStats {

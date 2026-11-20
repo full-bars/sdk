@@ -133,6 +133,10 @@ type testProvideExtenderOperator struct {
 	requireCamouflage bool
 	// the lifetime of a record, zero for the fixture's two weeks
 	recordLifetime time.Duration
+	// says on each activation that it keeps each address's ports
+	// (connect.ExtenderActivateResult.AddressPorts, connect EXTENDER.md S10), as
+	// an operator with them does; off says nothing, as one without does
+	addressPorts bool
 }
 
 func newTestProvideExtenderOperator(
@@ -286,6 +290,7 @@ func (self *testProvideExtenderOperator) activateResult(
 			requiredCapabilities = []string{connect.ExtenderCapabilityTcpCamouflageV1}
 		}
 	}
+	addressPorts := self.addressPorts
 	self.stateLock.Unlock()
 
 	expireTime := now.Add(recordLifetime)
@@ -332,6 +337,7 @@ func (self *testProvideExtenderOperator) activateResult(
 		ExpireTime:   &expireTime,
 		AllowedHosts: []string{testProvideExtenderHost, "*." + testProvideExtenderHost},
 		Record:       base64.StdEncoding.EncodeToString(recordBytes),
+		AddressPorts: addressPorts,
 	}, nil
 }
 
@@ -389,6 +395,11 @@ type testProvideExtenderFixture struct {
 	tcpPort int
 	udpPort int
 	dnsPort int
+	// whether the role serves the peer-to-peer webrtc carrier as the device's
+	// default has it (connect/EXTENDER.md S8). Off unless a test opts in: the
+	// other tests are of the socket carriers and expect what they post and
+	// bind to be those alone (device_local_extender_webrtc_test.go)
+	webRtc bool
 
 	// the statuses the change listener reported
 	statuses chan *ExtenderProvideStatus
@@ -448,6 +459,12 @@ type testProvideExtenderFixtureOptions struct {
 	// runs once the space and the operator exist and before the device
 	// provides, so the role's first post already meets what it set
 	prepare func(fixture *testProvideExtenderFixture)
+	// runs once the device exists and before it provides, so the role is
+	// built from what it set on the device's provider
+	beforeProvide func(device *DeviceLocal)
+	// leaves the role's webrtc carrier as the device and its provider set it,
+	// on by default (testProvideExtenderFixture.webRtc)
+	webRtc bool
 }
 
 func newTestProvideExtenderFixtureWithOptions(
@@ -483,6 +500,7 @@ func newTestProvideExtenderFixtureWithOptions(
 		tcpPort:        testFreeTcpPort(t),
 		udpPort:        testFreeUdpPort(t),
 		dnsPort:        testFreeUdpPort(t),
+		webRtc:         options.webRtc,
 		statuses:       make(chan *ExtenderProvideStatus, 256),
 	}
 
@@ -548,6 +566,9 @@ func newTestProvideExtenderFixtureWithOptions(
 	device.AddExtenderProvideStatusChangeListener(
 		&testProvideExtenderStatusListener{fixture: fixture})
 
+	if options.beforeProvide != nil {
+		options.beforeProvide(device)
+	}
 	// providing is what the role follows (G2)
 	device.SetProvideMode(ProvideModePublic)
 	return fixture
@@ -556,6 +577,9 @@ func newTestProvideExtenderFixtureWithOptions(
 // The role's settings: ephemeral loopback carriers, the fixture operator, and
 // the fake clock every cadence decision reads.
 func (self *testProvideExtenderFixture) configureExtender(settings *deviceLocalExtenderSettings) {
+	if !self.webRtc {
+		settings.WebRtcCarrier = false
+	}
 	settings.TcpPort = self.tcpPort
 	settings.UdpPort = self.udpPort
 	settings.DnsPort = self.dnsPort

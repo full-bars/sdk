@@ -257,12 +257,12 @@ type NetworkSpace struct {
 
 	clientStrategy *connect.ClientStrategy
 	// clientStrategySettings is what clientStrategy was built from. The
-	// provider's family-pinned transports seed their direct-only strategies
-	// from it (connect.NewDirectClientStrategy), so a pinned dial carries the
-	// same tls, resolver and logging configuration as the shared strategy
-	// minus the extenders and proxy. A strategy derived from it takes the DoH
-	// settings in force instead of the ones here, which a bootstrap DoH
-	// change replaces (see derivedClientStrategySettings).
+	// provider's family-pinned transports seed their egress strategies from
+	// it (connect.NewEgressClientStrategy), so a pinned dial carries the same
+	// tls, resolver, logging and proxy configuration as the shared strategy
+	// minus the extenders and VLESS servers. A strategy derived from it takes
+	// the DoH settings in force instead of the ones here, which a bootstrap
+	// DoH change replaces (see derivedClientStrategySettings).
 	clientStrategySettings *connect.ClientStrategySettings
 	asyncLocalState        *AsyncLocalState
 	api                    *Api
@@ -281,8 +281,18 @@ type NetworkSpace struct {
 
 	// The extender directory of this space (EXTENDER.md E1, F1). Nil for a
 	// url-only space, which names its endpoints outright and has nothing to
-	// discover.
+	// discover, and for a space on an extender host, whose strategy reads the
+	// host's.
 	extenderDirectory *connect.ExtenderDirectory
+	// The space whose extender stack this one reads and runs none of its own
+	// (NewNetworkSpaceWithUrlsOnExtenderHost), nil for every other space. Set
+	// at construction.
+	extenderHost *NetworkSpace
+	// The dial side of the peer-to-peer webrtc extender carrier (EXTENDER.md
+	// S8): the client the device signals its dials through, which opens the
+	// directory's webrtc gate while one is set. Nil without a directory, and
+	// for a hosted space, whose devices dial no webrtc extender.
+	extenderWebRtcDial *connect.WebRtcExtenderDialSignaling
 	// The refresh loop that fills the directory (E3). Nil for a space whose
 	// host is not a real dns name, which has nothing to resolve or sample.
 	extenderNetworkClient *connect.ExtenderNetworkClient
@@ -348,6 +358,14 @@ type NetworkSpace struct {
 	// re-subscribes to the node it now has
 	extenderNodeMonitor           *connect.Monitor
 	extenderStatusChangeListeners *connect.CallbackList[ExtenderStatusChangeListener]
+	// called after the ingress dns -- the connection region or the bootstrap
+	// DoH servers -- changed in place (applyControlDohValues). A DeviceRemote
+	// bound to the space hands the change to its device, whose process runs
+	// its own copy of the space (device_remote_ingress_dns.go)
+	ingressDnsChangeCallbacks *connect.CallbackList[ingressDnsChangeCallback]
+	// counts the ingress dns changes, so a callback can tell the newest
+	// snapshot from a stale one. Guarded by stateLock
+	ingressDnsRevision uint64
 	// The seed bootstrap (extender_seed.go), set once at construction under
 	// stateLock. Nil for a space that runs none: no directory, or the space a
 	// cloud host shares among its hosted devices.
@@ -432,23 +450,29 @@ func (self *NetworkSpace) applyInPlaceValues(values *NetworkSpaceValues) bool {
 // settings in place: the internal DoH cache is swapped and the extender
 // bootstrap queries the new servers from its next pass. Returns whether the
 // servers changed.
+//
+// The ingress dns callbacks run after the swap, outside the space's lock, with
+// the snapshot and revision taken with the change: a DeviceRemote bound to the
+// space hands the new values to its device (device_remote_ingress_dns.go).
 func (self *NetworkSpace) applyControlDohValues(values *NetworkSpaceValues) bool {
-	changed, closed := func() (bool, bool) {
+	changed, closed, ingressDns, ingressDnsRevision := func() (bool, bool, *DeviceRemoteIngressDns, uint64) {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
 		if !controlDohValuesChanged(&self.values, values) {
-			return false, self.closed
+			return false, self.closed, nil, 0
 		}
 		self.values.ControlDohUrlsIpv4 = slices.Clone(values.ControlDohUrlsIpv4)
 		self.values.ControlDohUrlsIpv6 = slices.Clone(values.ControlDohUrlsIpv6)
 		self.values.IngressCountryCode = values.IngressCountryCode
-		return true, self.closed
+		self.ingressDnsRevision += 1
+		return true, self.closed, newDeviceRemoteIngressDns(&self.values), self.ingressDnsRevision
 	}()
 	if !changed || closed {
 		return changed
 	}
 	current := self.valuesCopy()
 	self.clientStrategy.SetInternalDohSettings(spaceControlDohSettings(&current))
+	self.ingressDnsChanged(ingressDns, ingressDnsRevision)
 	return true
 }
 
@@ -545,8 +569,13 @@ func (self *NetworkSpace) valuesCopy() NetworkSpaceValues {
 // network, the space presents that key. A space without keeps it in memory,
 // seeded by whatever an embedder supplied through the device's key material,
 // so a headless host that saves the seed back keeps one identity across
-// restarts.
+// restarts. A space on an extender host has none.
 func (self *NetworkSpace) getOrCreateExtenderKeySeed() ([]byte, error) {
+	if self.extenderHost != nil {
+		// it runs no node and no extender role, so it has no identity to
+		// present, and making one would only hand an embedder a key to keep
+		return nil, nil
+	}
 	if self.asyncLocalState != nil {
 		localState := self.asyncLocalState.GetLocalState()
 		if networkId := self.currentExtenderKeyNetworkId(); networkId != (connect.Id{}) {
@@ -582,12 +611,13 @@ func (self *NetworkSpace) extenderIdentityKeySeed() []byte {
 
 // Installs the extender identity an embedder supplied through the device's key
 // material (G2, B1). A space that keeps local state has its own `.extender_key`
-// and ignores this, so an embedder never overwrites a persisted identity.
+// and ignores this, so an embedder never overwrites a persisted identity, and
+// a space on an extender host, which presents no identity, ignores it too.
 //
 // A member node the space built before this arrives is rebuilt on the new
 // identity, so the space never runs two identities at once.
 func (self *NetworkSpace) setExtenderKeySeed(extenderKeySeed []byte) {
-	if self.asyncLocalState != nil || len(extenderKeySeed) == 0 {
+	if self.asyncLocalState != nil || self.extenderHost != nil || len(extenderKeySeed) == 0 {
 		return
 	}
 	changed := func() bool {
@@ -606,10 +636,11 @@ func (self *NetworkSpace) setExtenderKeySeed(extenderKeySeed []byte) {
 
 // Installs the file an embedder keeps the extender measurement key in (C4). A
 // space that keeps local state keeps the key beside its own `.extender_key`
-// and ignores this. A role already running keeps the key it started with until
-// it restarts, as it does its identity.
+// and ignores this, as a space on an extender host, which runs no role, does.
+// A role already running keeps the key it started with until it restarts, as
+// it does its identity.
 func (self *NetworkSpace) setExtenderMeasurementKeyFile(extenderMeasurementKeyFile string) {
-	if self.asyncLocalState != nil || extenderMeasurementKeyFile == "" {
+	if self.asyncLocalState != nil || self.extenderHost != nil || extenderMeasurementKeyFile == "" {
 		return
 	}
 	self.stateLock.Lock()
@@ -759,6 +790,17 @@ func newNetworkSpaceWithConnectSettingsAndApiAlt(
 	if extenderDirectory != nil {
 		clientStrategySettings.ExtenderDirectory = extenderDirectory
 	}
+	// the webrtc carrier's dial side is on the strategy's settings before the
+	// strategy copies them (S8); a hosted space dials no webrtc extender
+	var extenderWebRtcDial *connect.WebRtcExtenderDialSignaling
+	if !hostedIncompatible {
+		extenderWebRtcDial = newSpaceExtenderWebRtcDial(
+			cancelCtx,
+			extenderDirectory,
+			&clientStrategySettings.ConnectSettings,
+			clientStrategySettings.Log,
+		)
+	}
 
 	clientStrategy := connect.NewClientStrategy(cancelCtx, clientStrategySettings)
 
@@ -791,8 +833,10 @@ func newNetworkSpaceWithConnectSettingsAndApiAlt(
 		api:                           api,
 		log:                           clientStrategySettings.ConnectSettings.Log,
 		extenderDirectory:             extenderDirectory,
+		extenderWebRtcDial:            extenderWebRtcDial,
 		extenderNodeMonitor:           connect.NewMonitor(),
 		extenderStatusChangeListeners: connect.NewCallbackList[ExtenderStatusChangeListener](),
+		ingressDnsChangeCallbacks:     connect.NewCallbackList[ingressDnsChangeCallback](),
 	}
 	// a reset the values bring that this storage has not applied -- one made
 	// in the app, for the space a tunnel process imports -- is applied before
@@ -828,8 +872,75 @@ func newNetworkSpaceWithConnectSettingsAndApiAlt(
 	networkSpace.startExtenderRelease()
 	networkSpace.startExtenderCamouflageReport()
 	networkSpace.startExtenderSeed()
+	// the account's sign-in requirement this storage kept from before a
+	// restart, reported from the space's start, device or not
+	if asyncLocalState != nil {
+		api.adoptStoredAccountSignInRequired(asyncLocalState.localState)
+	}
 	return networkSpace
 }
+
+// The dial side of the peer-to-peer webrtc extender carrier for a space
+// (EXTENDER.md S8): a carrier on connectSettings, which the space's strategy
+// is built from, whose resolver signals each dial through the client the
+// device sets (setExtenderWebRtcDialClient) to the rendezvous id the
+// extender's verified record carries. The signaling opens the directory's
+// webrtc gate only while a client is set, so the carrier is a second path of
+// a device with an exchange connection and never its first contact. Nil
+// without a directory.
+func newSpaceExtenderWebRtcDial(
+	ctx context.Context,
+	directory *connect.ExtenderDirectory,
+	connectSettings *connect.ConnectSettings,
+	log connect.Logger,
+) *connect.WebRtcExtenderDialSignaling {
+	if directory == nil {
+		return nil
+	}
+	signaling := connect.NewWebRtcExtenderDialSignaling(directory)
+	connectSettings.WebRtcExtenderCarrier = connect.NewWebRtcExtenderCarrier(
+		ctx,
+		newSpaceExtenderWebRtcDialSettings(log, mobileRuntime()),
+		signaling.Resolve,
+	)
+	return signaling
+}
+
+// The peer connection settings of a space's webrtc extender dials
+// (EXTENDER.md S8): the carrier's defaults (connect.
+// DefaultWebRtcExtenderSettings) under the space's log, and on a phone the
+// mobile policy's bound on their SCTP buffers
+// (applyMobileExtenderWebRtcDialSettingsForPlatform).
+func newSpaceExtenderWebRtcDialSettings(log connect.Logger, mobile bool) *connect.WebRtcSettings {
+	webRtcSettings := connect.DefaultWebRtcExtenderSettings()
+	webRtcSettings.Log = log
+	applyMobileExtenderWebRtcDialSettingsForPlatform(webRtcSettings, mobile)
+	return webRtcSettings
+}
+
+// Sets the client this device's webrtc extender dials signal through: its
+// provider client, whose exchange connection reaches the extenders' clients
+// (EXTENDER.md S8). A space without the dial side ignores it.
+func (self *NetworkSpace) setExtenderWebRtcDialClient(manager *connect.WebRtcManager, clientId connect.Id) {
+	if self == nil || self.extenderWebRtcDial == nil {
+		return
+	}
+	self.extenderWebRtcDial.SetClient(manager, clientId)
+}
+
+// Forgets the client a closing device signaled its webrtc extender dials
+// through, unless another device has set its own since.
+func (self *NetworkSpace) clearExtenderWebRtcDialClient(manager *connect.WebRtcManager) {
+	if self == nil || self.extenderWebRtcDial == nil {
+		return
+	}
+	self.extenderWebRtcDial.ClearClient(manager)
+}
+
+// testingExtenderDirectoryBuilt, when set, is called each time a space builds
+// the extender directory its stack is rooted at, so a test counts the stacks
+// its constructions built. Production never sets it.
+var testingExtenderDirectoryBuilt atomic.Pointer[func()]
 
 // The space's extender directory (E1, F1). It persists under the space's own
 // storage; without storage it runs in memory, which is what a headless or
@@ -850,6 +961,9 @@ func newSpaceExtenderDirectory(
 	directory := connect.NewExtenderDirectory(ctx, settings)
 	if rootKeySet := spaceExtenderRootKeySet(key, values); rootKeySet != nil {
 		directory.SetRootKeys(rootKeySet)
+	}
+	if hook := testingExtenderDirectoryBuilt.Load(); hook != nil {
+		(*hook)()
 	}
 	return directory
 }
@@ -1319,13 +1433,28 @@ func (self *NetworkSpace) newHostedClientStrategy(dnsMemoryTarget *connect.Memor
 }
 
 // The settings a strategy derived from the space's is built from: a hosted
-// device's private strategy and a provider's direct ones. They are what the
+// device's private strategy and a provider's egress ones. They are what the
 // space's strategy was built from, with the DoH settings that strategy has in
 // force now, which a bootstrap DoH change replaces in place.
 func (self *NetworkSpace) derivedClientStrategySettings() *connect.ClientStrategySettings {
 	settings := *self.clientStrategySettings
 	settings.DohSettings = self.clientStrategy.DohSettings()
 	return &settings
+}
+
+// The space's egress when it is a proxy, such as a proxy slot of the sn miner
+// (connect#227): the proxy, and the dial seam the space was built with beside
+// it, nil when it has none. Nil, nil for a space whose egress is this host,
+// which is every app's. Everything a device in a proxied space sends leaves
+// through the proxy (owner 2026-11-18, "route through the proxy"): its
+// platform transports, its exit's tcp, and udp only through the seam's packet
+// endpoint; it opens no p2p stream and never runs the provider extender role.
+// A nil space has no proxy.
+func (self *NetworkSpace) egressProxy() (*connect.ProxySettings, *connect.DialContextSettings) {
+	if self == nil || self.clientStrategySettings == nil || self.clientStrategySettings.ProxySettings == nil {
+		return nil, nil
+	}
+	return self.clientStrategySettings.ProxySettings, self.clientStrategySettings.DialContextSettings
 }
 
 func testing_newNetworkSpace(ctx context.Context) (networkSpace *NetworkSpace, byJwt string, returnErr error) {
@@ -1407,6 +1536,82 @@ func NewNetworkSpaceWithUrls(
 	platformUrl string,
 	clientStrategySettings *connect.ClientStrategySettings,
 ) *NetworkSpace {
+	return newNetworkSpaceWithUrls(ctx, apiUrl, platformUrl, clientStrategySettings, nil)
+}
+
+// NewNetworkSpaceWithUrlsOnExtenderHost builds a url-only space as
+// NewNetworkSpaceWithUrls does, except that it runs no extender stack of its
+// own and reads the one `extenderHost` runs (connect/EXTENDER.md E1-E3, D1).
+// It builds no directory, network client, gossip node, release fetch,
+// camouflage or block report, seed bootstrap or webrtc dial side. Its strategy
+// draws its extenders from the host's directory and only reads it (connect
+// `ClientStrategySettings.ExtenderDirectoryReadOnly`): the outcomes of its own
+// dials stay with it, since they are evidence of its own path, which may be a
+// proxy the host does not dial through. A device in the space presents no
+// extender identity and attests no probes, and the provider extender role
+// does not run there: those are the host's.
+//
+// For a process that runs many providers on one host, each through its own
+// proxy, such as the sn miner's slots, so the process runs one extender stack
+// instead of one per provider (connect#227). The host is a space of this
+// process built by NewNetworkSpaceWithUrls for the same network, and it must
+// outlive every space built on it. With no host, a closed one, or one that
+// runs no stack of its own for this space's network, the space runs its own
+// stack, as NewNetworkSpaceWithUrls builds it.
+//
+//gomobile:noexport
+func NewNetworkSpaceWithUrlsOnExtenderHost(
+	ctx context.Context,
+	apiUrl string,
+	platformUrl string,
+	clientStrategySettings *connect.ClientStrategySettings,
+	extenderHost *NetworkSpace,
+) *NetworkSpace {
+	return newNetworkSpaceWithUrls(ctx, apiUrl, platformUrl, clientStrategySettings, extenderHost)
+}
+
+// The space whose extender stack a space built on this one reads, for the
+// extender network `networkHost`: this space, or the host it reads itself,
+// when that one runs its own stack for that network and is open. Nil
+// otherwise, and for a nil space.
+func (self *NetworkSpace) extenderStackHost(networkHost string) *NetworkSpace {
+	if self == nil {
+		return nil
+	}
+	host := self
+	if self.extenderHost != nil {
+		host = self.extenderHost
+	}
+	if host.extenderDirectory == nil || host.hostedIncompatible {
+		return nil
+	}
+	values := host.valuesCopy()
+	if extenderNetworkHostName(&host.key, &values) != networkHost {
+		return nil
+	}
+	host.stateLock.Lock()
+	defer host.stateLock.Unlock()
+	if host.closed {
+		return nil
+	}
+	return host
+}
+
+// Whether this space reads another space's extender stack and runs none of
+// its own (NewNetworkSpaceWithUrlsOnExtenderHost).
+func (self *NetworkSpace) readsExtenderHost() bool {
+	return self != nil && self.extenderHost != nil
+}
+
+// The url-only space of NewNetworkSpaceWithUrls, on the extender stack of
+// `extenderHost` when that one can host it (extenderStackHost).
+func newNetworkSpaceWithUrls(
+	ctx context.Context,
+	apiUrl string,
+	platformUrl string,
+	clientStrategySettings *connect.ClientStrategySettings,
+	extenderHost *NetworkSpace,
+) *NetworkSpace {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	if clientStrategySettings == nil {
 		clientStrategySettings = connect.DefaultClientStrategySettings()
@@ -1439,10 +1644,17 @@ func NewNetworkSpaceWithUrls(
 	// dialers come from it (E2). The settings are copied first: installing
 	// anything into the caller's own settings would reach every other space
 	// built from the same value.
+	//
+	// A space on an extender host builds no directory: its strategy reads the
+	// host's.
 	altUrl := spaceAltUrl(&values, values.PlatformUrl)
 	var extenderDirectory *connect.ExtenderDirectory
-	if extenderNetworkHostName(&key, &values) != "" {
-		extenderDirectory = newSpaceExtenderDirectoryUnlessOptedOut(cancelCtx, &key, &values, nil, clientStrategySettings, log)
+	var sharedExtenderHost *NetworkSpace
+	if networkHost := extenderNetworkHostName(&key, &values); networkHost != "" {
+		sharedExtenderHost = extenderHost.extenderStackHost(networkHost)
+		if sharedExtenderHost == nil {
+			extenderDirectory = newSpaceExtenderDirectoryUnlessOptedOut(cancelCtx, &key, &values, nil, clientStrategySettings, log)
+		}
 	}
 	copiedSettings := *clientStrategySettings
 	// the space's own api, whose authenticated Date corrects the clock a
@@ -1453,12 +1665,20 @@ func NewNetworkSpaceWithUrls(
 		familyServiceUrl(values.ApiUrl, 6),
 	)
 	if extenderDirectory != nil {
+		// the space's own directory, which its strategy reports to
 		copiedSettings.ExtenderDirectory = extenderDirectory
+		copiedSettings.ExtenderDirectoryReadOnly = false
+	} else if sharedExtenderHost != nil {
+		copiedSettings.ExtenderDirectory = sharedExtenderHost.extenderDirectory
+		copiedSettings.ExtenderDirectoryReadOnly = true
 	} else if extenderNetworkOptedOut(clientStrategySettings) {
 		// the copy carries a caller-supplied directory; drop it for a space
 		// that opted out, so the copy matches the opted-out paths below
 		copiedSettings.ExtenderDirectory = nil
 	}
+	// the webrtc carrier's dial side, on the copy the strategy is built from
+	// (S8)
+	extenderWebRtcDial := newSpaceExtenderWebRtcDial(cancelCtx, extenderDirectory, &copiedSettings.ConnectSettings, log)
 	if altUrl != "" {
 		copiedSettings.AltUrl = altUrl
 	}
@@ -1485,8 +1705,11 @@ func NewNetworkSpaceWithUrls(
 		api:                           api,
 		log:                           log,
 		extenderDirectory:             extenderDirectory,
+		extenderWebRtcDial:            extenderWebRtcDial,
+		extenderHost:                  sharedExtenderHost,
 		extenderNodeMonitor:           connect.NewMonitor(),
 		extenderStatusChangeListeners: connect.NewCallbackList[ExtenderStatusChangeListener](),
+		ingressDnsChangeCallbacks:     connect.NewCallbackList[ingressDnsChangeCallback](),
 	}
 	if extenderDirectory != nil {
 		role := extenderRole(extenderGossipMode(nil))
@@ -1909,6 +2132,12 @@ func (self *NetworkSpace) close() {
 		// the seed bootstrap applies to the directory and writes its store, so
 		// it is joined before both close
 		self.closeExtenderSeed()
+		// the strategy dials through the carrier, which the context above
+		// already ends; closing it joins a dial in flight and releases its
+		// peer connection factory
+		if carrier := self.clientStrategySettings.ConnectSettings.WebRtcExtenderCarrier; carrier != nil && self.extenderWebRtcDial != nil {
+			carrier.Close()
+		}
 		if self.extenderDirectory != nil {
 			self.extenderDirectory.Close()
 		}

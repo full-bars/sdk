@@ -94,8 +94,20 @@ export interface ProxyConfigResult {
   api_port?: number;
   auth_token?: string;
   wg_config?: WgConfig | null;
+  exit?: ProxyExit | null;
   http_proxy_auth: ProxyAuthResult | null;
   socks_proxy_auth: ProxyAuthResult | null;
+}
+
+export interface ProxyExit {
+  exit_id?: string | null;
+  country_code?: string;
+  region?: string;
+  city?: string;
+  exit_since?: string | null;
+  state: string;
+  state_reason?: string;
+  replace_mode: string;
 }
 
 export interface WgConfig {
@@ -108,6 +120,7 @@ export interface WgConfig {
 }
 
 export interface ApiError {
+  code?: string;
   message: string;
 }
 
@@ -119,12 +132,16 @@ export interface SessionLastUsed {
   country_code: string;
   device_type: string;
   app_version: string;
+  distribution: string;
+  device_kind: string;
 }
 
 export interface NetworkSessionInfo {
   session_id: string | null;
   current: boolean;
   kind: string;
+  session_kind: string;
+  client_kind: string;
   create_time: string | null;
   last_mint_time: string | null;
   token_expire_time: string | null;
@@ -144,6 +161,7 @@ export interface NetworkSessionsResult {
   event_id: number;
   current_session_id: string | null;
   legacy_coverage: string;
+  next_cursor: string;
 }
 
 export interface SessionOperationResult {
@@ -162,6 +180,7 @@ export interface SessionSignOutResult {
   operation_id: string | null;
   revocation_confirmed: boolean;
   credential_cleared: boolean;
+  client_removed: boolean;
 }
 
 export interface ClientSessionError {
@@ -182,8 +201,21 @@ export interface ClientSessionAction {
   error: ClientSessionError | null;
 }
 
+export interface ClientSessionGroup {
+  kind: string;
+  count: number;
+  expanded: boolean;
+  sessions: NetworkSessionInfo[] | null;
+  has_more: boolean;
+}
+
 export interface ClientSessionSnapshot {
   sessions: NetworkSessionInfo[] | null;
+  session_count: number;
+  sessions_has_more: boolean;
+  groups: ClientSessionGroup[] | null;
+  other_session_count: number;
+  truncated: boolean;
   current_session_id: string | null;
   legacy_coverage: string;
   generation: string;
@@ -211,6 +243,7 @@ export interface ClientInfo {
   device_type: string;
   app_version: string;
   sdk_version?: string;
+  distribution?: string;
 }
 
 export interface GetPointsLeaderboardArgs {
@@ -308,6 +341,8 @@ export interface AuthLoginWithPasswordArgs {
   user_auth: string;
   password: string;
   verify_otp_numeric?: boolean;
+  time_zone?: string;
+  locales?: string[] | null;
 }
 
 export interface AuthLoginWithPasswordResult {
@@ -333,6 +368,8 @@ export interface AuthLoginArgs {
   wallet_auth?: WalletAuthArgs | null;
   seedphrase?: string;
   result_errors?: boolean;
+  time_zone?: string;
+  locales?: string[] | null;
 }
 
 export interface NetworkCheckArgs {
@@ -357,6 +394,8 @@ export interface NetworkCreateArgs {
   balance_code?: string;
   wallet_auth?: WalletAuthArgs | null;
   result_errors?: boolean;
+  time_zone?: string;
+  locales?: string[] | null;
 }
 
 export interface NetworkCreateResult {
@@ -555,6 +594,8 @@ export interface AuthLoginResultNetwork {
 export interface AuthVerifyArgs {
   user_auth: string;
   verify_code: string;
+  time_zone?: string;
+  locales?: string[] | null;
 }
 
 export interface AuthVerifyResult {
@@ -599,7 +640,10 @@ export interface ProviderSpec {
 export interface AuthNetworkClientError {
   client_limit_exceeded: boolean;
   upgrade_required?: boolean;
+  no_unique_supply?: boolean;
+  code?: string;
   message: string;
+  client_limit_prompt?: string;
 }
 
 export interface AuthNetworkClientArgs {
@@ -612,6 +656,7 @@ export interface AuthNetworkClientArgs {
   proxy_config?: ProxyConfig | null;
   time_zone?: string;
   locale?: string;
+  locales?: string[] | null;
   provide_intent?: boolean;
 }
 
@@ -623,6 +668,8 @@ export interface ProxyConfig {
   http_require_auth: boolean;
   https_require_auth: boolean;
   enable_wg: boolean;
+  unique_exit?: boolean;
+  unique_exit_replace?: string;
   initial_device_state: ProxyDeviceState | null;
 }
 
@@ -781,6 +828,7 @@ export interface SnChainSettings {
   chain_id: number;
   vault_address: string;
   vault2_address: string;
+  claim_batcher_address: string;
   coordinator_address: string;
   no_id: string;
   netuid: number;
@@ -924,6 +972,8 @@ export interface SnClaimsResult {
 export interface SnLedgerAccount {
   vault: string;
   no_id: number;
+  kind: string;
+  label: string;
   index: number;
   finalized_rao: number;
   claimable_rao: number;
@@ -932,8 +982,17 @@ export interface SnLedgerAccount {
   pending_rao: number;
 }
 
+export interface SnLedgerUnavailablePool {
+  vault: string;
+  no_id: number;
+  kind: string;
+  label: string;
+}
+
 export interface SnLedgerAccountsResult {
   accounts: SnLedgerAccount[] | null;
+  unavailable_pools: SnLedgerUnavailablePool[] | null;
+  partial: boolean;
   coldkey_ss58?: string;
   error?: SnError | null;
 }
@@ -958,6 +1017,89 @@ export interface SnLedgerUnsignedTx {
   value: string;
   amount_rao: number;
   gas: number;
+  vault: string;
+  batch: boolean;
+  items: SnLedgerClaimItem[] | null;
+}
+
+export interface SnLedgerClaimItem {
+  no_id: number;
+  index: number;
+  root_index: number;
+  kind: string;
+  label: string;
+  amount_rao: number;
+}
+
+export interface SnLedgerClaimOutcome {
+  no_id: number;
+  index: number;
+  status: string;
+  amount_rao: number;
+  message?: string;
+}
+
+export interface SnLedgerClaimTransactionsResult {
+  transactions: SnLedgerUnsignedTx[] | null;
+  still_claimable: SnLedgerClaimOutcome[] | null;
+  payer_address: string;
+  payer_balance_wei: string;
+  fee_per_gas_wei: string;
+  max_cost_wei: string;
+  all_cost_wei: string;
+  needs_gas: boolean;
+}
+
+export interface SnCtfClientRole {
+  role: string;
+  candidate: boolean;
+  reason?: string;
+  country?: string;
+  unit_family?: number;
+  presence_present: number;
+  presence_required: number;
+  presence_samples: number;
+  presence_excused: number;
+  units_in_draw?: number;
+  won: boolean;
+  rank?: number;
+  slot_rao: number;
+  pot_share_rao: number;
+  pending: boolean;
+  coldkey_ss58?: string;
+}
+
+export interface SnCtfClientEpoch {
+  epoch: number;
+  drawn: boolean;
+  root_status: string;
+  provider: SnCtfClientRole | null;
+  extender: SnCtfClientRole | null;
+}
+
+export interface SnCtfWin {
+  epoch: number;
+  role: string;
+  country: string;
+  rank: number;
+  slot_rao: number;
+  pot_share_rao: number;
+  amount_rao: number;
+  pending: boolean;
+  root_status: string;
+  coldkey_ss58: string;
+  client_id: string;
+  claim_state: string;
+}
+
+export interface SnCtfClientResult {
+  client_id: string;
+  as_of_millis: number;
+  epochs: SnCtfClientEpoch[] | null;
+  wins: SnCtfWin[] | null;
+  unclaimed_wins: SnCtfWin[] | null;
+  latest_win?: SnCtfWin | null;
+  error?: SnError | null;
 }
 
 export interface SnEpochResult {
@@ -983,11 +1125,31 @@ export interface AccountEpoch {
   points: number;
   share_bps: number;
   rank?: number;
+  served_byte_count: number;
+}
+
+export interface AccountCurrentEpoch {
+  epoch: number;
+  start_millis: number;
+  end_millis: number;
+  served_byte_count: number;
+  as_of_millis: number;
+}
+
+export interface AccountCurrentBlock {
+  block_number: number;
+  start_millis: number;
+  end_millis: number;
+  served_byte_count: number;
+  as_of_millis: number;
+  epoch: number;
 }
 
 export interface AccountEpochsResult {
   epochs: AccountEpoch[] | null;
   total_points?: number;
+  current_epoch?: AccountCurrentEpoch | null;
+  current_block?: AccountCurrentBlock | null;
   error?: SnError | null;
 }
 
@@ -997,6 +1159,10 @@ export interface SnHeadResult {
   floor: number;
   rank_estimate: number;
   cutoff: number;
+  in_head: boolean;
+  measurable: boolean;
+  not_measurable_reason: string;
+  claim_prompt: boolean;
   bound: boolean;
   hotkey?: string;
   uid?: number;

@@ -150,6 +150,8 @@ inline constexpr int64_t AsyncQueueSize = 32;
 inline constexpr const char* AuthLogoutCauseSessionRevoked = "session_revoked";
 inline constexpr const char* AuthVerifySendErrorCodeRateLimited = "verify_rate_limited";
 inline constexpr const char* AuthVerifySendErrorCodeSendFailed = "verify_send_failed";
+inline constexpr const char* BalanceCodeKindData = "data";
+inline constexpr const char* BalanceCodeKindProGift = "pro_gift";
 inline constexpr int64_t BalanceCodeLength = 26;
 inline constexpr const char* BalanceCodeRedeemOutcomeAlreadyRedeemed = "already_redeemed";
 inline constexpr const char* BalanceCodeRedeemOutcomeInvalid = "invalid";
@@ -284,10 +286,35 @@ inline constexpr const char* CheckoutBridgeErrorStripeUnavailable = "stripe_unav
 inline constexpr const char* CheckoutBridgeErrorUnavailable = "checkout_unavailable";
 inline constexpr const char* CheckoutBridgeUrl = "https://ur.io/checkout";
 inline constexpr const char* CheckoutRedirectLink = "urnetwork://checkout";
+inline constexpr const char* ClientDistributionAndroidDirect = "android_direct";
+inline constexpr const char* ClientDistributionAppStore = "app_store";
+inline constexpr const char* ClientDistributionEthosDapp = "ethos_dapp";
+inline constexpr const char* ClientDistributionExtensionChrome = "extension_chrome";
+inline constexpr const char* ClientDistributionExtensionFirefox = "extension_firefox";
+inline constexpr const char* ClientDistributionLinux = "linux";
+inline constexpr const char* ClientDistributionLinuxAppimage = "linux_appimage";
+inline constexpr const char* ClientDistributionLinuxFlatpak = "linux_flatpak";
+inline constexpr const char* ClientDistributionMacDirect = "mac_direct";
+inline constexpr const char* ClientDistributionPlay = "play";
+inline constexpr const char* ClientDistributionSolanaDapp = "solana_dapp";
+inline constexpr const char* ClientDistributionWeb = "web";
+inline constexpr const char* ClientDistributionWindows = "windows";
 inline constexpr int64_t ClientEventFlushIntervalMillis = 30000;
 inline constexpr int64_t ClientEventMaxAttempts = 3;
+inline constexpr const char* ClientLimitNoticeNone = "";
+inline constexpr const char* ClientLimitNoticePost = "post";
+inline constexpr const char* ClientLimitNoticeRemove = "remove";
+inline constexpr const char* ClientLimitNoticeUpdate = "update";
+inline constexpr const char* ClientLimitPromptNone = "";
+inline constexpr const char* ClientLimitPromptRemoveClient = "remove_client";
+inline constexpr const char* ClientLimitPromptUpgrade = "upgrade";
 inline constexpr const char* ClientLimitStatusExceeded = "client_limit_exceeded";
 inline constexpr const char* ClientLimitStatusNone = "";
+inline constexpr const char* ClientSessionGroupApiClients = "api_clients";
+inline constexpr const char* ClientSessionGroupHostedProxies = "hosted_proxies";
+inline constexpr const char* ClientSessionGroupOtherClients = "other_clients";
+inline constexpr const char* ClientSessionGroupPairedDevices = "paired_devices";
+inline constexpr const char* ClientSessionGroupSignIns = "sign_ins";
 inline constexpr const char* ConnectFailed = "CONNECT_FAILED";
 inline constexpr const char* Connected = "CONNECTED";
 inline constexpr const char* Connecting = "CONNECTING";
@@ -297,9 +324,20 @@ inline constexpr const char* ControlDohErrorHttpsRequired = "control_doh_error_h
 inline constexpr const char* ControlDohErrorIpRequired = "control_doh_error_ip_required";
 inline constexpr const char* ControlDohErrorTooMany = "control_doh_error_too_many";
 inline constexpr const char* ControlDohErrorUrlInvalid = "control_doh_error_url_invalid";
+inline constexpr const char* CryptoAssetBtc = "btc";
+inline constexpr const char* CryptoAssetEth = "eth";
+inline constexpr const char* CryptoAssetSol = "sol";
+inline constexpr const char* CryptoAssetTao = "tao";
 inline constexpr const char* CryptoAssetUsdcSolana = "usdc_solana";
 inline constexpr const char* CryptoAssetXmr = "xmr";
 inline constexpr const char* CryptoAssetZec = "zec";
+inline constexpr const char* CryptoIconKeyBtc = "coin_btc";
+inline constexpr const char* CryptoIconKeyEth = "coin_eth";
+inline constexpr const char* CryptoIconKeySol = "coin_sol";
+inline constexpr const char* CryptoIconKeyTao = "coin_tao";
+inline constexpr const char* CryptoIconKeyUsdc = "coin_usdc";
+inline constexpr const char* CryptoIconKeyXmr = "coin_xmr";
+inline constexpr const char* CryptoIconKeyZec = "coin_zec";
 inline constexpr const char* CryptoInvoicePhaseFailed = "failed";
 inline constexpr const char* CryptoInvoicePhaseNone = "none";
 inline constexpr const char* CryptoInvoicePhaseOpen = "open";
@@ -315,12 +353,42 @@ inline constexpr const char* CryptoPaymentStatusPending = "pending";
 inline constexpr const char* CryptoPaymentStatusReview = "review";
 inline constexpr const char* CryptoPaymentStatusSeen = "seen";
 inline constexpr const char* CryptoPaymentStatusUnknown = "unknown";
+inline constexpr const char* CryptoPaymentStepCurrent = "current";
+inline constexpr const char* CryptoPaymentStepDone = "done";
+inline constexpr const char* CryptoPaymentStepUpcoming = "upcoming";
+inline constexpr const char* CryptoPaymentTabMoreCoins = "more_coins";
 inline constexpr const char* DefaultTunnelDnsAddressIpv6 = "2001:db8::65:49:70:65";
 inline constexpr const char* DestinationSet = "DESTINATION_SET";
 inline constexpr int64_t DeviceRpcVersion = 3;
 inline constexpr int64_t DeviceRpcWsBinary = 2;
 inline constexpr int64_t DeviceRpcWsPing = 9;
 inline constexpr const char* Disconnected = "DISCONNECTED";
+inline constexpr const char* DnsPickKindCustom = "custom";
+inline constexpr const char* DnsPickKindDefault = "default";
+inline constexpr const char* DnsPickKindPreset = "preset";
+inline constexpr const char* DnsPickKindRegional = "regional";
+inline constexpr const char* DnsPresetErrorPersonalIdInvalid = "dns_preset_error_personal_id_invalid";
+inline constexpr const char* DnsPresetErrorPersonalIdNotAccepted = "dns_preset_error_personal_id_not_accepted";
+inline constexpr const char* DnsPresetErrorPersonalIdOtherProvider = "dns_preset_error_personal_id_other_provider";
+inline constexpr const char* DnsPresetErrorPersonalIdRequired = "dns_preset_error_personal_id_required";
+inline constexpr const char* DnsPresetErrorUnknown = "dns_preset_error_unknown";
+inline constexpr const char* DnsPresetGroupAdblock = "adblock";
+inline constexpr const char* DnsPresetGroupFamily = "family";
+inline constexpr const char* DnsPresetGroupPersonal = "personal";
+inline constexpr const char* DnsPresetGroupSecurity = "security";
+inline constexpr const char* DnsPresetGroupUnfiltered = "unfiltered";
+inline constexpr const char* DnsPresetIdDefault = "default";
+inline constexpr const char* DnsPresetIdRegionalPrefix = "regional-";
+inline constexpr const char* DnsResolverStateFailedOver = "failedOver";
+inline constexpr const char* DnsResolverStateFailing = "failing";
+inline constexpr const char* DnsResolverStateOk = "ok";
+inline constexpr const char* DnsResolverStateUnknown = "unknown";
+inline constexpr const char* DnsResolverVerificationConfirmed = "confirmed";
+inline constexpr const char* DnsResolverVerificationMalformed = "malformed";
+inline constexpr const char* DnsResolverVerificationNone = "none";
+inline constexpr const char* DnsResolverVerificationNotFiltering = "notFiltering";
+inline constexpr const char* DnsResolverVerificationRejected = "rejected";
+inline constexpr const char* DnsResolverVerificationUnconfirmed = "unconfirmed";
 inline constexpr int64_t EmojiTagMaxCount = 6;
 inline constexpr const char* EmojiTagReasonEmpty = "empty";
 inline constexpr const char* EmojiTagReasonNotEmoji = "not_emoji";
@@ -347,12 +415,16 @@ inline constexpr const char* EventPurchaseFailed = "purchase.failed";
 inline constexpr const char* EventPurchaseStarted = "purchase.started";
 inline constexpr const char* EventSignupOptoutChanged = "signup.optout_changed";
 inline constexpr const char* EventStoreApple = "apple";
+inline constexpr const char* EventStoreBitcoin = "bitcoin";
+inline constexpr const char* EventStoreBittensor = "bittensor";
+inline constexpr const char* EventStoreEthereum = "ethereum";
 inline constexpr const char* EventStoreMonero = "monero";
 inline constexpr const char* EventStorePlay = "play";
 inline constexpr const char* EventStoreSolana = "solana";
 inline constexpr const char* EventStoreStripe = "stripe";
 inline constexpr const char* EventStoreZcash = "zcash";
 inline constexpr const char* EventWidgetAdded = "widget.added";
+inline constexpr const char* ExitWindowTypeLimited = "limited";
 inline constexpr const char* ExperimentSurfaceEmailSequence = "email.sequence";
 inline constexpr const char* ExperimentSurfaceOfferAccount = "offer.account";
 inline constexpr const char* ExperimentSurfaceOfferEmail = "offer.email";
@@ -368,6 +440,11 @@ inline constexpr const char* ExtenderGossipStateConnecting = "connecting";
 inline constexpr const char* ExtenderGossipStateDisconnected = "disconnected";
 inline constexpr const char* ExtenderImportErrorForeignHost = "import_extenders_foreign_host";
 inline constexpr const char* ExtenderImportErrorInvalid = "import_extenders_invalid";
+inline constexpr const char* ExtenderPortMappingFailed = "failed";
+inline constexpr const char* ExtenderPortMappingMapped = "mapped";
+inline constexpr const char* ExtenderPortMappingMapping = "mapping";
+inline constexpr const char* ExtenderPortMappingNotNeeded = "not_needed";
+inline constexpr const char* ExtenderPortMappingOff = "off";
 inline constexpr const char* ExtenderProvideErrorActivationFailed = "activation_failed";
 inline constexpr const char* ExtenderProvideErrorActivationRefused = "activation_refused";
 inline constexpr const char* ExtenderProvideErrorActivationUnreachable = "activation_unreachable";
@@ -443,6 +520,12 @@ inline constexpr int64_t LogVerbosityTrace = 2;
 inline constexpr int64_t LogVerbosityVerbose = 1;
 inline constexpr int64_t LowMemoryDeviceTargetByteCount = 33554432;
 inline constexpr const char* MATIC = "MATIC";
+inline constexpr const char* ManageDevicesErrorLoadFailed = "load_failed";
+inline constexpr const char* ManageDevicesErrorNone = "";
+inline constexpr const char* ManageDevicesErrorRemoveFailed = "remove_failed";
+inline constexpr const char* ManageDevicesErrorSignInRequired = "sign_in_required";
+inline constexpr const char* ManagedDeviceKindDevice = "device";
+inline constexpr const char* ManagedDeviceKindProxy = "proxy";
 inline constexpr int64_t MaxClientEventsPerCall = 200;
 inline constexpr const char* NetworkClientRegistrationSchema = "urnetwork-client-registration-v1";
 inline constexpr const char* OfferDeclineControlBack = "back";
@@ -481,6 +564,18 @@ inline constexpr const char* PriceTierSourceDefault = "default";
 inline constexpr const char* PriceTierSourceIp = "ip";
 inline constexpr const char* PriceTierSourceStorefront = "storefront";
 inline constexpr const char* PriceTierStandard = "standard";
+inline constexpr const char* ProFeatureSocksProxy = "socks_proxy";
+inline constexpr const char* ProFeatureWireguardProxy = "wireguard_proxy";
+inline constexpr const char* ProFeaturesErrorLoadFailed = "load_failed";
+inline constexpr const char* ProFeaturesErrorNone = "";
+inline constexpr const char* ProFeaturesErrorSignInRequired = "sign_in_required";
+inline constexpr const char* ProFeaturesNoticeNone = "";
+inline constexpr const char* ProFeaturesNoticePost = "post";
+inline constexpr const char* ProFeaturesNoticeRemove = "remove";
+inline constexpr const char* ProFeaturesNoticeUpdate = "update";
+inline constexpr const char* ProFeaturesPromptNone = "";
+inline constexpr const char* ProFeaturesPromptStopped = "stopped";
+inline constexpr const char* ProFeaturesPromptUpgrade = "upgrade";
 inline constexpr const char* ProvideControlModeAlways = "always";
 inline constexpr const char* ProvideControlModeAuto = "auto";
 inline constexpr const char* ProvideControlModeManual = "manual";
@@ -514,6 +609,9 @@ inline constexpr const char* ProviderStatusNumberWeightQuality = "weight_quality
 inline constexpr const char* ProviderStatusNumberWeightSpeed = "weight_speed";
 inline constexpr const char* ProviderStatusReasonEgressFailing = "egress_failing";
 inline constexpr const char* ProviderStatusReasonEgressUnprobed = "egress_unprobed";
+inline constexpr const char* ProviderStatusReasonLineIpv4 = "ipv4";
+inline constexpr const char* ProviderStatusReasonLineTcp = "tcp";
+inline constexpr const char* ProviderStatusReasonLineText = "text";
 inline constexpr const char* ProviderStatusReasonLocationInvalid = "location_invalid";
 inline constexpr const char* ProviderStatusReasonNetworkOnly = "network_only";
 inline constexpr const char* ProviderStatusReasonNone = "none";
@@ -524,6 +622,18 @@ inline constexpr const char* ProviderStatusReasonReliabilityLow = "reliability_l
 inline constexpr const char* ProviderStatusReasonReliabilityWarmingUp = "reliability_warming_up";
 inline constexpr const char* ProviderStatusReasonSlow = "slow";
 inline constexpr const char* ProviderStatusReasonSpeedTestMissing = "speed_test_missing";
+inline constexpr const char* ProxyExitStateAssigned = "assigned";
+inline constexpr const char* ProxyExitStateNoSupply = "no_supply";
+inline constexpr const char* ProxyExitStateReasonCap = "cap";
+inline constexpr const char* ProxyExitStateReasonCollision = "collision";
+inline constexpr const char* ProxyExitStateReasonManual = "manual";
+inline constexpr const char* ProxyExitStateReasonNoSupply = "no_supply";
+inline constexpr const char* ProxyExitStateReasonOffline = "offline";
+inline constexpr const char* ProxyExitStateReasonUnreachable = "unreachable";
+inline constexpr const char* ProxyExitStateReasonVerdict = "verdict";
+inline constexpr const char* ProxyExitStateReplacing = "replacing";
+inline constexpr const char* ProxyUniqueExitReplaceAuto = "auto";
+inline constexpr const char* ProxyUniqueExitReplaceManual = "manual";
 inline constexpr const char* PurchaseConfirmationGiveUpReasonNotReflected = "not_reflected";
 inline constexpr const char* PurchaseConfirmationGiveUpReasonUnreachable = "unreachable";
 inline constexpr const char* PurchaseConfirmationStateConfirmationGaveUp = "confirmation_gave_up";
@@ -532,7 +642,9 @@ inline constexpr const char* PurchaseConfirmationStateIdle = "idle";
 inline constexpr const char* PurchaseConfirmationStateWaitingForConfirmation = "waiting_for_confirmation";
 inline constexpr const char* PurchaseErrorCodeAssetUnavailable = "asset_unavailable";
 inline constexpr const char* PurchaseErrorCodeGuestSignInRequired = "guest_sign_in_required";
+inline constexpr const char* PurchaseErrorCodeIncorrectCvc = "incorrect_cvc";
 inline constexpr const char* PurchaseErrorCodeQuoteExpired = "quote_expired";
+inline constexpr const char* PurchaseErrorCodeSandboxPurchase = "sandbox_purchase";
 inline constexpr const char* PurchaseErrorCodeUnderpaid = "underpaid";
 inline constexpr const char* PurchaseReportStatusAlreadyCredited = "already_credited";
 inline constexpr const char* PurchaseReportStatusCredited = "credited";
@@ -545,6 +657,11 @@ inline constexpr int64_t RoutingTierFull = 2;
 inline constexpr int64_t RoutingTierLight = 1;
 inline constexpr int64_t RoutingTierOff = 0;
 inline constexpr const char* SOL = "SOL";
+inline constexpr const char* SessionDeviceKindExtension = "extension";
+inline constexpr const char* SessionErrorCodeLimitReached = "session_limit_reached";
+inline constexpr const char* ShownPlanFree = "free";
+inline constexpr const char* ShownPlanPro = "pro";
+inline constexpr const char* ShownPlanUnknown = "unknown";
 inline constexpr const char* SnAlphaSymbol = "SN25α";
 inline constexpr int64_t SnChainIdMainnet = 964;
 inline constexpr int64_t SnChainIdTestnet = 945;
@@ -569,6 +686,22 @@ inline constexpr const char* SnClaimStatusClaimed = "claimed";
 inline constexpr const char* SnClaimStatusExpired = "expired";
 inline constexpr const char* SnClaimStatusNotFinalized = "not-finalized";
 inline constexpr const char* SnClaimStatusOpen = "open";
+inline constexpr const char* SnCtfReasonCountryChanged = "country_changed";
+inline constexpr const char* SnCtfReasonDuplicateAddress = "duplicate_address";
+inline constexpr const char* SnCtfReasonHeadBound = "head_bound";
+inline constexpr const char* SnCtfReasonInactive = "inactive";
+inline constexpr const char* SnCtfReasonNoLocation = "no_location";
+inline constexpr const char* SnCtfReasonNoWallet = "no_wallet";
+inline constexpr const char* SnCtfReasonNotInRole = "not_in_role";
+inline constexpr const char* SnCtfReasonNotPublic = "not_public";
+inline constexpr const char* SnCtfReasonOfflineAtEnd = "offline_at_end";
+inline constexpr const char* SnCtfReasonOwnNetwork = "own_network";
+inline constexpr const char* SnCtfReasonPresence = "presence";
+inline constexpr const char* SnCtfRoleExtender = "extender";
+inline constexpr const char* SnCtfRoleProvider = "provider";
+inline constexpr const char* SnCtfWinClaimStateClaimed = "claimed";
+inline constexpr const char* SnCtfWinClaimStateUnclaimed = "unclaimed";
+inline constexpr const char* SnCtfWinClaimStateUnknown = "unknown";
 inline constexpr const char* SnErrorCodeAlreadyClaimed = "already_claimed";
 inline constexpr const char* SnErrorCodeArtifactUnavailable = "artifact_unavailable";
 inline constexpr const char* SnErrorCodeChainNotConfigured = "chain_not_configured";
@@ -577,6 +710,7 @@ inline constexpr const char* SnErrorCodeChainRpcUnreachable = "chain_rpc_unreach
 inline constexpr const char* SnErrorCodeChallengeExpired = "challenge_expired";
 inline constexpr const char* SnErrorCodeClaimFailed = "claim_failed";
 inline constexpr const char* SnErrorCodeConnectWalletFirst = "connect_wallet_first";
+inline constexpr const char* SnErrorCodeCtfUnavailable = "ctf_unavailable";
 inline constexpr const char* SnErrorCodeExpired = "claims_for_epoch_expired";
 inline constexpr const char* SnErrorCodeInvalidAddress = "invalid_ss58_address";
 inline constexpr const char* SnErrorCodeLedgerUnavailable = "ledger_unavailable";
@@ -610,6 +744,7 @@ inline constexpr const char* SnFleetClaimStageNeedsTap = "needs_tap";
 inline constexpr const char* SnFleetClaimStageNeedsWalletAuthorization = "needs_wallet_authorization";
 inline constexpr const char* SnFleetClaimStageNeedsWalletRegistration = "needs_wallet_registration";
 inline constexpr const char* SnFleetClaimStageNoConsent = "no_consent";
+inline constexpr const char* SnFleetClaimStageNotPrompted = "not_prompted";
 inline constexpr const char* SnFleetClaimStageRegistering = "registering";
 inline constexpr const char* SnFleetClaimStageWaitingBurn = "waiting_burn";
 inline constexpr const char* SnFleetClaimStageWaitingDevices = "waiting_devices";
@@ -634,6 +769,13 @@ inline constexpr const char* SnFleetRefusalNotAuthorized = "hotkey_not_authorize
 inline constexpr const char* SnFleetRefusalOtherClient = "other_client";
 inline constexpr const char* SnFleetRefusalOtherClientKey = "other_client_key";
 inline constexpr const char* SnFleetRefusalStateUnreadable = "state_unreadable";
+inline constexpr const char* SnLedgerClaimOutcomeConfirmed = "confirmed";
+inline constexpr const char* SnLedgerClaimOutcomeFailed = "failed";
+inline constexpr const char* SnLedgerClaimOutcomeNotAttempted = "not_attempted";
+inline constexpr const char* SnLedgerClaimOutcomeStillClaimable = "still_claimable";
+inline constexpr int64_t SnLedgerCtfPoolIdBase = 4294967296;
+inline constexpr const char* SnLedgerPoolKindCtf = "ctf";
+inline constexpr const char* SnLedgerPoolKindPool = "pool";
 inline constexpr int64_t SnNetworkConsentEpochSpan = 65535;
 inline constexpr int64_t SnRaoPerAlpha = 1000000000;
 inline constexpr int64_t SnSs58Prefix = 42;
@@ -661,6 +803,25 @@ inline constexpr const char* SolanaWalletBridgeErrorNoAccount = "no_account";
 inline constexpr const char* SolanaWalletBridgeErrorSessionNotFound = "session_not_found";
 inline constexpr const char* SolanaWalletBridgeErrorUserRejected = "user_rejected";
 inline constexpr const char* SolanaWalletBridgeErrorWallet = "wallet_error";
+inline constexpr const char* SolanaWalletFailureExtensionNotFound = "extension_not_found";
+inline constexpr const char* SolanaWalletFailureMessageExtensionNotFound = "bittensor_error_extension_not_found";
+inline constexpr const char* SolanaWalletFailureMessageNoAccount = "bittensor_error_no_account";
+inline constexpr const char* SolanaWalletFailureMessageNoWallet = "no_wallets_found_alert_content";
+inline constexpr const char* SolanaWalletFailureMessageSessionNotFound = "solana_wallet_error_session_not_found";
+inline constexpr const char* SolanaWalletFailureMessageUserRejected = "bittensor_error_user_rejected";
+inline constexpr const char* SolanaWalletFailureMessageWallet = "bittensor_error_wallet_failed";
+inline constexpr const char* SolanaWalletFailureMessageWalletAppNotFound = "couldnt_open_wallet";
+inline constexpr const char* SolanaWalletFailureNoAccount = "no_account";
+inline constexpr const char* SolanaWalletFailureNoWallet = "no_wallet";
+inline constexpr const char* SolanaWalletFailureSessionNotFound = "session_not_found";
+inline constexpr const char* SolanaWalletFailureSourceApp = "app";
+inline constexpr const char* SolanaWalletFailureSourceBridge = "bridge";
+inline constexpr const char* SolanaWalletFailureSourceBrowser = "browser";
+inline constexpr const char* SolanaWalletFailureSourceMobileWalletAdapter = "mobile_wallet_adapter";
+inline constexpr const char* SolanaWalletFailureSourceWalletApp = "wallet_app";
+inline constexpr const char* SolanaWalletFailureUserRejected = "user_rejected";
+inline constexpr const char* SolanaWalletFailureWallet = "wallet_error";
+inline constexpr const char* SolanaWalletFailureWalletAppNotFound = "wallet_app_not_found";
 inline constexpr const char* StripeCustomerPortalFlowPaymentMethodUpdate = "payment_method_update";
 inline constexpr const char* StripeIntentTypePayment = "payment";
 inline constexpr const char* StripeIntentTypeSetup = "setup";
@@ -675,6 +836,7 @@ inline constexpr int64_t SubprotocolReservedLimit = 1024;
 inline constexpr const char* SubscriptionPlanSupporter = "supporter";
 inline constexpr const char* SubscriptionStoreApple = "apple";
 inline constexpr const char* SubscriptionStoreCrypto = "crypto";
+inline constexpr const char* SubscriptionStoreGift = "gift";
 inline constexpr const char* SubscriptionStoreGoogle = "google";
 inline constexpr const char* SubscriptionStoreOther = "other";
 inline constexpr const char* SubscriptionStoreStripe = "stripe";
@@ -730,10 +892,13 @@ class BittensorLocalKeyFlow;
 class BittensorWalletSession;
 class BlockActionViewController;
 class ClientEventQueue;
+class ClientLimitNoticeTracker;
 class ClientRefreshIntegrityNotice;
 class ClientSessionAction;
 class ClientSessionActionList;
 class ClientSessionError;
+class ClientSessionGroup;
+class ClientSessionGroupList;
 class ClientSessionSnapshot;
 class ClientSessionViewController;
 class ConnectGrid;
@@ -758,6 +923,7 @@ class LocalStateLocationReadResult;
 class LocalStateResetResult;
 class LocationsViewController;
 class LoginViewController;
+class ManageDevicesViewController;
 class NetworkNameValidationViewController;
 class NetworkSessionInfo;
 class NetworkSessionInfoList;
@@ -770,6 +936,8 @@ class PacketBatch;
 class PeerViewController;
 class PointsLeaderboardViewController;
 class PostQuantumIdentityViewController;
+class ProFeaturesNoticeTracker;
+class ProFeaturesViewController;
 class ProvideViewController;
 class ProviderLocationsViewController;
 class ProviderStatusViewController;
@@ -782,6 +950,7 @@ class SnFleetClaim;
 class SnFleetDevice;
 class Socket;
 class SubscriptionBalanceViewController;
+class SubscriptionProTracker;
 class Tunnel;
 class WalletViewController;
 class WebsocketDeviceRpcDialer;
@@ -792,6 +961,8 @@ class IoLoop;
 
 /* ----- data types (json) ----- */
 
+struct AccountCurrentBlock;
+struct AccountCurrentEpoch;
 struct AccountEpoch;
 struct SnError;
 struct AccountEpochsResult;
@@ -830,6 +1001,7 @@ struct ProxyConfig;
 struct AuthNetworkClientArgs;
 struct AuthNetworkClientError;
 struct ProxyAuthResult;
+struct ProxyExit;
 struct WgConfig;
 struct ProxyConfigResult;
 struct AuthNetworkClientResult;
@@ -897,13 +1069,17 @@ struct CreateApiKeyArgs;
 struct CreateApiKeyResult;
 struct CreateCryptoPaymentIntentArgs;
 struct CreateDataCryptoPaymentIntentArgs;
+struct CryptoAssetLines;
 struct CryptoInvoiceState;
 struct CryptoPaymentAsset;
 struct CryptoPaymentAssetsResult;
+struct CryptoPaymentCoin;
 struct CryptoPaymentError;
 struct CryptoPaymentStatusResult;
 struct CryptoPaymentIntentResult;
 struct CryptoPaymentStatusArgs;
+struct CryptoPaymentStep;
+struct CryptoPaymentTab;
 struct CryptoTerm;
 struct DeleteApiKeyArgs;
 struct DeleteApiKeyResult;
@@ -914,7 +1090,13 @@ struct DeviceRemoteAddress;
 struct DeviceSetNameArgs;
 struct DeviceSetNameError;
 struct DeviceSetNameResult;
+struct DnsPreset;
+struct DnsPick;
+struct DnsPresetProvider;
 struct DnsResolverSettings;
+struct DnsResolverStatus;
+struct DnsSelectionSummary;
+struct DnsStatusSummary;
 struct EmojiTagValidation;
 struct Exit;
 struct ExperimentAssignment;
@@ -965,7 +1147,6 @@ struct GetNetworkReliabilityResult;
 struct GetNetworkUserError;
 struct NetworkUser;
 struct GetNetworkUserResult;
-struct GetPayoutWalletIdResult;
 struct GetPointsLeaderboardArgs;
 struct GetProviderStatusResult;
 struct GetReferralNetworkError;
@@ -982,6 +1163,9 @@ struct LocationGroupResult;
 struct LocationMatch;
 struct LocationResult;
 struct LogFileInfo;
+struct ProFeaturesStatus;
+struct ManageDevicesSnapshot;
+struct ManagedDevice;
 struct MemoryStats;
 struct MemoryTeardownObservation;
 struct NetExtender;
@@ -993,6 +1177,7 @@ struct NetworkCheckResult;
 struct NetworkClientConnection;
 struct ProxyClient;
 struct NetworkClientInfo;
+struct NetworkProxiesPlan;
 struct NetworkClientsResult;
 struct NetworkCreateArgs;
 struct NetworkCreateResultError;
@@ -1031,6 +1216,7 @@ struct PointsLeaderboardResult;
 struct PointsLeaderboardScrollLabelParts;
 struct PriceEquivalent;
 struct PriceTier;
+struct ProFeaturesSnapshot;
 struct ProbeResult;
 struct ProbeSuiteConfig;
 struct ProvideSecretKey;
@@ -1043,10 +1229,12 @@ struct ProviderRankingNumber;
 struct ProviderSpec;
 struct ProviderStatusCountry;
 struct ProviderStatus;
+struct ProviderStatusReasonLine;
 struct ProxyDeviceSettings;
 struct PublicAccountApiKey;
 struct RedeemBalanceCodeArgs;
 struct RedeemBalanceCodeError;
+struct RedeemBalanceCodePro;
 struct RedeemBalanceCodeTransferBalance;
 struct RedeemBalanceCodeResult;
 struct RedeemedBalanceCode;
@@ -1068,6 +1256,9 @@ struct RemoveWalletError;
 struct RemoveWalletResult;
 struct RevokeNetworkSessionArgs;
 struct RevokeOtherNetworkSessionsArgs;
+struct RotateProxyExitArgs;
+struct RotateProxyExitError;
+struct RotateProxyExitResult;
 struct SetEmojiTagArgs;
 struct SetEmojiTagError;
 struct SetEmojiTagResult;
@@ -1077,8 +1268,6 @@ struct SetNetworkRankingPublicResult;
 struct SetNetworkReferralArgs;
 struct SetNetworkReferralError;
 struct SetNetworkReferralResult;
-struct SetPayoutWalletArgs;
-struct SetPayoutWalletResult;
 struct SetPointsLeaderboardPublicArgs;
 struct SetPointsLeaderboardPublicError;
 struct SetPointsLeaderboardPublicResult;
@@ -1093,6 +1282,10 @@ struct SnEpochSchedule;
 struct SnClaimsResult;
 struct SnWallet;
 struct SnConnectWalletResult;
+struct SnCtfClientRole;
+struct SnCtfClientEpoch;
+struct SnCtfWin;
+struct SnCtfClientResult;
 struct SnEpochClaim;
 struct SnEpochResult;
 struct SnFleetClaimState;
@@ -1104,6 +1297,10 @@ struct SnGetWalletResult;
 struct SnHeadResult;
 struct SnLedgerAccount;
 struct SnLedgerAccountsResult;
+struct SnLedgerClaimItem;
+struct SnLedgerClaimOutcome;
+struct SnLedgerClaimTransactionsResult;
+struct SnLedgerUnavailablePool;
 struct SnLedgerUnsignedTx;
 struct SnNetworkConsentChallengeResult;
 struct SnNetworkConsentStatus;
@@ -1132,6 +1329,7 @@ struct SolanaPaymentIntentArgs;
 struct SolanaPaymentIntentError;
 struct SolanaPaymentIntentResult;
 struct SolanaPaymentUrlArgs;
+struct SolanaWalletFailure;
 struct StripeCreateCheckoutSessionArgs;
 struct StripeCreateCheckoutSessionError;
 struct StripeCreateCheckoutSessionResult;
@@ -1189,6 +1387,7 @@ struct VerifySeekerNftHolderError;
 struct VerifySeekerNftHolderResult;
 struct VerifyServerKey;
 struct VerifyStorePurchaseResult;
+struct VerifyStripeCheckoutArgs;
 struct VlessLinkResult;
 struct WalletBalanceResult;
 struct WalletCircleInitError;
@@ -1218,7 +1417,13 @@ using ContractEntryList = std::vector<ContractEntry>;
 using ContractPeerRowList = std::vector<ContractPeerRow>;
 using CountryMultiplierList = std::vector<CountryMultiplier>;
 using CryptoPaymentAssetList = std::vector<CryptoPaymentAsset>;
+using CryptoPaymentCoinList = std::vector<CryptoPaymentCoin>;
+using CryptoPaymentStepList = std::vector<CryptoPaymentStep>;
+using CryptoPaymentTabList = std::vector<CryptoPaymentTab>;
 using DestinationExitList = std::vector<DestinationExit>;
+using DnsPickList = std::vector<DnsPick>;
+using DnsPresetList = std::vector<DnsPreset>;
+using DnsPresetProviderList = std::vector<DnsPresetProvider>;
 using ExitList = std::vector<Exit>;
 using ExperimentAssignmentList = std::vector<ExperimentAssignment>;
 using ExtenderInfoList = std::vector<ExtenderInfo>;
@@ -1233,6 +1438,7 @@ using LocationDeviceResultList = std::vector<LocationDeviceResult>;
 using LocationGroupResultList = std::vector<LocationGroupResult>;
 using LocationResultList = std::vector<LocationResult>;
 using LogFileInfoList = std::vector<LogFileInfo>;
+using ManagedDeviceList = std::vector<ManagedDevice>;
 using MultiHopIdList = std::vector<IdList>;
 using NetworkClientConnectionList = std::vector<NetworkClientConnection>;
 using NetworkClientInfoList = std::vector<NetworkClientInfo>;
@@ -1247,13 +1453,19 @@ using ProviderIdentityList = std::vector<ProviderIdentity>;
 using ProviderRankingNumberList = std::vector<ProviderRankingNumber>;
 using ProviderSpecList = std::vector<ProviderSpec>;
 using ProviderStatusList = std::vector<ProviderStatus>;
+using ProviderStatusReasonLineList = std::vector<ProviderStatusReasonLine>;
 using PublicAccountApiKeyList = std::vector<PublicAccountApiKey>;
 using RedeemedBalanceCodeList = std::vector<RedeemedBalanceCode>;
 using RegionGroupList = std::vector<RegionGroup>;
 using RegionalDnsServerList = std::vector<RegionalDnsServer>;
 using SnClaimRelayAccountList = std::vector<SnClaimRelayAccount>;
+using SnCtfClientEpochList = std::vector<SnCtfClientEpoch>;
+using SnCtfWinList = std::vector<SnCtfWin>;
 using SnEpochClaimList = std::vector<SnEpochClaim>;
 using SnLedgerAccountList = std::vector<SnLedgerAccount>;
+using SnLedgerClaimItemList = std::vector<SnLedgerClaimItem>;
+using SnLedgerClaimOutcomeList = std::vector<SnLedgerClaimOutcome>;
+using SnLedgerUnavailablePoolList = std::vector<SnLedgerUnavailablePool>;
 using SnLedgerUnsignedTxList = std::vector<SnLedgerUnsignedTx>;
 using SnTopFleetList = std::vector<SnTopFleet>;
 using SnTopHistoryPointList = std::vector<SnTopHistoryPoint>;
@@ -1270,6 +1482,23 @@ using TransportPacketStatsList = std::vector<TransportPacketStats>;
 using TransportShareList = std::vector<TransportShare>;
 using UploadLogsFileList = std::vector<UploadLogsFile>;
 
+struct AccountCurrentBlock {
+	int64_t block_number{};
+	int64_t start_millis{};
+	int64_t end_millis{};
+	int64_t served_byte_count{};
+	int64_t as_of_millis{};
+	int64_t epoch{};
+};
+
+struct AccountCurrentEpoch {
+	int64_t epoch{};
+	int64_t start_millis{};
+	int64_t end_millis{};
+	int64_t served_byte_count{};
+	int64_t as_of_millis{};
+};
+
 struct AccountEpoch {
 	int64_t epoch{};
 	int64_t start_millis{};
@@ -1277,6 +1506,7 @@ struct AccountEpoch {
 	double points{};
 	int64_t share_bps{};
 	std::optional<int64_t> rank;
+	int64_t served_byte_count{};
 };
 
 struct SnError {
@@ -1287,6 +1517,8 @@ struct SnError {
 struct AccountEpochsResult {
 	std::optional<AccountEpochList> epochs;
 	std::optional<double> total_points;
+	std::optional<AccountCurrentEpoch> current_epoch;
+	std::optional<AccountCurrentBlock> current_block;
 	std::optional<SnError> error;
 };
 
@@ -1380,6 +1612,7 @@ struct AddAuthResult {
 };
 
 struct ApiError {
+	std::optional<std::string> code;
 	std::string message{};
 };
 
@@ -1419,6 +1652,8 @@ struct AuthLoginArgs {
 	std::optional<WalletAuthArgs> wallet_auth;
 	std::optional<std::string> seedphrase;
 	std::optional<bool> result_errors;
+	std::optional<std::string> time_zone;
+	std::optional<StringList> locales;
 };
 
 struct AuthLoginResultError {
@@ -1444,6 +1679,8 @@ struct AuthLoginWithPasswordArgs {
 	std::string user_auth{};
 	std::string password{};
 	std::optional<bool> verify_otp_numeric;
+	std::optional<std::string> time_zone;
+	std::optional<StringList> locales;
 };
 
 struct AuthLoginWithPasswordResultNetwork {
@@ -1526,6 +1763,8 @@ struct ProxyConfig {
 	bool http_require_auth{};
 	bool https_require_auth{};
 	bool enable_wg{};
+	std::optional<bool> unique_exit;
+	std::optional<std::string> unique_exit_replace;
 	std::optional<ProxyDeviceState> initial_device_state;
 };
 
@@ -1539,18 +1778,33 @@ struct AuthNetworkClientArgs {
 	std::optional<ProxyConfig> proxy_config;
 	std::optional<std::string> time_zone;
 	std::optional<std::string> locale;
+	std::optional<StringList> locales;
 	std::optional<bool> provide_intent;
 };
 
 struct AuthNetworkClientError {
 	bool client_limit_exceeded{};
 	std::optional<bool> upgrade_required;
+	std::optional<bool> no_unique_supply;
+	std::optional<std::string> code;
 	std::string message{};
+	std::optional<std::string> client_limit_prompt;
 };
 
 struct ProxyAuthResult {
 	std::string username{};
 	std::string password{};
+};
+
+struct ProxyExit {
+	std::optional<std::string> exit_id;
+	std::optional<std::string> country_code;
+	std::optional<std::string> region;
+	std::optional<std::string> city;
+	std::optional<std::string> exit_since;
+	std::string state{};
+	std::optional<std::string> state_reason;
+	std::string replace_mode{};
 };
 
 struct WgConfig {
@@ -1582,6 +1836,7 @@ struct ProxyConfigResult {
 	std::optional<int64_t> api_port;
 	std::optional<std::string> auth_token;
 	std::optional<WgConfig> wg_config;
+	std::optional<ProxyExit> exit;
 	std::optional<ProxyAuthResult> http_proxy_auth;
 	std::optional<ProxyAuthResult> socks_proxy_auth;
 };
@@ -1606,6 +1861,8 @@ struct AuthPasswordResetResult {
 struct AuthVerifyArgs {
 	std::string user_auth{};
 	std::string verify_code{};
+	std::optional<std::string> time_zone;
+	std::optional<StringList> locales;
 };
 
 struct AuthVerifyResultNetwork {
@@ -1886,6 +2143,9 @@ struct CheckBalanceCodeError {
 
 struct CheckBalanceCodeResult {
 	std::optional<CheckBalanceCodeBalance> balance;
+	std::optional<std::string> kind;
+	std::optional<int64_t> pro_days;
+	std::optional<std::string> redeem_by;
 	std::optional<CheckBalanceCodeError> error;
 };
 
@@ -1953,11 +2213,13 @@ struct ClientInfo {
 	std::string device_type{};
 	std::string app_version{};
 	std::optional<std::string> sdk_version;
+	std::optional<std::string> distribution;
 };
 
 struct ClientLimitStatus {
 	std::string Status{};
 	int64_t RetryTime{};
+	std::string Prompt{};
 };
 
 struct ConnectedProviderLocation {
@@ -2085,6 +2347,19 @@ struct CreateDataCryptoPaymentIntentArgs {
 	std::string email{};
 };
 
+struct CryptoAssetLines {
+	std::string network_line{};
+	std::string network_line_key{};
+	std::string network_warning{};
+	std::string network_warning_key{};
+	std::string no_payment_link_note{};
+	std::string no_payment_link_note_key{};
+	std::string confirmation_note{};
+	std::string confirmation_note_key{};
+	std::string awaiting_confirmation_note{};
+	std::string awaiting_confirmation_note_key{};
+};
+
 struct CryptoInvoiceState {
 	std::string phase{};
 	std::string intent_id{};
@@ -2098,17 +2373,21 @@ struct CryptoInvoiceState {
 	std::string amount_atomic{};
 	std::string ticker{};
 	std::string uri{};
+	std::string qr_text{};
 	std::string memo{};
 	double price_usd{};
 	double rate_usd{};
 	std::string expires_at{};
 	int64_t seconds_left{};
+	int64_t confirmation_grace_seconds{};
+	bool awaiting_confirmation{};
 	std::string status{};
 	std::string review_reason{};
 	std::string received{};
 	std::string remaining{};
 	int64_t confirmations{};
 	int64_t confirmations_required{};
+	std::optional<CryptoPaymentStepList> steps;
 	std::string balance_code{};
 	bool refreshing{};
 	std::string error_code{};
@@ -2121,10 +2400,20 @@ struct CryptoPaymentAsset {
 	std::optional<StringList> items;
 	int64_t confirmations_required{};
 	int64_t quote_ttl_seconds{};
+	std::optional<int64_t> confirmation_grace_seconds;
 };
 
 struct CryptoPaymentAssetsResult {
 	std::optional<CryptoPaymentAssetList> assets;
+	std::optional<CryptoPaymentAssetList> unavailable_assets;
+};
+
+struct CryptoPaymentCoin {
+	std::string asset{};
+	std::string label{};
+	std::string label_key{};
+	std::string icon_key{};
+	bool available{};
 };
 
 struct CryptoPaymentError {
@@ -2150,6 +2439,7 @@ struct CryptoPaymentStatusResult {
 	int64_t confirmations{};
 	int64_t confirmations_required{};
 	std::optional<std::string> expires_at;
+	std::optional<int64_t> confirmation_grace_seconds;
 	std::optional<std::string> credited_at;
 	std::optional<std::string> balance_code;
 	std::optional<CryptoPaymentError> error;
@@ -2175,6 +2465,7 @@ struct CryptoPaymentIntentResult {
 	std::optional<std::string> uri;
 	std::optional<std::string> quoted_at;
 	std::optional<std::string> expires_at;
+	std::optional<int64_t> confirmation_grace_seconds;
 	std::optional<int64_t> confirmations_required;
 	std::optional<CryptoPaymentStatusResult> status;
 	std::optional<CryptoPaymentError> error;
@@ -2185,8 +2476,25 @@ struct CryptoPaymentStatusArgs {
 	std::string status_token{};
 };
 
+struct CryptoPaymentStep {
+	std::string status{};
+	std::string progress{};
+	int64_t confirmations{};
+	int64_t confirmations_required{};
+};
+
+struct CryptoPaymentTab {
+	std::string id{};
+	std::string label{};
+	std::string label_key{};
+	std::optional<StringList> icon_keys;
+	std::optional<CryptoPaymentCoinList> coins;
+	bool available{};
+};
+
 struct CryptoTerm {
 	std::string market{};
+	std::string asset{};
 	std::string term_end_time{};
 	std::string grace_end_time{};
 };
@@ -2212,6 +2520,7 @@ struct DeviceLocalMemoryUsage {
 	int64_t PeerKeyPinReleasedByteCount{};
 	int64_t PeerKeyPinCount{};
 	int64_t PeerKeyPinCapacityRefusals{};
+	int64_t PeerKeyPinEvictions{};
 	int64_t PeerKeyPinPersistenceFailures{};
 	int64_t PeerKeyPinRollbackRefusals{};
 	int64_t PeerKeyPinStateFailures{};
@@ -2219,10 +2528,18 @@ struct DeviceLocalMemoryUsage {
 	int64_t DnsByteCount{};
 	int64_t ClientSendByteCount{};
 	int64_t ClientReceiveByteCount{};
+	int64_t ClientReceiveHeadRecoveryBudgetByteCount{};
+	int64_t ClientReceiveHeadRecoveryUsedByteCount{};
+	int64_t ClientReceiveHeadRecoveryReservedByteCount{};
+	int64_t ClientReceiveHeadRecoveryReleasedByteCount{};
 	int64_t PackQueueUsedByteCount{};
 	int64_t PackQueueCapacityByteCount{};
 	int64_t ProviderSendByteCount{};
 	int64_t ProviderReceiveByteCount{};
+	int64_t ProviderReceiveHeadRecoveryBudgetByteCount{};
+	int64_t ProviderReceiveHeadRecoveryUsedByteCount{};
+	int64_t ProviderReceiveHeadRecoveryReservedByteCount{};
+	int64_t ProviderReceiveHeadRecoveryReleasedByteCount{};
 	int64_t TransferRootBudgetByteCount{};
 	int64_t TransferRootUsedByteCount{};
 	int64_t TransferRootReservedByteCount{};
@@ -2260,6 +2577,7 @@ struct DeviceLocalMemoryUsage {
 struct DeviceLocalSettings {
 	int64_t MemoryTargetByteCount{};
 	bool LowMemoryProfile{};
+	int64_t ProviderSendBorrowByteCount{};
 	int64_t SendTimeout{};
 	int64_t SequenceBufferSize{};
 	int64_t NetContractStatusDuration{};
@@ -2283,6 +2601,8 @@ struct DeviceLocalSettings {
 	bool ProvideExtenderEnabled{};
 	bool DefaultProvideExtender{};
 	bool ProvideExtenderDnsPrivilegedPort{};
+	bool ProvideExtenderWebRtc{};
+	bool DefaultProvideExtenderPortMapping{};
 	bool Verbose{};
 	bool MoveDeclineBackgroundOrMetered{};
 	bool EnableTransportDelay{};
@@ -2298,6 +2618,11 @@ struct DeviceLocalSettings {
 	int64_t TransportDelayBadDownQueueDelay{};
 	double TransportDelayQualityStep{};
 	double TransportDelayQualityHysteresis{};
+	int64_t TransportDelayGoodConnectStall{};
+	int64_t TransportDelayBadConnectStall{};
+	int64_t TransportDelayPromptConnectTimeout{};
+	int64_t ClientLimitRetryMinInterval{};
+	int64_t DnsResolverVerifyMinInterval{};
 	bool StrictWindowHandover{};
 	std::string DnsPumpHost{};
 	bool EnableRpc{};
@@ -2324,7 +2649,55 @@ struct DeviceSetNameResult {
 	std::optional<DeviceSetNameError> error;
 };
 
+struct DnsPreset {
+	std::string PresetId{};
+	std::string ProviderId{};
+	std::string NameKey{};
+	std::string NameProvider{};
+	std::string ProviderName{};
+	std::string Jurisdiction{};
+	std::string PrivacyUrl{};
+	std::string HelpUrl{};
+	std::string Group{};
+	std::string GroupKey{};
+	std::string CopyKey{};
+	bool BlocksAds{};
+	bool Failover{};
+	bool Filtering{};
+	bool PersonalIdRequired{};
+	std::string PersonalIdExample{};
+	std::string PersonalIdHelpUrl{};
+	std::string PersonalIdWhereKey{};
+	std::string PersonalIdFormatKey{};
+	std::string QuotaNoteKey{};
+};
+
+struct DnsPick {
+	std::string Kind{};
+	std::string PresetId{};
+	std::string Group{};
+	std::string GroupKey{};
+	std::string LabelKey{};
+	std::string CopyKey{};
+	std::string CountryCode{};
+	bool Unencrypted{};
+	std::optional<DnsPreset> Preset;
+};
+
+struct DnsPresetProvider {
+	std::string ProviderId{};
+	std::string Name{};
+	std::string Operator{};
+	std::string Jurisdiction{};
+	std::string HelpUrl{};
+	std::string PrivacyUrl{};
+	std::string TermsUrl{};
+	std::optional<DnsPresetList> Presets;
+};
+
 struct DnsResolverSettings {
+	std::string PresetId{};
+	std::string PresetPersonalId{};
 	bool EnableRemoteDoh{};
 	bool EnableLocalDoh{};
 	bool EnableRemoteDns{};
@@ -2341,6 +2714,55 @@ struct DnsResolverSettings {
 	std::optional<StringList> LocalDnsIpv6;
 };
 
+struct DnsResolverStatus {
+	std::string State{};
+	std::string Verification{};
+	std::string PresetId{};
+	int64_t SinceTime{};
+	int64_t BlockedCount{};
+};
+
+struct DnsSelectionSummary {
+	std::string Kind{};
+	std::string PresetId{};
+	std::string ProviderId{};
+	std::string ProviderName{};
+	std::string NameKey{};
+	std::string NameProvider{};
+	std::string Group{};
+	std::string GroupKey{};
+	std::string CopyKey{};
+	std::string SummaryKey{};
+	std::string LabelKey{};
+	std::string CountryCode{};
+	bool Personal{};
+	bool Unencrypted{};
+	bool Failover{};
+	bool ShowBlockedCount{};
+	bool Dropped{};
+	std::string DroppedPresetId{};
+	std::string DroppedNameKey{};
+	std::string DroppedNameProvider{};
+	std::string DroppedProviderName{};
+	std::string PillKey{};
+	std::string PillCountryCode{};
+};
+
+struct DnsStatusSummary {
+	std::string StatusKey{};
+	std::string NameKey{};
+	std::string NameProvider{};
+	std::string ProviderName{};
+	std::string StatusDetailKey{};
+	std::string VerificationKey{};
+	std::string VerificationUrl{};
+	std::string VerificationLinkKey{};
+	bool ShowUseDefault{};
+	bool ShowChangeLocation{};
+	bool ShowBlockedCount{};
+	int64_t BlockedCount{};
+};
+
 struct EmojiTagValidation {
 	bool ok{};
 	int64_t count{};
@@ -2352,6 +2774,9 @@ struct EmojiTagValidation {
 struct Exit {
 	std::optional<std::string> ClientId;
 	std::string WindowType{};
+	std::string CapabilityIp{};
+	std::string CapabilityProtocol{};
+	int32_t OverflowStep{};
 	bool Warning{};
 	bool Quarantined{};
 	std::string WarningCause{};
@@ -2425,6 +2850,7 @@ struct ExtenderProvideStatus {
 	std::string StartError{};
 	std::string TcpUnavailableError{};
 	bool Listening{};
+	bool WebRtcCarrier{};
 	std::string ListenError{};
 	bool ActivatedV4{};
 	bool ActivatedV6{};
@@ -2442,6 +2868,15 @@ struct ExtenderProvideStatus {
 	int64_t LastPeerPingTime{};
 	int64_t LimitedBySubnetsCount{};
 	int64_t LimitedBySourceCount{};
+	std::string PortMapping{};
+	std::string PortMappingMethod{};
+	std::string PortMappingExternalIp{};
+	int64_t PortMappingTcpPort{};
+	int64_t PortMappingUdpPort{};
+	int64_t PortMappingDnsPort{};
+	std::string PortMappingError{};
+	std::string PortMappingMethodName{};
+	std::string PortMappingPorts{};
 	int64_t ConnectionCount{};
 };
 
@@ -2770,10 +3205,6 @@ struct GetNetworkUserResult {
 	std::optional<GetNetworkUserError> error;
 };
 
-struct GetPayoutWalletIdResult {
-	std::optional<std::string> wallet_id;
-};
-
 struct GetPointsLeaderboardArgs {
 	std::string sort{};
 	std::optional<std::string> cursor;
@@ -2884,6 +3315,35 @@ struct LogFileInfo {
 	std::string Severity{};
 	int64_t ByteCount{};
 	int64_t ModifiedMillis{};
+};
+
+struct ProFeaturesStatus {
+	std::string Prompt{};
+	int64_t SocksProxyCount{};
+	int64_t WireguardProxyCount{};
+	bool PlanKnown{};
+	bool Pro{};
+	bool ProFeaturesEnforced{};
+};
+
+struct ManageDevicesSnapshot {
+	std::optional<ManagedDeviceList> Devices;
+	bool Loaded{};
+	bool Loading{};
+	std::optional<std::string> RemovingClientId;
+	std::string ErrorId{};
+	int64_t AddRetryCount{};
+	std::optional<ProFeaturesStatus> ProFeatures;
+};
+
+struct ManagedDevice {
+	std::optional<std::string> ClientId;
+	std::string Kind{};
+	std::string Name{};
+	std::string Spec{};
+	bool ThisDevice{};
+	bool Connected{};
+	int64_t LastSeenTime{};
 };
 
 struct MemoryStats {
@@ -3016,11 +3476,19 @@ struct NetworkClientInfo {
 	std::optional<std::string> principal;
 	int64_t provide_mode{};
 	std::optional<ProxyClient> proxy_client;
+	std::optional<ProxyExit> exit;
 	std::optional<NetworkClientConnectionList> connections;
+	std::optional<StringList> pro_features;
+};
+
+struct NetworkProxiesPlan {
+	bool pro{};
+	bool pro_features_enforced{};
 };
 
 struct NetworkClientsResult {
 	std::optional<NetworkClientInfoList> clients;
+	std::optional<NetworkProxiesPlan> plan;
 };
 
 struct NetworkCreateArgs {
@@ -3037,6 +3505,8 @@ struct NetworkCreateArgs {
 	std::optional<std::string> balance_code;
 	std::optional<WalletAuthArgs> wallet_auth;
 	std::optional<bool> result_errors;
+	std::optional<std::string> time_zone;
+	std::optional<StringList> locales;
 	std::optional<bool> product_updates;
 };
 
@@ -3093,6 +3563,7 @@ struct SnChainSettings {
 	int64_t chain_id{};
 	std::string vault_address{};
 	std::string vault2_address{};
+	std::string claim_batcher_address{};
 	std::string coordinator_address{};
 	std::string no_id{};
 	int64_t netuid{};
@@ -3340,6 +3811,14 @@ struct PriceTier {
 	bool estimate{};
 };
 
+struct ProFeaturesSnapshot {
+	std::optional<ProFeaturesStatus> Status;
+	std::string MainPrompt{};
+	bool Loaded{};
+	bool Loading{};
+	std::string ErrorId{};
+};
+
 struct ProbeResult {
 	std::string Name{};
 	std::string Kind{};
@@ -3423,6 +3902,10 @@ struct ProviderRankingNumber {
 	int64_t count{};
 	int64_t total{};
 	std::string explanation{};
+	std::optional<std::string> reason;
+	std::optional<int64_t> reason_tcp_count;
+	std::optional<int64_t> reason_ipv4_count;
+	std::optional<ProviderStatusReasonLineList> reason_lines;
 };
 
 struct ProviderSpec {
@@ -3450,6 +3933,12 @@ struct ProviderStatus {
 	std::optional<ProviderAppearanceHistogram> appearances;
 };
 
+struct ProviderStatusReasonLine {
+	std::string label{};
+	std::optional<int64_t> count;
+	std::optional<std::string> text;
+};
+
 struct ProxyDeviceSettings {
 	std::string ApiUrl{};
 	std::string PlatformUrl{};
@@ -3469,6 +3958,12 @@ struct RedeemBalanceCodeError {
 	std::string message{};
 };
 
+struct RedeemBalanceCodePro {
+	std::optional<std::string> start_time;
+	std::optional<std::string> end_time;
+	bool queued{};
+};
+
 struct RedeemBalanceCodeTransferBalance {
 	std::optional<std::string> transfer_balance_id;
 	std::optional<std::string> start_time;
@@ -3478,6 +3973,7 @@ struct RedeemBalanceCodeTransferBalance {
 
 struct RedeemBalanceCodeResult {
 	std::optional<RedeemBalanceCodeTransferBalance> transfer_balance;
+	std::optional<RedeemBalanceCodePro> pro;
 	std::optional<RedeemBalanceCodeError> error;
 };
 
@@ -3487,6 +3983,8 @@ struct RedeemedBalanceCode {
 	std::optional<std::string> redeem_time;
 	std::optional<std::string> end_time;
 	std::string secret{};
+	std::string kind{};
+	int64_t pro_days{};
 };
 
 struct RefreshJwtResultError {
@@ -3559,6 +4057,7 @@ struct ReliabilitySettings {
 	bool DialFailureRerace{};
 	int64_t TcpCollapseMaxHoldMillis{};
 	int64_t SendStallTimeoutMillis{};
+	int64_t ReceiveGapStallTimeoutMillis{};
 	bool ClusterAffinityFallback{};
 	bool ServerNameAffinityBridge{};
 	int64_t SequenceIdleTimeoutMillis{};
@@ -3570,9 +4069,11 @@ struct ReliabilitySettings {
 	bool PerformanceAwareAffinity{};
 	int32_t MaxStickyFlowsPerExit{};
 	int64_t StickyFlowIdleTimeoutMillis{};
+	bool ScoredAffinityDonor{};
 	bool QuarantineGroupFollow{};
 	int64_t GroupFollowWindowMillis{};
 	int64_t UplinkStalenessGateMillis{};
+	int64_t UplinkStalenessMaxHoldMillis{};
 	bool SoftVerdictDemote{};
 	int32_t RemovalBudgetCount{};
 	int64_t RemovalBudgetWindowMillis{};
@@ -3588,6 +4089,8 @@ struct ReliabilitySettings {
 	int64_t SharedFateWindowMillis{};
 	int32_t EvaluationPoolMultiple{};
 	int64_t FormationPollTimeoutMillis{};
+	int64_t WindowOutcomeDeadlineMillis{};
+	int64_t WindowOutcomeRebuildDeadlineMillis{};
 	bool BusyProbe{};
 	int64_t BusyProbeBudgetMillis{};
 	int64_t SchedulerPauseToleranceMillis{};
@@ -3598,7 +4101,9 @@ struct ReliabilitySettings {
 	double PlacementHysteresisPct{};
 	int32_t PlacementDemoteConsecutive{};
 	bool RewardInstrumentation{};
+	bool LightClassifier{};
 	bool QuarantineDampening{};
+	int64_t QuarantineReentryRampMillis{};
 };
 
 struct RemoveAuthArgs {
@@ -3643,6 +4148,21 @@ struct RevokeOtherNetworkSessionsArgs {
 	std::optional<std::string> operation_id;
 };
 
+struct RotateProxyExitArgs {
+	std::optional<std::string> client_id;
+};
+
+struct RotateProxyExitError {
+	std::optional<bool> no_unique_supply;
+	std::optional<bool> rate_limited;
+	std::string message{};
+};
+
+struct RotateProxyExitResult {
+	std::optional<ProxyExit> exit;
+	std::optional<RotateProxyExitError> error;
+};
+
 struct SetEmojiTagArgs {
 	std::string emoji_tag{};
 };
@@ -3680,13 +4200,6 @@ struct SetNetworkReferralResult {
 	std::optional<SetNetworkReferralError> error;
 };
 
-struct SetPayoutWalletArgs {
-	std::optional<std::string> wallet_id;
-};
-
-struct SetPayoutWalletResult {
-};
-
 struct SetPointsLeaderboardPublicArgs {
 	bool public_{};
 };
@@ -3710,6 +4223,8 @@ struct SnClaimNowResult {
 struct SnClaimRelayAccount {
 	std::string coldkey_ss58{};
 	int64_t no_id{};
+	std::string kind{};
+	std::string label{};
 	int64_t index{};
 	int64_t claimable_rao{};
 	int64_t value_tao_rao{};
@@ -3748,6 +4263,7 @@ struct SnClaimRelayResult {
 	int64_t transfer_floor_rao{};
 	int64_t claim_now_period_days{};
 	std::optional<SnClaimRelayAccountList> accounts;
+	std::optional<SnLedgerUnavailablePoolList> unavailable_pools;
 	std::optional<SnClaimRelayError> error;
 };
 
@@ -3775,6 +4291,8 @@ struct SnClaimStatusResult {
 	std::optional<std::string> claim_tx_url;
 	std::optional<int64_t> claim_amount_rao;
 	std::optional<SnClaimRelayAccountList> accounts;
+	std::optional<SnLedgerUnavailablePoolList> unavailable_pools;
+	bool partial{};
 	std::optional<SnError> error;
 };
 
@@ -3822,6 +4340,58 @@ struct SnConnectWalletResult {
 	std::optional<SnWallet> wallet;
 	bool exists_on_chain{};
 	std::optional<std::string> warning;
+	std::optional<SnError> error;
+};
+
+struct SnCtfClientRole {
+	std::string role{};
+	bool candidate{};
+	std::optional<std::string> reason;
+	std::optional<std::string> country;
+	std::optional<int64_t> unit_family;
+	int64_t presence_present{};
+	int64_t presence_required{};
+	int64_t presence_samples{};
+	int64_t presence_excused{};
+	std::optional<int64_t> units_in_draw;
+	bool won{};
+	std::optional<int64_t> rank;
+	int64_t slot_rao{};
+	int64_t pot_share_rao{};
+	bool pending{};
+	std::optional<std::string> coldkey_ss58;
+};
+
+struct SnCtfClientEpoch {
+	int64_t epoch{};
+	bool drawn{};
+	std::string root_status{};
+	std::optional<SnCtfClientRole> provider;
+	std::optional<SnCtfClientRole> extender;
+};
+
+struct SnCtfWin {
+	int64_t epoch{};
+	std::string role{};
+	std::string country{};
+	int64_t rank{};
+	int64_t slot_rao{};
+	int64_t pot_share_rao{};
+	int64_t amount_rao{};
+	bool pending{};
+	std::string root_status{};
+	std::string coldkey_ss58{};
+	std::string client_id{};
+	std::string claim_state{};
+};
+
+struct SnCtfClientResult {
+	std::string client_id{};
+	int64_t as_of_millis{};
+	std::optional<SnCtfClientEpochList> epochs;
+	std::optional<SnCtfWinList> wins;
+	std::optional<SnCtfWinList> unclaimed_wins;
+	std::optional<SnCtfWin> latest_win;
 	std::optional<SnError> error;
 };
 
@@ -3919,6 +4489,10 @@ struct SnHeadResult {
 	double floor{};
 	int64_t rank_estimate{};
 	int64_t cutoff{};
+	bool in_head{};
+	bool measurable{};
+	std::string not_measurable_reason{};
+	bool claim_prompt{};
 	bool bound{};
 	std::optional<std::string> hotkey;
 	std::optional<int64_t> uid;
@@ -3932,6 +4506,8 @@ struct SnHeadResult {
 struct SnLedgerAccount {
 	std::string vault{};
 	int64_t no_id{};
+	std::string kind{};
+	std::string label{};
 	int64_t index{};
 	int64_t finalized_rao{};
 	int64_t claimable_rao{};
@@ -3942,8 +4518,45 @@ struct SnLedgerAccount {
 
 struct SnLedgerAccountsResult {
 	std::optional<SnLedgerAccountList> accounts;
+	std::optional<SnLedgerUnavailablePoolList> unavailable_pools;
+	bool partial{};
 	std::optional<std::string> coldkey_ss58;
 	std::optional<SnError> error;
+};
+
+struct SnLedgerClaimItem {
+	int64_t no_id{};
+	int64_t index{};
+	int64_t root_index{};
+	std::string kind{};
+	std::string label{};
+	int64_t amount_rao{};
+};
+
+struct SnLedgerClaimOutcome {
+	int64_t no_id{};
+	int64_t index{};
+	std::string status{};
+	int64_t amount_rao{};
+	std::optional<std::string> message;
+};
+
+struct SnLedgerClaimTransactionsResult {
+	std::optional<SnLedgerUnsignedTxList> transactions;
+	std::optional<SnLedgerClaimOutcomeList> still_claimable;
+	std::string payer_address{};
+	std::string payer_balance_wei{};
+	std::string fee_per_gas_wei{};
+	std::string max_cost_wei{};
+	std::string all_cost_wei{};
+	bool needs_gas{};
+};
+
+struct SnLedgerUnavailablePool {
+	std::string vault{};
+	int64_t no_id{};
+	std::string kind{};
+	std::string label{};
 };
 
 struct SnLedgerUnsignedTx {
@@ -3956,6 +4569,9 @@ struct SnLedgerUnsignedTx {
 	std::string value{};
 	int64_t amount_rao{};
 	int64_t gas{};
+	std::string vault{};
+	bool batch{};
+	std::optional<SnLedgerClaimItemList> items;
 };
 
 struct SnNetworkConsentChallengeResult {
@@ -4195,6 +4811,12 @@ struct SolanaPaymentUrlArgs {
 	std::optional<std::string> message;
 };
 
+struct SolanaWalletFailure {
+	std::string failure{};
+	std::string message_key{};
+	std::optional<std::string> wallet_name;
+};
+
 struct StripeCreateCheckoutSessionArgs {
 	std::string item_id{};
 	std::optional<std::string> ui_mode;
@@ -4324,7 +4946,6 @@ struct SubscriptionBalanceResult {
 	std::optional<Subscription> current_subscription;
 	std::optional<SubscriptionList> subscriptions;
 	std::optional<TransferBalanceList> active_transfer_balances;
-	int64_t pending_payout_usd_nano_cents{};
 	std::string update_time{};
 	std::optional<bool> guest;
 	std::optional<PriceTier> price_tier;
@@ -4332,6 +4953,7 @@ struct SubscriptionBalanceResult {
 	std::optional<WinbackOffer> winback_offer;
 	std::optional<ExperimentAssignmentList> experiments;
 	std::optional<CryptoPaymentAssetList> crypto_assets;
+	std::optional<CryptoPaymentAssetList> crypto_unavailable_assets;
 	std::optional<CryptoTerm> crypto_term;
 	std::optional<PaymentPastDue> payment_past_due;
 };
@@ -4565,6 +5187,12 @@ struct VerifyServerKey {
 struct VerifyStorePurchaseResult {
 	std::string status{};
 	std::optional<std::string> expiry_time;
+	std::optional<OnboardingError> error;
+};
+
+struct VerifyStripeCheckoutArgs {
+	std::optional<std::string> session_id;
+	std::optional<std::string> subscription_id;
 };
 
 struct VlessLinkResult {
@@ -4632,10 +5260,16 @@ struct WindowStatus {
 	int64_t ProviderV4OnlyCount{};
 	int64_t ProviderV6OnlyCount{};
 	bool Ipv6Available{};
+	bool UdpAvailable{};
+	int64_t LimitedWindowSize{};
 	std::string StallReason{};
 	bool Failed{};
 };
 
+inline void to_json(nlohmann::json& j, const AccountCurrentBlock& v);
+inline void from_json(const nlohmann::json& j, AccountCurrentBlock& v);
+inline void to_json(nlohmann::json& j, const AccountCurrentEpoch& v);
+inline void from_json(const nlohmann::json& j, AccountCurrentEpoch& v);
 inline void to_json(nlohmann::json& j, const AccountEpoch& v);
 inline void from_json(const nlohmann::json& j, AccountEpoch& v);
 inline void to_json(nlohmann::json& j, const SnError& v);
@@ -4712,6 +5346,8 @@ inline void to_json(nlohmann::json& j, const AuthNetworkClientError& v);
 inline void from_json(const nlohmann::json& j, AuthNetworkClientError& v);
 inline void to_json(nlohmann::json& j, const ProxyAuthResult& v);
 inline void from_json(const nlohmann::json& j, ProxyAuthResult& v);
+inline void to_json(nlohmann::json& j, const ProxyExit& v);
+inline void from_json(const nlohmann::json& j, ProxyExit& v);
 inline void to_json(nlohmann::json& j, const WgConfig& v);
 inline void from_json(const nlohmann::json& j, WgConfig& v);
 inline void to_json(nlohmann::json& j, const ProxyConfigResult& v);
@@ -4846,12 +5482,16 @@ inline void to_json(nlohmann::json& j, const CreateCryptoPaymentIntentArgs& v);
 inline void from_json(const nlohmann::json& j, CreateCryptoPaymentIntentArgs& v);
 inline void to_json(nlohmann::json& j, const CreateDataCryptoPaymentIntentArgs& v);
 inline void from_json(const nlohmann::json& j, CreateDataCryptoPaymentIntentArgs& v);
+inline void to_json(nlohmann::json& j, const CryptoAssetLines& v);
+inline void from_json(const nlohmann::json& j, CryptoAssetLines& v);
 inline void to_json(nlohmann::json& j, const CryptoInvoiceState& v);
 inline void from_json(const nlohmann::json& j, CryptoInvoiceState& v);
 inline void to_json(nlohmann::json& j, const CryptoPaymentAsset& v);
 inline void from_json(const nlohmann::json& j, CryptoPaymentAsset& v);
 inline void to_json(nlohmann::json& j, const CryptoPaymentAssetsResult& v);
 inline void from_json(const nlohmann::json& j, CryptoPaymentAssetsResult& v);
+inline void to_json(nlohmann::json& j, const CryptoPaymentCoin& v);
+inline void from_json(const nlohmann::json& j, CryptoPaymentCoin& v);
 inline void to_json(nlohmann::json& j, const CryptoPaymentError& v);
 inline void from_json(const nlohmann::json& j, CryptoPaymentError& v);
 inline void to_json(nlohmann::json& j, const CryptoPaymentStatusResult& v);
@@ -4860,6 +5500,10 @@ inline void to_json(nlohmann::json& j, const CryptoPaymentIntentResult& v);
 inline void from_json(const nlohmann::json& j, CryptoPaymentIntentResult& v);
 inline void to_json(nlohmann::json& j, const CryptoPaymentStatusArgs& v);
 inline void from_json(const nlohmann::json& j, CryptoPaymentStatusArgs& v);
+inline void to_json(nlohmann::json& j, const CryptoPaymentStep& v);
+inline void from_json(const nlohmann::json& j, CryptoPaymentStep& v);
+inline void to_json(nlohmann::json& j, const CryptoPaymentTab& v);
+inline void from_json(const nlohmann::json& j, CryptoPaymentTab& v);
 inline void to_json(nlohmann::json& j, const CryptoTerm& v);
 inline void from_json(const nlohmann::json& j, CryptoTerm& v);
 inline void to_json(nlohmann::json& j, const DeleteApiKeyArgs& v);
@@ -4880,8 +5524,20 @@ inline void to_json(nlohmann::json& j, const DeviceSetNameError& v);
 inline void from_json(const nlohmann::json& j, DeviceSetNameError& v);
 inline void to_json(nlohmann::json& j, const DeviceSetNameResult& v);
 inline void from_json(const nlohmann::json& j, DeviceSetNameResult& v);
+inline void to_json(nlohmann::json& j, const DnsPreset& v);
+inline void from_json(const nlohmann::json& j, DnsPreset& v);
+inline void to_json(nlohmann::json& j, const DnsPick& v);
+inline void from_json(const nlohmann::json& j, DnsPick& v);
+inline void to_json(nlohmann::json& j, const DnsPresetProvider& v);
+inline void from_json(const nlohmann::json& j, DnsPresetProvider& v);
 inline void to_json(nlohmann::json& j, const DnsResolverSettings& v);
 inline void from_json(const nlohmann::json& j, DnsResolverSettings& v);
+inline void to_json(nlohmann::json& j, const DnsResolverStatus& v);
+inline void from_json(const nlohmann::json& j, DnsResolverStatus& v);
+inline void to_json(nlohmann::json& j, const DnsSelectionSummary& v);
+inline void from_json(const nlohmann::json& j, DnsSelectionSummary& v);
+inline void to_json(nlohmann::json& j, const DnsStatusSummary& v);
+inline void from_json(const nlohmann::json& j, DnsStatusSummary& v);
 inline void to_json(nlohmann::json& j, const EmojiTagValidation& v);
 inline void from_json(const nlohmann::json& j, EmojiTagValidation& v);
 inline void to_json(nlohmann::json& j, const Exit& v);
@@ -4982,8 +5638,6 @@ inline void to_json(nlohmann::json& j, const NetworkUser& v);
 inline void from_json(const nlohmann::json& j, NetworkUser& v);
 inline void to_json(nlohmann::json& j, const GetNetworkUserResult& v);
 inline void from_json(const nlohmann::json& j, GetNetworkUserResult& v);
-inline void to_json(nlohmann::json& j, const GetPayoutWalletIdResult& v);
-inline void from_json(const nlohmann::json& j, GetPayoutWalletIdResult& v);
 inline void to_json(nlohmann::json& j, const GetPointsLeaderboardArgs& v);
 inline void from_json(const nlohmann::json& j, GetPointsLeaderboardArgs& v);
 inline void to_json(nlohmann::json& j, const GetProviderStatusResult& v);
@@ -5016,6 +5670,12 @@ inline void to_json(nlohmann::json& j, const LocationResult& v);
 inline void from_json(const nlohmann::json& j, LocationResult& v);
 inline void to_json(nlohmann::json& j, const LogFileInfo& v);
 inline void from_json(const nlohmann::json& j, LogFileInfo& v);
+inline void to_json(nlohmann::json& j, const ProFeaturesStatus& v);
+inline void from_json(const nlohmann::json& j, ProFeaturesStatus& v);
+inline void to_json(nlohmann::json& j, const ManageDevicesSnapshot& v);
+inline void from_json(const nlohmann::json& j, ManageDevicesSnapshot& v);
+inline void to_json(nlohmann::json& j, const ManagedDevice& v);
+inline void from_json(const nlohmann::json& j, ManagedDevice& v);
 inline void to_json(nlohmann::json& j, const MemoryStats& v);
 inline void from_json(const nlohmann::json& j, MemoryStats& v);
 inline void to_json(nlohmann::json& j, const MemoryTeardownObservation& v);
@@ -5038,6 +5698,8 @@ inline void to_json(nlohmann::json& j, const ProxyClient& v);
 inline void from_json(const nlohmann::json& j, ProxyClient& v);
 inline void to_json(nlohmann::json& j, const NetworkClientInfo& v);
 inline void from_json(const nlohmann::json& j, NetworkClientInfo& v);
+inline void to_json(nlohmann::json& j, const NetworkProxiesPlan& v);
+inline void from_json(const nlohmann::json& j, NetworkProxiesPlan& v);
 inline void to_json(nlohmann::json& j, const NetworkClientsResult& v);
 inline void from_json(const nlohmann::json& j, NetworkClientsResult& v);
 inline void to_json(nlohmann::json& j, const NetworkCreateArgs& v);
@@ -5114,6 +5776,8 @@ inline void to_json(nlohmann::json& j, const PriceEquivalent& v);
 inline void from_json(const nlohmann::json& j, PriceEquivalent& v);
 inline void to_json(nlohmann::json& j, const PriceTier& v);
 inline void from_json(const nlohmann::json& j, PriceTier& v);
+inline void to_json(nlohmann::json& j, const ProFeaturesSnapshot& v);
+inline void from_json(const nlohmann::json& j, ProFeaturesSnapshot& v);
 inline void to_json(nlohmann::json& j, const ProbeResult& v);
 inline void from_json(const nlohmann::json& j, ProbeResult& v);
 inline void to_json(nlohmann::json& j, const ProbeSuiteConfig& v);
@@ -5138,6 +5802,8 @@ inline void to_json(nlohmann::json& j, const ProviderStatusCountry& v);
 inline void from_json(const nlohmann::json& j, ProviderStatusCountry& v);
 inline void to_json(nlohmann::json& j, const ProviderStatus& v);
 inline void from_json(const nlohmann::json& j, ProviderStatus& v);
+inline void to_json(nlohmann::json& j, const ProviderStatusReasonLine& v);
+inline void from_json(const nlohmann::json& j, ProviderStatusReasonLine& v);
 inline void to_json(nlohmann::json& j, const ProxyDeviceSettings& v);
 inline void from_json(const nlohmann::json& j, ProxyDeviceSettings& v);
 inline void to_json(nlohmann::json& j, const PublicAccountApiKey& v);
@@ -5146,6 +5812,8 @@ inline void to_json(nlohmann::json& j, const RedeemBalanceCodeArgs& v);
 inline void from_json(const nlohmann::json& j, RedeemBalanceCodeArgs& v);
 inline void to_json(nlohmann::json& j, const RedeemBalanceCodeError& v);
 inline void from_json(const nlohmann::json& j, RedeemBalanceCodeError& v);
+inline void to_json(nlohmann::json& j, const RedeemBalanceCodePro& v);
+inline void from_json(const nlohmann::json& j, RedeemBalanceCodePro& v);
 inline void to_json(nlohmann::json& j, const RedeemBalanceCodeTransferBalance& v);
 inline void from_json(const nlohmann::json& j, RedeemBalanceCodeTransferBalance& v);
 inline void to_json(nlohmann::json& j, const RedeemBalanceCodeResult& v);
@@ -5188,6 +5856,12 @@ inline void to_json(nlohmann::json& j, const RevokeNetworkSessionArgs& v);
 inline void from_json(const nlohmann::json& j, RevokeNetworkSessionArgs& v);
 inline void to_json(nlohmann::json& j, const RevokeOtherNetworkSessionsArgs& v);
 inline void from_json(const nlohmann::json& j, RevokeOtherNetworkSessionsArgs& v);
+inline void to_json(nlohmann::json& j, const RotateProxyExitArgs& v);
+inline void from_json(const nlohmann::json& j, RotateProxyExitArgs& v);
+inline void to_json(nlohmann::json& j, const RotateProxyExitError& v);
+inline void from_json(const nlohmann::json& j, RotateProxyExitError& v);
+inline void to_json(nlohmann::json& j, const RotateProxyExitResult& v);
+inline void from_json(const nlohmann::json& j, RotateProxyExitResult& v);
 inline void to_json(nlohmann::json& j, const SetEmojiTagArgs& v);
 inline void from_json(const nlohmann::json& j, SetEmojiTagArgs& v);
 inline void to_json(nlohmann::json& j, const SetEmojiTagError& v);
@@ -5206,10 +5880,6 @@ inline void to_json(nlohmann::json& j, const SetNetworkReferralError& v);
 inline void from_json(const nlohmann::json& j, SetNetworkReferralError& v);
 inline void to_json(nlohmann::json& j, const SetNetworkReferralResult& v);
 inline void from_json(const nlohmann::json& j, SetNetworkReferralResult& v);
-inline void to_json(nlohmann::json& j, const SetPayoutWalletArgs& v);
-inline void from_json(const nlohmann::json& j, SetPayoutWalletArgs& v);
-inline void to_json(nlohmann::json& j, const SetPayoutWalletResult& v);
-inline void from_json(const nlohmann::json& j, SetPayoutWalletResult& v);
 inline void to_json(nlohmann::json& j, const SetPointsLeaderboardPublicArgs& v);
 inline void from_json(const nlohmann::json& j, SetPointsLeaderboardPublicArgs& v);
 inline void to_json(nlohmann::json& j, const SetPointsLeaderboardPublicError& v);
@@ -5238,6 +5908,14 @@ inline void to_json(nlohmann::json& j, const SnWallet& v);
 inline void from_json(const nlohmann::json& j, SnWallet& v);
 inline void to_json(nlohmann::json& j, const SnConnectWalletResult& v);
 inline void from_json(const nlohmann::json& j, SnConnectWalletResult& v);
+inline void to_json(nlohmann::json& j, const SnCtfClientRole& v);
+inline void from_json(const nlohmann::json& j, SnCtfClientRole& v);
+inline void to_json(nlohmann::json& j, const SnCtfClientEpoch& v);
+inline void from_json(const nlohmann::json& j, SnCtfClientEpoch& v);
+inline void to_json(nlohmann::json& j, const SnCtfWin& v);
+inline void from_json(const nlohmann::json& j, SnCtfWin& v);
+inline void to_json(nlohmann::json& j, const SnCtfClientResult& v);
+inline void from_json(const nlohmann::json& j, SnCtfClientResult& v);
 inline void to_json(nlohmann::json& j, const SnEpochClaim& v);
 inline void from_json(const nlohmann::json& j, SnEpochClaim& v);
 inline void to_json(nlohmann::json& j, const SnEpochResult& v);
@@ -5260,6 +5938,14 @@ inline void to_json(nlohmann::json& j, const SnLedgerAccount& v);
 inline void from_json(const nlohmann::json& j, SnLedgerAccount& v);
 inline void to_json(nlohmann::json& j, const SnLedgerAccountsResult& v);
 inline void from_json(const nlohmann::json& j, SnLedgerAccountsResult& v);
+inline void to_json(nlohmann::json& j, const SnLedgerClaimItem& v);
+inline void from_json(const nlohmann::json& j, SnLedgerClaimItem& v);
+inline void to_json(nlohmann::json& j, const SnLedgerClaimOutcome& v);
+inline void from_json(const nlohmann::json& j, SnLedgerClaimOutcome& v);
+inline void to_json(nlohmann::json& j, const SnLedgerClaimTransactionsResult& v);
+inline void from_json(const nlohmann::json& j, SnLedgerClaimTransactionsResult& v);
+inline void to_json(nlohmann::json& j, const SnLedgerUnavailablePool& v);
+inline void from_json(const nlohmann::json& j, SnLedgerUnavailablePool& v);
 inline void to_json(nlohmann::json& j, const SnLedgerUnsignedTx& v);
 inline void from_json(const nlohmann::json& j, SnLedgerUnsignedTx& v);
 inline void to_json(nlohmann::json& j, const SnNetworkConsentChallengeResult& v);
@@ -5316,6 +6002,8 @@ inline void to_json(nlohmann::json& j, const SolanaPaymentIntentResult& v);
 inline void from_json(const nlohmann::json& j, SolanaPaymentIntentResult& v);
 inline void to_json(nlohmann::json& j, const SolanaPaymentUrlArgs& v);
 inline void from_json(const nlohmann::json& j, SolanaPaymentUrlArgs& v);
+inline void to_json(nlohmann::json& j, const SolanaWalletFailure& v);
+inline void from_json(const nlohmann::json& j, SolanaWalletFailure& v);
 inline void to_json(nlohmann::json& j, const StripeCreateCheckoutSessionArgs& v);
 inline void from_json(const nlohmann::json& j, StripeCreateCheckoutSessionArgs& v);
 inline void to_json(nlohmann::json& j, const StripeCreateCheckoutSessionError& v);
@@ -5430,6 +6118,8 @@ inline void to_json(nlohmann::json& j, const VerifyServerKey& v);
 inline void from_json(const nlohmann::json& j, VerifyServerKey& v);
 inline void to_json(nlohmann::json& j, const VerifyStorePurchaseResult& v);
 inline void from_json(const nlohmann::json& j, VerifyStorePurchaseResult& v);
+inline void to_json(nlohmann::json& j, const VerifyStripeCheckoutArgs& v);
+inline void from_json(const nlohmann::json& j, VerifyStripeCheckoutArgs& v);
 inline void to_json(nlohmann::json& j, const VlessLinkResult& v);
 inline void from_json(const nlohmann::json& j, VlessLinkResult& v);
 inline void to_json(nlohmann::json& j, const WalletBalanceResult& v);
@@ -5453,6 +6143,68 @@ inline void from_json(const nlohmann::json& j, WalletValidateAddressResult& v);
 inline void to_json(nlohmann::json& j, const WindowStatus& v);
 inline void from_json(const nlohmann::json& j, WindowStatus& v);
 
+inline void to_json(nlohmann::json& j, const AccountCurrentBlock& v) {
+	j = nlohmann::json::object();
+	j["block_number"] = v.block_number;
+	j["start_millis"] = v.start_millis;
+	j["end_millis"] = v.end_millis;
+	j["served_byte_count"] = v.served_byte_count;
+	j["as_of_millis"] = v.as_of_millis;
+	j["epoch"] = v.epoch;
+}
+inline void from_json(const nlohmann::json& j, AccountCurrentBlock& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("block_number"); it != j.end() && !it->is_null()) {
+		it->get_to(v.block_number);
+	}
+	if (auto it = j.find("start_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.start_millis);
+	}
+	if (auto it = j.find("end_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.end_millis);
+	}
+	if (auto it = j.find("served_byte_count"); it != j.end() && !it->is_null()) {
+		it->get_to(v.served_byte_count);
+	}
+	if (auto it = j.find("as_of_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.as_of_millis);
+	}
+	if (auto it = j.find("epoch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.epoch);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const AccountCurrentEpoch& v) {
+	j = nlohmann::json::object();
+	j["epoch"] = v.epoch;
+	j["start_millis"] = v.start_millis;
+	j["end_millis"] = v.end_millis;
+	j["served_byte_count"] = v.served_byte_count;
+	j["as_of_millis"] = v.as_of_millis;
+}
+inline void from_json(const nlohmann::json& j, AccountCurrentEpoch& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("epoch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.epoch);
+	}
+	if (auto it = j.find("start_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.start_millis);
+	}
+	if (auto it = j.find("end_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.end_millis);
+	}
+	if (auto it = j.find("served_byte_count"); it != j.end() && !it->is_null()) {
+		it->get_to(v.served_byte_count);
+	}
+	if (auto it = j.find("as_of_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.as_of_millis);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const AccountEpoch& v) {
 	j = nlohmann::json::object();
 	j["epoch"] = v.epoch;
@@ -5463,6 +6215,7 @@ inline void to_json(nlohmann::json& j, const AccountEpoch& v) {
 	if (v.rank) {
 		j["rank"] = *v.rank;
 	}
+	j["served_byte_count"] = v.served_byte_count;
 }
 inline void from_json(const nlohmann::json& j, AccountEpoch& v) {
 	if (!j.is_object()) {
@@ -5487,6 +6240,9 @@ inline void from_json(const nlohmann::json& j, AccountEpoch& v) {
 		int64_t tmp{};
 		it->get_to(tmp);
 		v.rank = std::move(tmp);
+	}
+	if (auto it = j.find("served_byte_count"); it != j.end() && !it->is_null()) {
+		it->get_to(v.served_byte_count);
 	}
 }
 
@@ -5519,6 +6275,12 @@ inline void to_json(nlohmann::json& j, const AccountEpochsResult& v) {
 	if (v.total_points) {
 		j["total_points"] = *v.total_points;
 	}
+	if (v.current_epoch) {
+		j["current_epoch"] = *v.current_epoch;
+	}
+	if (v.current_block) {
+		j["current_block"] = *v.current_block;
+	}
 	if (v.error) {
 		j["error"] = *v.error;
 	}
@@ -5536,6 +6298,16 @@ inline void from_json(const nlohmann::json& j, AccountEpochsResult& v) {
 		double tmp{};
 		it->get_to(tmp);
 		v.total_points = std::move(tmp);
+	}
+	if (auto it = j.find("current_epoch"); it != j.end() && !it->is_null()) {
+		AccountCurrentEpoch tmp{};
+		it->get_to(tmp);
+		v.current_epoch = std::move(tmp);
+	}
+	if (auto it = j.find("current_block"); it != j.end() && !it->is_null()) {
+		AccountCurrentBlock tmp{};
+		it->get_to(tmp);
+		v.current_block = std::move(tmp);
 	}
 	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
 		SnError tmp{};
@@ -6025,11 +6797,19 @@ inline void from_json(const nlohmann::json& j, AddAuthResult& v) {
 
 inline void to_json(nlohmann::json& j, const ApiError& v) {
 	j = nlohmann::json::object();
+	if (v.code) {
+		j["code"] = *v.code;
+	}
 	j["message"] = v.message;
 }
 inline void from_json(const nlohmann::json& j, ApiError& v) {
 	if (!j.is_object()) {
 		return;
+	}
+	if (auto it = j.find("code"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.code = std::move(tmp);
 	}
 	if (auto it = j.find("message"); it != j.end() && !it->is_null()) {
 		it->get_to(v.message);
@@ -6205,6 +6985,12 @@ inline void to_json(nlohmann::json& j, const AuthLoginArgs& v) {
 	if (v.result_errors) {
 		j["result_errors"] = *v.result_errors;
 	}
+	if (v.time_zone) {
+		j["time_zone"] = *v.time_zone;
+	}
+	if (v.locales) {
+		j["locales"] = *v.locales;
+	}
 }
 inline void from_json(const nlohmann::json& j, AuthLoginArgs& v) {
 	if (!j.is_object()) {
@@ -6239,6 +7025,16 @@ inline void from_json(const nlohmann::json& j, AuthLoginArgs& v) {
 		bool tmp{};
 		it->get_to(tmp);
 		v.result_errors = std::move(tmp);
+	}
+	if (auto it = j.find("time_zone"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.time_zone = std::move(tmp);
+	}
+	if (auto it = j.find("locales"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.locales = std::move(tmp);
 	}
 }
 
@@ -6348,6 +7144,12 @@ inline void to_json(nlohmann::json& j, const AuthLoginWithPasswordArgs& v) {
 	if (v.verify_otp_numeric) {
 		j["verify_otp_numeric"] = *v.verify_otp_numeric;
 	}
+	if (v.time_zone) {
+		j["time_zone"] = *v.time_zone;
+	}
+	if (v.locales) {
+		j["locales"] = *v.locales;
+	}
 }
 inline void from_json(const nlohmann::json& j, AuthLoginWithPasswordArgs& v) {
 	if (!j.is_object()) {
@@ -6363,6 +7165,16 @@ inline void from_json(const nlohmann::json& j, AuthLoginWithPasswordArgs& v) {
 		bool tmp{};
 		it->get_to(tmp);
 		v.verify_otp_numeric = std::move(tmp);
+	}
+	if (auto it = j.find("time_zone"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.time_zone = std::move(tmp);
+	}
+	if (auto it = j.find("locales"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.locales = std::move(tmp);
 	}
 }
 
@@ -6756,6 +7568,12 @@ inline void to_json(nlohmann::json& j, const ProxyConfig& v) {
 	j["http_require_auth"] = v.http_require_auth;
 	j["https_require_auth"] = v.https_require_auth;
 	j["enable_wg"] = v.enable_wg;
+	if (v.unique_exit) {
+		j["unique_exit"] = *v.unique_exit;
+	}
+	if (v.unique_exit_replace) {
+		j["unique_exit_replace"] = *v.unique_exit_replace;
+	}
 	if (v.initial_device_state) {
 		j["initial_device_state"] = *v.initial_device_state;
 	}
@@ -6784,6 +7602,16 @@ inline void from_json(const nlohmann::json& j, ProxyConfig& v) {
 	}
 	if (auto it = j.find("enable_wg"); it != j.end() && !it->is_null()) {
 		it->get_to(v.enable_wg);
+	}
+	if (auto it = j.find("unique_exit"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.unique_exit = std::move(tmp);
+	}
+	if (auto it = j.find("unique_exit_replace"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.unique_exit_replace = std::move(tmp);
 	}
 	if (auto it = j.find("initial_device_state"); it != j.end() && !it->is_null()) {
 		ProxyDeviceState tmp{};
@@ -6816,6 +7644,9 @@ inline void to_json(nlohmann::json& j, const AuthNetworkClientArgs& v) {
 	}
 	if (v.locale) {
 		j["locale"] = *v.locale;
+	}
+	if (v.locales) {
+		j["locales"] = *v.locales;
 	}
 	if (v.provide_intent) {
 		j["provide_intent"] = *v.provide_intent;
@@ -6866,6 +7697,11 @@ inline void from_json(const nlohmann::json& j, AuthNetworkClientArgs& v) {
 		it->get_to(tmp);
 		v.locale = std::move(tmp);
 	}
+	if (auto it = j.find("locales"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.locales = std::move(tmp);
+	}
 	if (auto it = j.find("provide_intent"); it != j.end() && !it->is_null()) {
 		bool tmp{};
 		it->get_to(tmp);
@@ -6879,7 +7715,16 @@ inline void to_json(nlohmann::json& j, const AuthNetworkClientError& v) {
 	if (v.upgrade_required) {
 		j["upgrade_required"] = *v.upgrade_required;
 	}
+	if (v.no_unique_supply) {
+		j["no_unique_supply"] = *v.no_unique_supply;
+	}
+	if (v.code) {
+		j["code"] = *v.code;
+	}
 	j["message"] = v.message;
+	if (v.client_limit_prompt) {
+		j["client_limit_prompt"] = *v.client_limit_prompt;
+	}
 }
 inline void from_json(const nlohmann::json& j, AuthNetworkClientError& v) {
 	if (!j.is_object()) {
@@ -6893,8 +7738,23 @@ inline void from_json(const nlohmann::json& j, AuthNetworkClientError& v) {
 		it->get_to(tmp);
 		v.upgrade_required = std::move(tmp);
 	}
+	if (auto it = j.find("no_unique_supply"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.no_unique_supply = std::move(tmp);
+	}
+	if (auto it = j.find("code"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.code = std::move(tmp);
+	}
 	if (auto it = j.find("message"); it != j.end() && !it->is_null()) {
 		it->get_to(v.message);
+	}
+	if (auto it = j.find("client_limit_prompt"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.client_limit_prompt = std::move(tmp);
 	}
 }
 
@@ -6912,6 +7772,71 @@ inline void from_json(const nlohmann::json& j, ProxyAuthResult& v) {
 	}
 	if (auto it = j.find("password"); it != j.end() && !it->is_null()) {
 		it->get_to(v.password);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ProxyExit& v) {
+	j = nlohmann::json::object();
+	if (v.exit_id) {
+		j["exit_id"] = *v.exit_id;
+	}
+	if (v.country_code) {
+		j["country_code"] = *v.country_code;
+	}
+	if (v.region) {
+		j["region"] = *v.region;
+	}
+	if (v.city) {
+		j["city"] = *v.city;
+	}
+	if (v.exit_since) {
+		j["exit_since"] = *v.exit_since;
+	}
+	j["state"] = v.state;
+	if (v.state_reason) {
+		j["state_reason"] = *v.state_reason;
+	}
+	j["replace_mode"] = v.replace_mode;
+}
+inline void from_json(const nlohmann::json& j, ProxyExit& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("exit_id"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.exit_id = std::move(tmp);
+	}
+	if (auto it = j.find("country_code"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.country_code = std::move(tmp);
+	}
+	if (auto it = j.find("region"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.region = std::move(tmp);
+	}
+	if (auto it = j.find("city"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.city = std::move(tmp);
+	}
+	if (auto it = j.find("exit_since"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.exit_since = std::move(tmp);
+	}
+	if (auto it = j.find("state"); it != j.end() && !it->is_null()) {
+		it->get_to(v.state);
+	}
+	if (auto it = j.find("state_reason"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.state_reason = std::move(tmp);
+	}
+	if (auto it = j.find("replace_mode"); it != j.end() && !it->is_null()) {
+		it->get_to(v.replace_mode);
 	}
 }
 
@@ -7002,6 +7927,9 @@ inline void to_json(nlohmann::json& j, const ProxyConfigResult& v) {
 	}
 	if (v.wg_config) {
 		j["wg_config"] = *v.wg_config;
+	}
+	if (v.exit) {
+		j["exit"] = *v.exit;
 	}
 	if (v.http_proxy_auth) {
 		j["http_proxy_auth"] = *v.http_proxy_auth;
@@ -7105,6 +8033,11 @@ inline void from_json(const nlohmann::json& j, ProxyConfigResult& v) {
 		it->get_to(tmp);
 		v.wg_config = std::move(tmp);
 	}
+	if (auto it = j.find("exit"); it != j.end() && !it->is_null()) {
+		ProxyExit tmp{};
+		it->get_to(tmp);
+		v.exit = std::move(tmp);
+	}
 	if (auto it = j.find("http_proxy_auth"); it != j.end() && !it->is_null()) {
 		ProxyAuthResult tmp{};
 		it->get_to(tmp);
@@ -7204,6 +8137,12 @@ inline void to_json(nlohmann::json& j, const AuthVerifyArgs& v) {
 	j = nlohmann::json::object();
 	j["user_auth"] = v.user_auth;
 	j["verify_code"] = v.verify_code;
+	if (v.time_zone) {
+		j["time_zone"] = *v.time_zone;
+	}
+	if (v.locales) {
+		j["locales"] = *v.locales;
+	}
 }
 inline void from_json(const nlohmann::json& j, AuthVerifyArgs& v) {
 	if (!j.is_object()) {
@@ -7214,6 +8153,16 @@ inline void from_json(const nlohmann::json& j, AuthVerifyArgs& v) {
 	}
 	if (auto it = j.find("verify_code"); it != j.end() && !it->is_null()) {
 		it->get_to(v.verify_code);
+	}
+	if (auto it = j.find("time_zone"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.time_zone = std::move(tmp);
+	}
+	if (auto it = j.find("locales"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.locales = std::move(tmp);
 	}
 }
 
@@ -8431,6 +9380,15 @@ inline void to_json(nlohmann::json& j, const CheckBalanceCodeResult& v) {
 	if (v.balance) {
 		j["balance"] = *v.balance;
 	}
+	if (v.kind) {
+		j["kind"] = *v.kind;
+	}
+	if (v.pro_days) {
+		j["pro_days"] = *v.pro_days;
+	}
+	if (v.redeem_by) {
+		j["redeem_by"] = *v.redeem_by;
+	}
 	if (v.error) {
 		j["error"] = *v.error;
 	}
@@ -8443,6 +9401,21 @@ inline void from_json(const nlohmann::json& j, CheckBalanceCodeResult& v) {
 		CheckBalanceCodeBalance tmp{};
 		it->get_to(tmp);
 		v.balance = std::move(tmp);
+	}
+	if (auto it = j.find("kind"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.kind = std::move(tmp);
+	}
+	if (auto it = j.find("pro_days"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.pro_days = std::move(tmp);
+	}
+	if (auto it = j.find("redeem_by"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.redeem_by = std::move(tmp);
 	}
 	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
 		CheckBalanceCodeError tmp{};
@@ -8701,6 +9674,9 @@ inline void to_json(nlohmann::json& j, const ClientInfo& v) {
 	if (v.sdk_version) {
 		j["sdk_version"] = *v.sdk_version;
 	}
+	if (v.distribution) {
+		j["distribution"] = *v.distribution;
+	}
 }
 inline void from_json(const nlohmann::json& j, ClientInfo& v) {
 	if (!j.is_object()) {
@@ -8720,12 +9696,18 @@ inline void from_json(const nlohmann::json& j, ClientInfo& v) {
 		it->get_to(tmp);
 		v.sdk_version = std::move(tmp);
 	}
+	if (auto it = j.find("distribution"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.distribution = std::move(tmp);
+	}
 }
 
 inline void to_json(nlohmann::json& j, const ClientLimitStatus& v) {
 	j = nlohmann::json::object();
 	j["Status"] = v.Status;
 	j["RetryTime"] = v.RetryTime;
+	j["Prompt"] = v.Prompt;
 }
 inline void from_json(const nlohmann::json& j, ClientLimitStatus& v) {
 	if (!j.is_object()) {
@@ -8736,6 +9718,9 @@ inline void from_json(const nlohmann::json& j, ClientLimitStatus& v) {
 	}
 	if (auto it = j.find("RetryTime"); it != j.end() && !it->is_null()) {
 		it->get_to(v.RetryTime);
+	}
+	if (auto it = j.find("Prompt"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Prompt);
 	}
 }
 
@@ -9262,6 +10247,55 @@ inline void from_json(const nlohmann::json& j, CreateDataCryptoPaymentIntentArgs
 	}
 }
 
+inline void to_json(nlohmann::json& j, const CryptoAssetLines& v) {
+	j = nlohmann::json::object();
+	j["network_line"] = v.network_line;
+	j["network_line_key"] = v.network_line_key;
+	j["network_warning"] = v.network_warning;
+	j["network_warning_key"] = v.network_warning_key;
+	j["no_payment_link_note"] = v.no_payment_link_note;
+	j["no_payment_link_note_key"] = v.no_payment_link_note_key;
+	j["confirmation_note"] = v.confirmation_note;
+	j["confirmation_note_key"] = v.confirmation_note_key;
+	j["awaiting_confirmation_note"] = v.awaiting_confirmation_note;
+	j["awaiting_confirmation_note_key"] = v.awaiting_confirmation_note_key;
+}
+inline void from_json(const nlohmann::json& j, CryptoAssetLines& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("network_line"); it != j.end() && !it->is_null()) {
+		it->get_to(v.network_line);
+	}
+	if (auto it = j.find("network_line_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.network_line_key);
+	}
+	if (auto it = j.find("network_warning"); it != j.end() && !it->is_null()) {
+		it->get_to(v.network_warning);
+	}
+	if (auto it = j.find("network_warning_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.network_warning_key);
+	}
+	if (auto it = j.find("no_payment_link_note"); it != j.end() && !it->is_null()) {
+		it->get_to(v.no_payment_link_note);
+	}
+	if (auto it = j.find("no_payment_link_note_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.no_payment_link_note_key);
+	}
+	if (auto it = j.find("confirmation_note"); it != j.end() && !it->is_null()) {
+		it->get_to(v.confirmation_note);
+	}
+	if (auto it = j.find("confirmation_note_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.confirmation_note_key);
+	}
+	if (auto it = j.find("awaiting_confirmation_note"); it != j.end() && !it->is_null()) {
+		it->get_to(v.awaiting_confirmation_note);
+	}
+	if (auto it = j.find("awaiting_confirmation_note_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.awaiting_confirmation_note_key);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const CryptoInvoiceState& v) {
 	j = nlohmann::json::object();
 	j["phase"] = v.phase;
@@ -9276,17 +10310,23 @@ inline void to_json(nlohmann::json& j, const CryptoInvoiceState& v) {
 	j["amount_atomic"] = v.amount_atomic;
 	j["ticker"] = v.ticker;
 	j["uri"] = v.uri;
+	j["qr_text"] = v.qr_text;
 	j["memo"] = v.memo;
 	j["price_usd"] = v.price_usd;
 	j["rate_usd"] = v.rate_usd;
 	j["expires_at"] = v.expires_at;
 	j["seconds_left"] = v.seconds_left;
+	j["confirmation_grace_seconds"] = v.confirmation_grace_seconds;
+	j["awaiting_confirmation"] = v.awaiting_confirmation;
 	j["status"] = v.status;
 	j["review_reason"] = v.review_reason;
 	j["received"] = v.received;
 	j["remaining"] = v.remaining;
 	j["confirmations"] = v.confirmations;
 	j["confirmations_required"] = v.confirmations_required;
+	if (v.steps) {
+		j["steps"] = *v.steps;
+	}
 	j["balance_code"] = v.balance_code;
 	j["refreshing"] = v.refreshing;
 	j["error_code"] = v.error_code;
@@ -9332,6 +10372,9 @@ inline void from_json(const nlohmann::json& j, CryptoInvoiceState& v) {
 	if (auto it = j.find("uri"); it != j.end() && !it->is_null()) {
 		it->get_to(v.uri);
 	}
+	if (auto it = j.find("qr_text"); it != j.end() && !it->is_null()) {
+		it->get_to(v.qr_text);
+	}
 	if (auto it = j.find("memo"); it != j.end() && !it->is_null()) {
 		it->get_to(v.memo);
 	}
@@ -9346,6 +10389,12 @@ inline void from_json(const nlohmann::json& j, CryptoInvoiceState& v) {
 	}
 	if (auto it = j.find("seconds_left"); it != j.end() && !it->is_null()) {
 		it->get_to(v.seconds_left);
+	}
+	if (auto it = j.find("confirmation_grace_seconds"); it != j.end() && !it->is_null()) {
+		it->get_to(v.confirmation_grace_seconds);
+	}
+	if (auto it = j.find("awaiting_confirmation"); it != j.end() && !it->is_null()) {
+		it->get_to(v.awaiting_confirmation);
 	}
 	if (auto it = j.find("status"); it != j.end() && !it->is_null()) {
 		it->get_to(v.status);
@@ -9364,6 +10413,11 @@ inline void from_json(const nlohmann::json& j, CryptoInvoiceState& v) {
 	}
 	if (auto it = j.find("confirmations_required"); it != j.end() && !it->is_null()) {
 		it->get_to(v.confirmations_required);
+	}
+	if (auto it = j.find("steps"); it != j.end() && !it->is_null()) {
+		CryptoPaymentStepList tmp{};
+		it->get_to(tmp);
+		v.steps = std::move(tmp);
 	}
 	if (auto it = j.find("balance_code"); it != j.end() && !it->is_null()) {
 		it->get_to(v.balance_code);
@@ -9390,6 +10444,9 @@ inline void to_json(nlohmann::json& j, const CryptoPaymentAsset& v) {
 	}
 	j["confirmations_required"] = v.confirmations_required;
 	j["quote_ttl_seconds"] = v.quote_ttl_seconds;
+	if (v.confirmation_grace_seconds) {
+		j["confirmation_grace_seconds"] = *v.confirmation_grace_seconds;
+	}
 }
 inline void from_json(const nlohmann::json& j, CryptoPaymentAsset& v) {
 	if (!j.is_object()) {
@@ -9414,12 +10471,20 @@ inline void from_json(const nlohmann::json& j, CryptoPaymentAsset& v) {
 	if (auto it = j.find("quote_ttl_seconds"); it != j.end() && !it->is_null()) {
 		it->get_to(v.quote_ttl_seconds);
 	}
+	if (auto it = j.find("confirmation_grace_seconds"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.confirmation_grace_seconds = std::move(tmp);
+	}
 }
 
 inline void to_json(nlohmann::json& j, const CryptoPaymentAssetsResult& v) {
 	j = nlohmann::json::object();
 	if (v.assets) {
 		j["assets"] = *v.assets;
+	}
+	if (v.unavailable_assets) {
+		j["unavailable_assets"] = *v.unavailable_assets;
 	}
 }
 inline void from_json(const nlohmann::json& j, CryptoPaymentAssetsResult& v) {
@@ -9430,6 +10495,40 @@ inline void from_json(const nlohmann::json& j, CryptoPaymentAssetsResult& v) {
 		CryptoPaymentAssetList tmp{};
 		it->get_to(tmp);
 		v.assets = std::move(tmp);
+	}
+	if (auto it = j.find("unavailable_assets"); it != j.end() && !it->is_null()) {
+		CryptoPaymentAssetList tmp{};
+		it->get_to(tmp);
+		v.unavailable_assets = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const CryptoPaymentCoin& v) {
+	j = nlohmann::json::object();
+	j["asset"] = v.asset;
+	j["label"] = v.label;
+	j["label_key"] = v.label_key;
+	j["icon_key"] = v.icon_key;
+	j["available"] = v.available;
+}
+inline void from_json(const nlohmann::json& j, CryptoPaymentCoin& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("asset"); it != j.end() && !it->is_null()) {
+		it->get_to(v.asset);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
+	}
+	if (auto it = j.find("label_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label_key);
+	}
+	if (auto it = j.find("icon_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.icon_key);
+	}
+	if (auto it = j.find("available"); it != j.end() && !it->is_null()) {
+		it->get_to(v.available);
 	}
 }
 
@@ -9500,6 +10599,9 @@ inline void to_json(nlohmann::json& j, const CryptoPaymentStatusResult& v) {
 	j["confirmations_required"] = v.confirmations_required;
 	if (v.expires_at) {
 		j["expires_at"] = *v.expires_at;
+	}
+	if (v.confirmation_grace_seconds) {
+		j["confirmation_grace_seconds"] = *v.confirmation_grace_seconds;
 	}
 	if (v.credited_at) {
 		j["credited_at"] = *v.credited_at;
@@ -9594,6 +10696,11 @@ inline void from_json(const nlohmann::json& j, CryptoPaymentStatusResult& v) {
 		it->get_to(tmp);
 		v.expires_at = std::move(tmp);
 	}
+	if (auto it = j.find("confirmation_grace_seconds"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.confirmation_grace_seconds = std::move(tmp);
+	}
 	if (auto it = j.find("credited_at"); it != j.end() && !it->is_null()) {
 		std::string tmp{};
 		it->get_to(tmp);
@@ -9669,6 +10776,9 @@ inline void to_json(nlohmann::json& j, const CryptoPaymentIntentResult& v) {
 	}
 	if (v.expires_at) {
 		j["expires_at"] = *v.expires_at;
+	}
+	if (v.confirmation_grace_seconds) {
+		j["confirmation_grace_seconds"] = *v.confirmation_grace_seconds;
 	}
 	if (v.confirmations_required) {
 		j["confirmations_required"] = *v.confirmations_required;
@@ -9779,6 +10889,11 @@ inline void from_json(const nlohmann::json& j, CryptoPaymentIntentResult& v) {
 		it->get_to(tmp);
 		v.expires_at = std::move(tmp);
 	}
+	if (auto it = j.find("confirmation_grace_seconds"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.confirmation_grace_seconds = std::move(tmp);
+	}
 	if (auto it = j.find("confirmations_required"); it != j.end() && !it->is_null()) {
 		int64_t tmp{};
 		it->get_to(tmp);
@@ -9813,9 +10928,76 @@ inline void from_json(const nlohmann::json& j, CryptoPaymentStatusArgs& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const CryptoPaymentStep& v) {
+	j = nlohmann::json::object();
+	j["status"] = v.status;
+	j["progress"] = v.progress;
+	j["confirmations"] = v.confirmations;
+	j["confirmations_required"] = v.confirmations_required;
+}
+inline void from_json(const nlohmann::json& j, CryptoPaymentStep& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("status"); it != j.end() && !it->is_null()) {
+		it->get_to(v.status);
+	}
+	if (auto it = j.find("progress"); it != j.end() && !it->is_null()) {
+		it->get_to(v.progress);
+	}
+	if (auto it = j.find("confirmations"); it != j.end() && !it->is_null()) {
+		it->get_to(v.confirmations);
+	}
+	if (auto it = j.find("confirmations_required"); it != j.end() && !it->is_null()) {
+		it->get_to(v.confirmations_required);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const CryptoPaymentTab& v) {
+	j = nlohmann::json::object();
+	j["id"] = v.id;
+	j["label"] = v.label;
+	j["label_key"] = v.label_key;
+	if (v.icon_keys) {
+		j["icon_keys"] = *v.icon_keys;
+	}
+	if (v.coins) {
+		j["coins"] = *v.coins;
+	}
+	j["available"] = v.available;
+}
+inline void from_json(const nlohmann::json& j, CryptoPaymentTab& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.id);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
+	}
+	if (auto it = j.find("label_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label_key);
+	}
+	if (auto it = j.find("icon_keys"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.icon_keys = std::move(tmp);
+	}
+	if (auto it = j.find("coins"); it != j.end() && !it->is_null()) {
+		CryptoPaymentCoinList tmp{};
+		it->get_to(tmp);
+		v.coins = std::move(tmp);
+	}
+	if (auto it = j.find("available"); it != j.end() && !it->is_null()) {
+		it->get_to(v.available);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const CryptoTerm& v) {
 	j = nlohmann::json::object();
 	j["market"] = v.market;
+	j["asset"] = v.asset;
 	j["term_end_time"] = v.term_end_time;
 	j["grace_end_time"] = v.grace_end_time;
 }
@@ -9825,6 +11007,9 @@ inline void from_json(const nlohmann::json& j, CryptoTerm& v) {
 	}
 	if (auto it = j.find("market"); it != j.end() && !it->is_null()) {
 		it->get_to(v.market);
+	}
+	if (auto it = j.find("asset"); it != j.end() && !it->is_null()) {
+		it->get_to(v.asset);
 	}
 	if (auto it = j.find("term_end_time"); it != j.end() && !it->is_null()) {
 		it->get_to(v.term_end_time);
@@ -9901,6 +11086,7 @@ inline void to_json(nlohmann::json& j, const DeviceLocalMemoryUsage& v) {
 	j["PeerKeyPinReleasedByteCount"] = v.PeerKeyPinReleasedByteCount;
 	j["PeerKeyPinCount"] = v.PeerKeyPinCount;
 	j["PeerKeyPinCapacityRefusals"] = v.PeerKeyPinCapacityRefusals;
+	j["PeerKeyPinEvictions"] = v.PeerKeyPinEvictions;
 	j["PeerKeyPinPersistenceFailures"] = v.PeerKeyPinPersistenceFailures;
 	j["PeerKeyPinRollbackRefusals"] = v.PeerKeyPinRollbackRefusals;
 	j["PeerKeyPinStateFailures"] = v.PeerKeyPinStateFailures;
@@ -9908,10 +11094,18 @@ inline void to_json(nlohmann::json& j, const DeviceLocalMemoryUsage& v) {
 	j["DnsByteCount"] = v.DnsByteCount;
 	j["ClientSendByteCount"] = v.ClientSendByteCount;
 	j["ClientReceiveByteCount"] = v.ClientReceiveByteCount;
+	j["ClientReceiveHeadRecoveryBudgetByteCount"] = v.ClientReceiveHeadRecoveryBudgetByteCount;
+	j["ClientReceiveHeadRecoveryUsedByteCount"] = v.ClientReceiveHeadRecoveryUsedByteCount;
+	j["ClientReceiveHeadRecoveryReservedByteCount"] = v.ClientReceiveHeadRecoveryReservedByteCount;
+	j["ClientReceiveHeadRecoveryReleasedByteCount"] = v.ClientReceiveHeadRecoveryReleasedByteCount;
 	j["PackQueueUsedByteCount"] = v.PackQueueUsedByteCount;
 	j["PackQueueCapacityByteCount"] = v.PackQueueCapacityByteCount;
 	j["ProviderSendByteCount"] = v.ProviderSendByteCount;
 	j["ProviderReceiveByteCount"] = v.ProviderReceiveByteCount;
+	j["ProviderReceiveHeadRecoveryBudgetByteCount"] = v.ProviderReceiveHeadRecoveryBudgetByteCount;
+	j["ProviderReceiveHeadRecoveryUsedByteCount"] = v.ProviderReceiveHeadRecoveryUsedByteCount;
+	j["ProviderReceiveHeadRecoveryReservedByteCount"] = v.ProviderReceiveHeadRecoveryReservedByteCount;
+	j["ProviderReceiveHeadRecoveryReleasedByteCount"] = v.ProviderReceiveHeadRecoveryReleasedByteCount;
 	j["TransferRootBudgetByteCount"] = v.TransferRootBudgetByteCount;
 	j["TransferRootUsedByteCount"] = v.TransferRootUsedByteCount;
 	j["TransferRootReservedByteCount"] = v.TransferRootReservedByteCount;
@@ -9967,6 +11161,9 @@ inline void from_json(const nlohmann::json& j, DeviceLocalMemoryUsage& v) {
 	if (auto it = j.find("PeerKeyPinCapacityRefusals"); it != j.end() && !it->is_null()) {
 		it->get_to(v.PeerKeyPinCapacityRefusals);
 	}
+	if (auto it = j.find("PeerKeyPinEvictions"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PeerKeyPinEvictions);
+	}
 	if (auto it = j.find("PeerKeyPinPersistenceFailures"); it != j.end() && !it->is_null()) {
 		it->get_to(v.PeerKeyPinPersistenceFailures);
 	}
@@ -9988,6 +11185,18 @@ inline void from_json(const nlohmann::json& j, DeviceLocalMemoryUsage& v) {
 	if (auto it = j.find("ClientReceiveByteCount"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ClientReceiveByteCount);
 	}
+	if (auto it = j.find("ClientReceiveHeadRecoveryBudgetByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ClientReceiveHeadRecoveryBudgetByteCount);
+	}
+	if (auto it = j.find("ClientReceiveHeadRecoveryUsedByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ClientReceiveHeadRecoveryUsedByteCount);
+	}
+	if (auto it = j.find("ClientReceiveHeadRecoveryReservedByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ClientReceiveHeadRecoveryReservedByteCount);
+	}
+	if (auto it = j.find("ClientReceiveHeadRecoveryReleasedByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ClientReceiveHeadRecoveryReleasedByteCount);
+	}
 	if (auto it = j.find("PackQueueUsedByteCount"); it != j.end() && !it->is_null()) {
 		it->get_to(v.PackQueueUsedByteCount);
 	}
@@ -9999,6 +11208,18 @@ inline void from_json(const nlohmann::json& j, DeviceLocalMemoryUsage& v) {
 	}
 	if (auto it = j.find("ProviderReceiveByteCount"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ProviderReceiveByteCount);
+	}
+	if (auto it = j.find("ProviderReceiveHeadRecoveryBudgetByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderReceiveHeadRecoveryBudgetByteCount);
+	}
+	if (auto it = j.find("ProviderReceiveHeadRecoveryUsedByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderReceiveHeadRecoveryUsedByteCount);
+	}
+	if (auto it = j.find("ProviderReceiveHeadRecoveryReservedByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderReceiveHeadRecoveryReservedByteCount);
+	}
+	if (auto it = j.find("ProviderReceiveHeadRecoveryReleasedByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderReceiveHeadRecoveryReleasedByteCount);
 	}
 	if (auto it = j.find("TransferRootBudgetByteCount"); it != j.end() && !it->is_null()) {
 		it->get_to(v.TransferRootBudgetByteCount);
@@ -10102,6 +11323,7 @@ inline void to_json(nlohmann::json& j, const DeviceLocalSettings& v) {
 	j = nlohmann::json::object();
 	j["MemoryTargetByteCount"] = v.MemoryTargetByteCount;
 	j["LowMemoryProfile"] = v.LowMemoryProfile;
+	j["ProviderSendBorrowByteCount"] = v.ProviderSendBorrowByteCount;
 	j["SendTimeout"] = v.SendTimeout;
 	j["SequenceBufferSize"] = v.SequenceBufferSize;
 	j["NetContractStatusDuration"] = v.NetContractStatusDuration;
@@ -10125,6 +11347,8 @@ inline void to_json(nlohmann::json& j, const DeviceLocalSettings& v) {
 	j["ProvideExtenderEnabled"] = v.ProvideExtenderEnabled;
 	j["DefaultProvideExtender"] = v.DefaultProvideExtender;
 	j["ProvideExtenderDnsPrivilegedPort"] = v.ProvideExtenderDnsPrivilegedPort;
+	j["ProvideExtenderWebRtc"] = v.ProvideExtenderWebRtc;
+	j["DefaultProvideExtenderPortMapping"] = v.DefaultProvideExtenderPortMapping;
 	j["Verbose"] = v.Verbose;
 	j["MoveDeclineBackgroundOrMetered"] = v.MoveDeclineBackgroundOrMetered;
 	j["EnableTransportDelay"] = v.EnableTransportDelay;
@@ -10140,6 +11364,11 @@ inline void to_json(nlohmann::json& j, const DeviceLocalSettings& v) {
 	j["TransportDelayBadDownQueueDelay"] = v.TransportDelayBadDownQueueDelay;
 	j["TransportDelayQualityStep"] = v.TransportDelayQualityStep;
 	j["TransportDelayQualityHysteresis"] = v.TransportDelayQualityHysteresis;
+	j["TransportDelayGoodConnectStall"] = v.TransportDelayGoodConnectStall;
+	j["TransportDelayBadConnectStall"] = v.TransportDelayBadConnectStall;
+	j["TransportDelayPromptConnectTimeout"] = v.TransportDelayPromptConnectTimeout;
+	j["ClientLimitRetryMinInterval"] = v.ClientLimitRetryMinInterval;
+	j["DnsResolverVerifyMinInterval"] = v.DnsResolverVerifyMinInterval;
 	j["StrictWindowHandover"] = v.StrictWindowHandover;
 	j["DnsPumpHost"] = v.DnsPumpHost;
 	j["EnableRpc"] = v.EnableRpc;
@@ -10156,6 +11385,9 @@ inline void from_json(const nlohmann::json& j, DeviceLocalSettings& v) {
 	}
 	if (auto it = j.find("LowMemoryProfile"); it != j.end() && !it->is_null()) {
 		it->get_to(v.LowMemoryProfile);
+	}
+	if (auto it = j.find("ProviderSendBorrowByteCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderSendBorrowByteCount);
 	}
 	if (auto it = j.find("SendTimeout"); it != j.end() && !it->is_null()) {
 		it->get_to(v.SendTimeout);
@@ -10226,6 +11458,12 @@ inline void from_json(const nlohmann::json& j, DeviceLocalSettings& v) {
 	if (auto it = j.find("ProvideExtenderDnsPrivilegedPort"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ProvideExtenderDnsPrivilegedPort);
 	}
+	if (auto it = j.find("ProvideExtenderWebRtc"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProvideExtenderWebRtc);
+	}
+	if (auto it = j.find("DefaultProvideExtenderPortMapping"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DefaultProvideExtenderPortMapping);
+	}
 	if (auto it = j.find("Verbose"); it != j.end() && !it->is_null()) {
 		it->get_to(v.Verbose);
 	}
@@ -10270,6 +11508,21 @@ inline void from_json(const nlohmann::json& j, DeviceLocalSettings& v) {
 	}
 	if (auto it = j.find("TransportDelayQualityHysteresis"); it != j.end() && !it->is_null()) {
 		it->get_to(v.TransportDelayQualityHysteresis);
+	}
+	if (auto it = j.find("TransportDelayGoodConnectStall"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayGoodConnectStall);
+	}
+	if (auto it = j.find("TransportDelayBadConnectStall"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayBadConnectStall);
+	}
+	if (auto it = j.find("TransportDelayPromptConnectTimeout"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TransportDelayPromptConnectTimeout);
+	}
+	if (auto it = j.find("ClientLimitRetryMinInterval"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ClientLimitRetryMinInterval);
+	}
+	if (auto it = j.find("DnsResolverVerifyMinInterval"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DnsResolverVerifyMinInterval);
 	}
 	if (auto it = j.find("StrictWindowHandover"); it != j.end() && !it->is_null()) {
 		it->get_to(v.StrictWindowHandover);
@@ -10359,8 +11612,193 @@ inline void from_json(const nlohmann::json& j, DeviceSetNameResult& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const DnsPreset& v) {
+	j = nlohmann::json::object();
+	j["PresetId"] = v.PresetId;
+	j["ProviderId"] = v.ProviderId;
+	j["NameKey"] = v.NameKey;
+	j["NameProvider"] = v.NameProvider;
+	j["ProviderName"] = v.ProviderName;
+	j["Jurisdiction"] = v.Jurisdiction;
+	j["PrivacyUrl"] = v.PrivacyUrl;
+	j["HelpUrl"] = v.HelpUrl;
+	j["Group"] = v.Group;
+	j["GroupKey"] = v.GroupKey;
+	j["CopyKey"] = v.CopyKey;
+	j["BlocksAds"] = v.BlocksAds;
+	j["Failover"] = v.Failover;
+	j["Filtering"] = v.Filtering;
+	j["PersonalIdRequired"] = v.PersonalIdRequired;
+	j["PersonalIdExample"] = v.PersonalIdExample;
+	j["PersonalIdHelpUrl"] = v.PersonalIdHelpUrl;
+	j["PersonalIdWhereKey"] = v.PersonalIdWhereKey;
+	j["PersonalIdFormatKey"] = v.PersonalIdFormatKey;
+	j["QuotaNoteKey"] = v.QuotaNoteKey;
+}
+inline void from_json(const nlohmann::json& j, DnsPreset& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("PresetId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PresetId);
+	}
+	if (auto it = j.find("ProviderId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderId);
+	}
+	if (auto it = j.find("NameKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NameKey);
+	}
+	if (auto it = j.find("NameProvider"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NameProvider);
+	}
+	if (auto it = j.find("ProviderName"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderName);
+	}
+	if (auto it = j.find("Jurisdiction"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Jurisdiction);
+	}
+	if (auto it = j.find("PrivacyUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PrivacyUrl);
+	}
+	if (auto it = j.find("HelpUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.HelpUrl);
+	}
+	if (auto it = j.find("Group"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Group);
+	}
+	if (auto it = j.find("GroupKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GroupKey);
+	}
+	if (auto it = j.find("CopyKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CopyKey);
+	}
+	if (auto it = j.find("BlocksAds"); it != j.end() && !it->is_null()) {
+		it->get_to(v.BlocksAds);
+	}
+	if (auto it = j.find("Failover"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Failover);
+	}
+	if (auto it = j.find("Filtering"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Filtering);
+	}
+	if (auto it = j.find("PersonalIdRequired"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PersonalIdRequired);
+	}
+	if (auto it = j.find("PersonalIdExample"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PersonalIdExample);
+	}
+	if (auto it = j.find("PersonalIdHelpUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PersonalIdHelpUrl);
+	}
+	if (auto it = j.find("PersonalIdWhereKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PersonalIdWhereKey);
+	}
+	if (auto it = j.find("PersonalIdFormatKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PersonalIdFormatKey);
+	}
+	if (auto it = j.find("QuotaNoteKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.QuotaNoteKey);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const DnsPick& v) {
+	j = nlohmann::json::object();
+	j["Kind"] = v.Kind;
+	j["PresetId"] = v.PresetId;
+	j["Group"] = v.Group;
+	j["GroupKey"] = v.GroupKey;
+	j["LabelKey"] = v.LabelKey;
+	j["CopyKey"] = v.CopyKey;
+	j["CountryCode"] = v.CountryCode;
+	j["Unencrypted"] = v.Unencrypted;
+	if (v.Preset) {
+		j["Preset"] = *v.Preset;
+	}
+}
+inline void from_json(const nlohmann::json& j, DnsPick& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Kind);
+	}
+	if (auto it = j.find("PresetId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PresetId);
+	}
+	if (auto it = j.find("Group"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Group);
+	}
+	if (auto it = j.find("GroupKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GroupKey);
+	}
+	if (auto it = j.find("LabelKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LabelKey);
+	}
+	if (auto it = j.find("CopyKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CopyKey);
+	}
+	if (auto it = j.find("CountryCode"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CountryCode);
+	}
+	if (auto it = j.find("Unencrypted"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Unencrypted);
+	}
+	if (auto it = j.find("Preset"); it != j.end() && !it->is_null()) {
+		DnsPreset tmp{};
+		it->get_to(tmp);
+		v.Preset = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const DnsPresetProvider& v) {
+	j = nlohmann::json::object();
+	j["ProviderId"] = v.ProviderId;
+	j["Name"] = v.Name;
+	j["Operator"] = v.Operator;
+	j["Jurisdiction"] = v.Jurisdiction;
+	j["HelpUrl"] = v.HelpUrl;
+	j["PrivacyUrl"] = v.PrivacyUrl;
+	j["TermsUrl"] = v.TermsUrl;
+	if (v.Presets) {
+		j["Presets"] = *v.Presets;
+	}
+}
+inline void from_json(const nlohmann::json& j, DnsPresetProvider& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("ProviderId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderId);
+	}
+	if (auto it = j.find("Name"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Name);
+	}
+	if (auto it = j.find("Operator"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Operator);
+	}
+	if (auto it = j.find("Jurisdiction"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Jurisdiction);
+	}
+	if (auto it = j.find("HelpUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.HelpUrl);
+	}
+	if (auto it = j.find("PrivacyUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PrivacyUrl);
+	}
+	if (auto it = j.find("TermsUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.TermsUrl);
+	}
+	if (auto it = j.find("Presets"); it != j.end() && !it->is_null()) {
+		DnsPresetList tmp{};
+		it->get_to(tmp);
+		v.Presets = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const DnsResolverSettings& v) {
 	j = nlohmann::json::object();
+	j["PresetId"] = v.PresetId;
+	j["PresetPersonalId"] = v.PresetPersonalId;
 	j["EnableRemoteDoh"] = v.EnableRemoteDoh;
 	j["EnableLocalDoh"] = v.EnableLocalDoh;
 	j["EnableRemoteDns"] = v.EnableRemoteDns;
@@ -10395,6 +11833,12 @@ inline void to_json(nlohmann::json& j, const DnsResolverSettings& v) {
 inline void from_json(const nlohmann::json& j, DnsResolverSettings& v) {
 	if (!j.is_object()) {
 		return;
+	}
+	if (auto it = j.find("PresetId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PresetId);
+	}
+	if (auto it = j.find("PresetPersonalId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PresetPersonalId);
 	}
 	if (auto it = j.find("EnableRemoteDoh"); it != j.end() && !it->is_null()) {
 		it->get_to(v.EnableRemoteDoh);
@@ -10456,6 +11900,193 @@ inline void from_json(const nlohmann::json& j, DnsResolverSettings& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const DnsResolverStatus& v) {
+	j = nlohmann::json::object();
+	j["State"] = v.State;
+	j["Verification"] = v.Verification;
+	j["PresetId"] = v.PresetId;
+	j["SinceTime"] = v.SinceTime;
+	j["BlockedCount"] = v.BlockedCount;
+}
+inline void from_json(const nlohmann::json& j, DnsResolverStatus& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("State"); it != j.end() && !it->is_null()) {
+		it->get_to(v.State);
+	}
+	if (auto it = j.find("Verification"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Verification);
+	}
+	if (auto it = j.find("PresetId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PresetId);
+	}
+	if (auto it = j.find("SinceTime"); it != j.end() && !it->is_null()) {
+		it->get_to(v.SinceTime);
+	}
+	if (auto it = j.find("BlockedCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.BlockedCount);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const DnsSelectionSummary& v) {
+	j = nlohmann::json::object();
+	j["Kind"] = v.Kind;
+	j["PresetId"] = v.PresetId;
+	j["ProviderId"] = v.ProviderId;
+	j["ProviderName"] = v.ProviderName;
+	j["NameKey"] = v.NameKey;
+	j["NameProvider"] = v.NameProvider;
+	j["Group"] = v.Group;
+	j["GroupKey"] = v.GroupKey;
+	j["CopyKey"] = v.CopyKey;
+	j["SummaryKey"] = v.SummaryKey;
+	j["LabelKey"] = v.LabelKey;
+	j["CountryCode"] = v.CountryCode;
+	j["Personal"] = v.Personal;
+	j["Unencrypted"] = v.Unencrypted;
+	j["Failover"] = v.Failover;
+	j["ShowBlockedCount"] = v.ShowBlockedCount;
+	j["Dropped"] = v.Dropped;
+	j["DroppedPresetId"] = v.DroppedPresetId;
+	j["DroppedNameKey"] = v.DroppedNameKey;
+	j["DroppedNameProvider"] = v.DroppedNameProvider;
+	j["DroppedProviderName"] = v.DroppedProviderName;
+	j["PillKey"] = v.PillKey;
+	j["PillCountryCode"] = v.PillCountryCode;
+}
+inline void from_json(const nlohmann::json& j, DnsSelectionSummary& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Kind);
+	}
+	if (auto it = j.find("PresetId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PresetId);
+	}
+	if (auto it = j.find("ProviderId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderId);
+	}
+	if (auto it = j.find("ProviderName"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderName);
+	}
+	if (auto it = j.find("NameKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NameKey);
+	}
+	if (auto it = j.find("NameProvider"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NameProvider);
+	}
+	if (auto it = j.find("Group"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Group);
+	}
+	if (auto it = j.find("GroupKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.GroupKey);
+	}
+	if (auto it = j.find("CopyKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CopyKey);
+	}
+	if (auto it = j.find("SummaryKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.SummaryKey);
+	}
+	if (auto it = j.find("LabelKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LabelKey);
+	}
+	if (auto it = j.find("CountryCode"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CountryCode);
+	}
+	if (auto it = j.find("Personal"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Personal);
+	}
+	if (auto it = j.find("Unencrypted"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Unencrypted);
+	}
+	if (auto it = j.find("Failover"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Failover);
+	}
+	if (auto it = j.find("ShowBlockedCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ShowBlockedCount);
+	}
+	if (auto it = j.find("Dropped"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Dropped);
+	}
+	if (auto it = j.find("DroppedPresetId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DroppedPresetId);
+	}
+	if (auto it = j.find("DroppedNameKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DroppedNameKey);
+	}
+	if (auto it = j.find("DroppedNameProvider"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DroppedNameProvider);
+	}
+	if (auto it = j.find("DroppedProviderName"); it != j.end() && !it->is_null()) {
+		it->get_to(v.DroppedProviderName);
+	}
+	if (auto it = j.find("PillKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PillKey);
+	}
+	if (auto it = j.find("PillCountryCode"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PillCountryCode);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const DnsStatusSummary& v) {
+	j = nlohmann::json::object();
+	j["StatusKey"] = v.StatusKey;
+	j["NameKey"] = v.NameKey;
+	j["NameProvider"] = v.NameProvider;
+	j["ProviderName"] = v.ProviderName;
+	j["StatusDetailKey"] = v.StatusDetailKey;
+	j["VerificationKey"] = v.VerificationKey;
+	j["VerificationUrl"] = v.VerificationUrl;
+	j["VerificationLinkKey"] = v.VerificationLinkKey;
+	j["ShowUseDefault"] = v.ShowUseDefault;
+	j["ShowChangeLocation"] = v.ShowChangeLocation;
+	j["ShowBlockedCount"] = v.ShowBlockedCount;
+	j["BlockedCount"] = v.BlockedCount;
+}
+inline void from_json(const nlohmann::json& j, DnsStatusSummary& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("StatusKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.StatusKey);
+	}
+	if (auto it = j.find("NameKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NameKey);
+	}
+	if (auto it = j.find("NameProvider"); it != j.end() && !it->is_null()) {
+		it->get_to(v.NameProvider);
+	}
+	if (auto it = j.find("ProviderName"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProviderName);
+	}
+	if (auto it = j.find("StatusDetailKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.StatusDetailKey);
+	}
+	if (auto it = j.find("VerificationKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.VerificationKey);
+	}
+	if (auto it = j.find("VerificationUrl"); it != j.end() && !it->is_null()) {
+		it->get_to(v.VerificationUrl);
+	}
+	if (auto it = j.find("VerificationLinkKey"); it != j.end() && !it->is_null()) {
+		it->get_to(v.VerificationLinkKey);
+	}
+	if (auto it = j.find("ShowUseDefault"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ShowUseDefault);
+	}
+	if (auto it = j.find("ShowChangeLocation"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ShowChangeLocation);
+	}
+	if (auto it = j.find("ShowBlockedCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ShowBlockedCount);
+	}
+	if (auto it = j.find("BlockedCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.BlockedCount);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const EmojiTagValidation& v) {
 	j = nlohmann::json::object();
 	j["ok"] = v.ok;
@@ -10491,6 +12122,9 @@ inline void to_json(nlohmann::json& j, const Exit& v) {
 		j["ClientId"] = *v.ClientId;
 	}
 	j["WindowType"] = v.WindowType;
+	j["CapabilityIp"] = v.CapabilityIp;
+	j["CapabilityProtocol"] = v.CapabilityProtocol;
+	j["OverflowStep"] = v.OverflowStep;
 	j["Warning"] = v.Warning;
 	j["Quarantined"] = v.Quarantined;
 	j["WarningCause"] = v.WarningCause;
@@ -10523,6 +12157,15 @@ inline void from_json(const nlohmann::json& j, Exit& v) {
 	}
 	if (auto it = j.find("WindowType"); it != j.end() && !it->is_null()) {
 		it->get_to(v.WindowType);
+	}
+	if (auto it = j.find("CapabilityIp"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CapabilityIp);
+	}
+	if (auto it = j.find("CapabilityProtocol"); it != j.end() && !it->is_null()) {
+		it->get_to(v.CapabilityProtocol);
+	}
+	if (auto it = j.find("OverflowStep"); it != j.end() && !it->is_null()) {
+		it->get_to(v.OverflowStep);
 	}
 	if (auto it = j.find("Warning"); it != j.end() && !it->is_null()) {
 		it->get_to(v.Warning);
@@ -10757,6 +12400,7 @@ inline void to_json(nlohmann::json& j, const ExtenderProvideStatus& v) {
 	j["StartError"] = v.StartError;
 	j["TcpUnavailableError"] = v.TcpUnavailableError;
 	j["Listening"] = v.Listening;
+	j["WebRtcCarrier"] = v.WebRtcCarrier;
 	j["ListenError"] = v.ListenError;
 	j["ActivatedV4"] = v.ActivatedV4;
 	j["ActivatedV6"] = v.ActivatedV6;
@@ -10774,6 +12418,15 @@ inline void to_json(nlohmann::json& j, const ExtenderProvideStatus& v) {
 	j["LastPeerPingTime"] = v.LastPeerPingTime;
 	j["LimitedBySubnetsCount"] = v.LimitedBySubnetsCount;
 	j["LimitedBySourceCount"] = v.LimitedBySourceCount;
+	j["PortMapping"] = v.PortMapping;
+	j["PortMappingMethod"] = v.PortMappingMethod;
+	j["PortMappingExternalIp"] = v.PortMappingExternalIp;
+	j["PortMappingTcpPort"] = v.PortMappingTcpPort;
+	j["PortMappingUdpPort"] = v.PortMappingUdpPort;
+	j["PortMappingDnsPort"] = v.PortMappingDnsPort;
+	j["PortMappingError"] = v.PortMappingError;
+	j["PortMappingMethodName"] = v.PortMappingMethodName;
+	j["PortMappingPorts"] = v.PortMappingPorts;
 	j["ConnectionCount"] = v.ConnectionCount;
 }
 inline void from_json(const nlohmann::json& j, ExtenderProvideStatus& v) {
@@ -10803,6 +12456,9 @@ inline void from_json(const nlohmann::json& j, ExtenderProvideStatus& v) {
 	}
 	if (auto it = j.find("Listening"); it != j.end() && !it->is_null()) {
 		it->get_to(v.Listening);
+	}
+	if (auto it = j.find("WebRtcCarrier"); it != j.end() && !it->is_null()) {
+		it->get_to(v.WebRtcCarrier);
 	}
 	if (auto it = j.find("ListenError"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ListenError);
@@ -10854,6 +12510,33 @@ inline void from_json(const nlohmann::json& j, ExtenderProvideStatus& v) {
 	}
 	if (auto it = j.find("LimitedBySourceCount"); it != j.end() && !it->is_null()) {
 		it->get_to(v.LimitedBySourceCount);
+	}
+	if (auto it = j.find("PortMapping"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMapping);
+	}
+	if (auto it = j.find("PortMappingMethod"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingMethod);
+	}
+	if (auto it = j.find("PortMappingExternalIp"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingExternalIp);
+	}
+	if (auto it = j.find("PortMappingTcpPort"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingTcpPort);
+	}
+	if (auto it = j.find("PortMappingUdpPort"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingUdpPort);
+	}
+	if (auto it = j.find("PortMappingDnsPort"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingDnsPort);
+	}
+	if (auto it = j.find("PortMappingError"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingError);
+	}
+	if (auto it = j.find("PortMappingMethodName"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingMethodName);
+	}
+	if (auto it = j.find("PortMappingPorts"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PortMappingPorts);
 	}
 	if (auto it = j.find("ConnectionCount"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ConnectionCount);
@@ -12342,23 +14025,6 @@ inline void from_json(const nlohmann::json& j, GetNetworkUserResult& v) {
 	}
 }
 
-inline void to_json(nlohmann::json& j, const GetPayoutWalletIdResult& v) {
-	j = nlohmann::json::object();
-	if (v.wallet_id) {
-		j["wallet_id"] = *v.wallet_id;
-	}
-}
-inline void from_json(const nlohmann::json& j, GetPayoutWalletIdResult& v) {
-	if (!j.is_object()) {
-		return;
-	}
-	if (auto it = j.find("wallet_id"); it != j.end() && !it->is_null()) {
-		std::string tmp{};
-		it->get_to(tmp);
-		v.wallet_id = std::move(tmp);
-	}
-}
-
 inline void to_json(nlohmann::json& j, const GetPointsLeaderboardArgs& v) {
 	j = nlohmann::json::object();
 	j["sort"] = v.sort;
@@ -12868,6 +14534,129 @@ inline void from_json(const nlohmann::json& j, LogFileInfo& v) {
 	}
 	if (auto it = j.find("ModifiedMillis"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ModifiedMillis);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ProFeaturesStatus& v) {
+	j = nlohmann::json::object();
+	j["Prompt"] = v.Prompt;
+	j["SocksProxyCount"] = v.SocksProxyCount;
+	j["WireguardProxyCount"] = v.WireguardProxyCount;
+	j["PlanKnown"] = v.PlanKnown;
+	j["Pro"] = v.Pro;
+	j["ProFeaturesEnforced"] = v.ProFeaturesEnforced;
+}
+inline void from_json(const nlohmann::json& j, ProFeaturesStatus& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Prompt"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Prompt);
+	}
+	if (auto it = j.find("SocksProxyCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.SocksProxyCount);
+	}
+	if (auto it = j.find("WireguardProxyCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.WireguardProxyCount);
+	}
+	if (auto it = j.find("PlanKnown"); it != j.end() && !it->is_null()) {
+		it->get_to(v.PlanKnown);
+	}
+	if (auto it = j.find("Pro"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Pro);
+	}
+	if (auto it = j.find("ProFeaturesEnforced"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ProFeaturesEnforced);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ManageDevicesSnapshot& v) {
+	j = nlohmann::json::object();
+	if (v.Devices) {
+		j["Devices"] = *v.Devices;
+	}
+	j["Loaded"] = v.Loaded;
+	j["Loading"] = v.Loading;
+	if (v.RemovingClientId) {
+		j["RemovingClientId"] = *v.RemovingClientId;
+	}
+	j["ErrorId"] = v.ErrorId;
+	j["AddRetryCount"] = v.AddRetryCount;
+	if (v.ProFeatures) {
+		j["ProFeatures"] = *v.ProFeatures;
+	}
+}
+inline void from_json(const nlohmann::json& j, ManageDevicesSnapshot& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Devices"); it != j.end() && !it->is_null()) {
+		ManagedDeviceList tmp{};
+		it->get_to(tmp);
+		v.Devices = std::move(tmp);
+	}
+	if (auto it = j.find("Loaded"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Loaded);
+	}
+	if (auto it = j.find("Loading"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Loading);
+	}
+	if (auto it = j.find("RemovingClientId"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.RemovingClientId = std::move(tmp);
+	}
+	if (auto it = j.find("ErrorId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ErrorId);
+	}
+	if (auto it = j.find("AddRetryCount"); it != j.end() && !it->is_null()) {
+		it->get_to(v.AddRetryCount);
+	}
+	if (auto it = j.find("ProFeatures"); it != j.end() && !it->is_null()) {
+		ProFeaturesStatus tmp{};
+		it->get_to(tmp);
+		v.ProFeatures = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const ManagedDevice& v) {
+	j = nlohmann::json::object();
+	if (v.ClientId) {
+		j["ClientId"] = *v.ClientId;
+	}
+	j["Kind"] = v.Kind;
+	j["Name"] = v.Name;
+	j["Spec"] = v.Spec;
+	j["ThisDevice"] = v.ThisDevice;
+	j["Connected"] = v.Connected;
+	j["LastSeenTime"] = v.LastSeenTime;
+}
+inline void from_json(const nlohmann::json& j, ManagedDevice& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("ClientId"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.ClientId = std::move(tmp);
+	}
+	if (auto it = j.find("Kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Kind);
+	}
+	if (auto it = j.find("Name"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Name);
+	}
+	if (auto it = j.find("Spec"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Spec);
+	}
+	if (auto it = j.find("ThisDevice"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ThisDevice);
+	}
+	if (auto it = j.find("Connected"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Connected);
+	}
+	if (auto it = j.find("LastSeenTime"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LastSeenTime);
 	}
 }
 
@@ -13386,8 +15175,14 @@ inline void to_json(nlohmann::json& j, const NetworkClientInfo& v) {
 	if (v.proxy_client) {
 		j["proxy_client"] = *v.proxy_client;
 	}
+	if (v.exit) {
+		j["exit"] = *v.exit;
+	}
 	if (v.connections) {
 		j["connections"] = *v.connections;
+	}
+	if (v.pro_features) {
+		j["pro_features"] = *v.pro_features;
 	}
 }
 inline void from_json(const nlohmann::json& j, NetworkClientInfo& v) {
@@ -13451,10 +15246,37 @@ inline void from_json(const nlohmann::json& j, NetworkClientInfo& v) {
 		it->get_to(tmp);
 		v.proxy_client = std::move(tmp);
 	}
+	if (auto it = j.find("exit"); it != j.end() && !it->is_null()) {
+		ProxyExit tmp{};
+		it->get_to(tmp);
+		v.exit = std::move(tmp);
+	}
 	if (auto it = j.find("connections"); it != j.end() && !it->is_null()) {
 		NetworkClientConnectionList tmp{};
 		it->get_to(tmp);
 		v.connections = std::move(tmp);
+	}
+	if (auto it = j.find("pro_features"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.pro_features = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const NetworkProxiesPlan& v) {
+	j = nlohmann::json::object();
+	j["pro"] = v.pro;
+	j["pro_features_enforced"] = v.pro_features_enforced;
+}
+inline void from_json(const nlohmann::json& j, NetworkProxiesPlan& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("pro"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pro);
+	}
+	if (auto it = j.find("pro_features_enforced"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pro_features_enforced);
 	}
 }
 
@@ -13462,6 +15284,9 @@ inline void to_json(nlohmann::json& j, const NetworkClientsResult& v) {
 	j = nlohmann::json::object();
 	if (v.clients) {
 		j["clients"] = *v.clients;
+	}
+	if (v.plan) {
+		j["plan"] = *v.plan;
 	}
 }
 inline void from_json(const nlohmann::json& j, NetworkClientsResult& v) {
@@ -13472,6 +15297,11 @@ inline void from_json(const nlohmann::json& j, NetworkClientsResult& v) {
 		NetworkClientInfoList tmp{};
 		it->get_to(tmp);
 		v.clients = std::move(tmp);
+	}
+	if (auto it = j.find("plan"); it != j.end() && !it->is_null()) {
+		NetworkProxiesPlan tmp{};
+		it->get_to(tmp);
+		v.plan = std::move(tmp);
 	}
 }
 
@@ -13511,6 +15341,12 @@ inline void to_json(nlohmann::json& j, const NetworkCreateArgs& v) {
 	}
 	if (v.result_errors) {
 		j["result_errors"] = *v.result_errors;
+	}
+	if (v.time_zone) {
+		j["time_zone"] = *v.time_zone;
+	}
+	if (v.locales) {
+		j["locales"] = *v.locales;
 	}
 	if (v.product_updates) {
 		j["product_updates"] = *v.product_updates;
@@ -13580,6 +15416,16 @@ inline void from_json(const nlohmann::json& j, NetworkCreateArgs& v) {
 		bool tmp{};
 		it->get_to(tmp);
 		v.result_errors = std::move(tmp);
+	}
+	if (auto it = j.find("time_zone"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.time_zone = std::move(tmp);
+	}
+	if (auto it = j.find("locales"); it != j.end() && !it->is_null()) {
+		StringList tmp{};
+		it->get_to(tmp);
+		v.locales = std::move(tmp);
 	}
 	if (auto it = j.find("product_updates"); it != j.end() && !it->is_null()) {
 		bool tmp{};
@@ -13837,6 +15683,7 @@ inline void to_json(nlohmann::json& j, const SnChainSettings& v) {
 	j["chain_id"] = v.chain_id;
 	j["vault_address"] = v.vault_address;
 	j["vault2_address"] = v.vault2_address;
+	j["claim_batcher_address"] = v.claim_batcher_address;
 	j["coordinator_address"] = v.coordinator_address;
 	j["no_id"] = v.no_id;
 	j["netuid"] = v.netuid;
@@ -13857,6 +15704,9 @@ inline void from_json(const nlohmann::json& j, SnChainSettings& v) {
 	}
 	if (auto it = j.find("vault2_address"); it != j.end() && !it->is_null()) {
 		it->get_to(v.vault2_address);
+	}
+	if (auto it = j.find("claim_batcher_address"); it != j.end() && !it->is_null()) {
+		it->get_to(v.claim_batcher_address);
 	}
 	if (auto it = j.find("coordinator_address"); it != j.end() && !it->is_null()) {
 		it->get_to(v.coordinator_address);
@@ -15096,6 +16946,39 @@ inline void from_json(const nlohmann::json& j, PriceTier& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const ProFeaturesSnapshot& v) {
+	j = nlohmann::json::object();
+	if (v.Status) {
+		j["Status"] = *v.Status;
+	}
+	j["MainPrompt"] = v.MainPrompt;
+	j["Loaded"] = v.Loaded;
+	j["Loading"] = v.Loading;
+	j["ErrorId"] = v.ErrorId;
+}
+inline void from_json(const nlohmann::json& j, ProFeaturesSnapshot& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("Status"); it != j.end() && !it->is_null()) {
+		ProFeaturesStatus tmp{};
+		it->get_to(tmp);
+		v.Status = std::move(tmp);
+	}
+	if (auto it = j.find("MainPrompt"); it != j.end() && !it->is_null()) {
+		it->get_to(v.MainPrompt);
+	}
+	if (auto it = j.find("Loaded"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Loaded);
+	}
+	if (auto it = j.find("Loading"); it != j.end() && !it->is_null()) {
+		it->get_to(v.Loading);
+	}
+	if (auto it = j.find("ErrorId"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ErrorId);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const ProbeResult& v) {
 	j = nlohmann::json::object();
 	j["Name"] = v.Name;
@@ -15509,6 +17392,18 @@ inline void to_json(nlohmann::json& j, const ProviderRankingNumber& v) {
 	j["count"] = v.count;
 	j["total"] = v.total;
 	j["explanation"] = v.explanation;
+	if (v.reason) {
+		j["reason"] = *v.reason;
+	}
+	if (v.reason_tcp_count) {
+		j["reason_tcp_count"] = *v.reason_tcp_count;
+	}
+	if (v.reason_ipv4_count) {
+		j["reason_ipv4_count"] = *v.reason_ipv4_count;
+	}
+	if (v.reason_lines) {
+		j["reason_lines"] = *v.reason_lines;
+	}
 }
 inline void from_json(const nlohmann::json& j, ProviderRankingNumber& v) {
 	if (!j.is_object()) {
@@ -15546,6 +17441,26 @@ inline void from_json(const nlohmann::json& j, ProviderRankingNumber& v) {
 	}
 	if (auto it = j.find("explanation"); it != j.end() && !it->is_null()) {
 		it->get_to(v.explanation);
+	}
+	if (auto it = j.find("reason"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.reason = std::move(tmp);
+	}
+	if (auto it = j.find("reason_tcp_count"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.reason_tcp_count = std::move(tmp);
+	}
+	if (auto it = j.find("reason_ipv4_count"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.reason_ipv4_count = std::move(tmp);
+	}
+	if (auto it = j.find("reason_lines"); it != j.end() && !it->is_null()) {
+		ProviderStatusReasonLineList tmp{};
+		it->get_to(tmp);
+		v.reason_lines = std::move(tmp);
 	}
 }
 
@@ -15680,6 +17595,35 @@ inline void from_json(const nlohmann::json& j, ProviderStatus& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const ProviderStatusReasonLine& v) {
+	j = nlohmann::json::object();
+	j["label"] = v.label;
+	if (v.count) {
+		j["count"] = *v.count;
+	}
+	if (v.text) {
+		j["text"] = *v.text;
+	}
+}
+inline void from_json(const nlohmann::json& j, ProviderStatusReasonLine& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
+	}
+	if (auto it = j.find("count"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.count = std::move(tmp);
+	}
+	if (auto it = j.find("text"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.text = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const ProxyDeviceSettings& v) {
 	j = nlohmann::json::object();
 	j["ApiUrl"] = v.ApiUrl;
@@ -15752,6 +17696,35 @@ inline void from_json(const nlohmann::json& j, RedeemBalanceCodeError& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const RedeemBalanceCodePro& v) {
+	j = nlohmann::json::object();
+	if (v.start_time) {
+		j["start_time"] = *v.start_time;
+	}
+	if (v.end_time) {
+		j["end_time"] = *v.end_time;
+	}
+	j["queued"] = v.queued;
+}
+inline void from_json(const nlohmann::json& j, RedeemBalanceCodePro& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("start_time"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.start_time = std::move(tmp);
+	}
+	if (auto it = j.find("end_time"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.end_time = std::move(tmp);
+	}
+	if (auto it = j.find("queued"); it != j.end() && !it->is_null()) {
+		it->get_to(v.queued);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const RedeemBalanceCodeTransferBalance& v) {
 	j = nlohmann::json::object();
 	if (v.transfer_balance_id) {
@@ -15794,6 +17767,9 @@ inline void to_json(nlohmann::json& j, const RedeemBalanceCodeResult& v) {
 	if (v.transfer_balance) {
 		j["transfer_balance"] = *v.transfer_balance;
 	}
+	if (v.pro) {
+		j["pro"] = *v.pro;
+	}
 	if (v.error) {
 		j["error"] = *v.error;
 	}
@@ -15806,6 +17782,11 @@ inline void from_json(const nlohmann::json& j, RedeemBalanceCodeResult& v) {
 		RedeemBalanceCodeTransferBalance tmp{};
 		it->get_to(tmp);
 		v.transfer_balance = std::move(tmp);
+	}
+	if (auto it = j.find("pro"); it != j.end() && !it->is_null()) {
+		RedeemBalanceCodePro tmp{};
+		it->get_to(tmp);
+		v.pro = std::move(tmp);
 	}
 	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
 		RedeemBalanceCodeError tmp{};
@@ -15827,6 +17808,8 @@ inline void to_json(nlohmann::json& j, const RedeemedBalanceCode& v) {
 		j["end_time"] = *v.end_time;
 	}
 	j["secret"] = v.secret;
+	j["kind"] = v.kind;
+	j["pro_days"] = v.pro_days;
 }
 inline void from_json(const nlohmann::json& j, RedeemedBalanceCode& v) {
 	if (!j.is_object()) {
@@ -15852,6 +17835,12 @@ inline void from_json(const nlohmann::json& j, RedeemedBalanceCode& v) {
 	}
 	if (auto it = j.find("secret"); it != j.end() && !it->is_null()) {
 		it->get_to(v.secret);
+	}
+	if (auto it = j.find("kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.kind);
+	}
+	if (auto it = j.find("pro_days"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pro_days);
 	}
 }
 
@@ -16117,6 +18106,7 @@ inline void to_json(nlohmann::json& j, const ReliabilitySettings& v) {
 	j["DialFailureRerace"] = v.DialFailureRerace;
 	j["TcpCollapseMaxHoldMillis"] = v.TcpCollapseMaxHoldMillis;
 	j["SendStallTimeoutMillis"] = v.SendStallTimeoutMillis;
+	j["ReceiveGapStallTimeoutMillis"] = v.ReceiveGapStallTimeoutMillis;
 	j["ClusterAffinityFallback"] = v.ClusterAffinityFallback;
 	j["ServerNameAffinityBridge"] = v.ServerNameAffinityBridge;
 	j["SequenceIdleTimeoutMillis"] = v.SequenceIdleTimeoutMillis;
@@ -16128,9 +18118,11 @@ inline void to_json(nlohmann::json& j, const ReliabilitySettings& v) {
 	j["PerformanceAwareAffinity"] = v.PerformanceAwareAffinity;
 	j["MaxStickyFlowsPerExit"] = v.MaxStickyFlowsPerExit;
 	j["StickyFlowIdleTimeoutMillis"] = v.StickyFlowIdleTimeoutMillis;
+	j["ScoredAffinityDonor"] = v.ScoredAffinityDonor;
 	j["QuarantineGroupFollow"] = v.QuarantineGroupFollow;
 	j["GroupFollowWindowMillis"] = v.GroupFollowWindowMillis;
 	j["UplinkStalenessGateMillis"] = v.UplinkStalenessGateMillis;
+	j["UplinkStalenessMaxHoldMillis"] = v.UplinkStalenessMaxHoldMillis;
 	j["SoftVerdictDemote"] = v.SoftVerdictDemote;
 	j["RemovalBudgetCount"] = v.RemovalBudgetCount;
 	j["RemovalBudgetWindowMillis"] = v.RemovalBudgetWindowMillis;
@@ -16146,6 +18138,8 @@ inline void to_json(nlohmann::json& j, const ReliabilitySettings& v) {
 	j["SharedFateWindowMillis"] = v.SharedFateWindowMillis;
 	j["EvaluationPoolMultiple"] = v.EvaluationPoolMultiple;
 	j["FormationPollTimeoutMillis"] = v.FormationPollTimeoutMillis;
+	j["WindowOutcomeDeadlineMillis"] = v.WindowOutcomeDeadlineMillis;
+	j["WindowOutcomeRebuildDeadlineMillis"] = v.WindowOutcomeRebuildDeadlineMillis;
 	j["BusyProbe"] = v.BusyProbe;
 	j["BusyProbeBudgetMillis"] = v.BusyProbeBudgetMillis;
 	j["SchedulerPauseToleranceMillis"] = v.SchedulerPauseToleranceMillis;
@@ -16156,7 +18150,9 @@ inline void to_json(nlohmann::json& j, const ReliabilitySettings& v) {
 	j["PlacementHysteresisPct"] = v.PlacementHysteresisPct;
 	j["PlacementDemoteConsecutive"] = v.PlacementDemoteConsecutive;
 	j["RewardInstrumentation"] = v.RewardInstrumentation;
+	j["LightClassifier"] = v.LightClassifier;
 	j["QuarantineDampening"] = v.QuarantineDampening;
+	j["QuarantineReentryRampMillis"] = v.QuarantineReentryRampMillis;
 }
 inline void from_json(const nlohmann::json& j, ReliabilitySettings& v) {
 	if (!j.is_object()) {
@@ -16176,6 +18172,9 @@ inline void from_json(const nlohmann::json& j, ReliabilitySettings& v) {
 	}
 	if (auto it = j.find("SendStallTimeoutMillis"); it != j.end() && !it->is_null()) {
 		it->get_to(v.SendStallTimeoutMillis);
+	}
+	if (auto it = j.find("ReceiveGapStallTimeoutMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ReceiveGapStallTimeoutMillis);
 	}
 	if (auto it = j.find("ClusterAffinityFallback"); it != j.end() && !it->is_null()) {
 		it->get_to(v.ClusterAffinityFallback);
@@ -16210,6 +18209,9 @@ inline void from_json(const nlohmann::json& j, ReliabilitySettings& v) {
 	if (auto it = j.find("StickyFlowIdleTimeoutMillis"); it != j.end() && !it->is_null()) {
 		it->get_to(v.StickyFlowIdleTimeoutMillis);
 	}
+	if (auto it = j.find("ScoredAffinityDonor"); it != j.end() && !it->is_null()) {
+		it->get_to(v.ScoredAffinityDonor);
+	}
 	if (auto it = j.find("QuarantineGroupFollow"); it != j.end() && !it->is_null()) {
 		it->get_to(v.QuarantineGroupFollow);
 	}
@@ -16218,6 +18220,9 @@ inline void from_json(const nlohmann::json& j, ReliabilitySettings& v) {
 	}
 	if (auto it = j.find("UplinkStalenessGateMillis"); it != j.end() && !it->is_null()) {
 		it->get_to(v.UplinkStalenessGateMillis);
+	}
+	if (auto it = j.find("UplinkStalenessMaxHoldMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.UplinkStalenessMaxHoldMillis);
 	}
 	if (auto it = j.find("SoftVerdictDemote"); it != j.end() && !it->is_null()) {
 		it->get_to(v.SoftVerdictDemote);
@@ -16264,6 +18269,12 @@ inline void from_json(const nlohmann::json& j, ReliabilitySettings& v) {
 	if (auto it = j.find("FormationPollTimeoutMillis"); it != j.end() && !it->is_null()) {
 		it->get_to(v.FormationPollTimeoutMillis);
 	}
+	if (auto it = j.find("WindowOutcomeDeadlineMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.WindowOutcomeDeadlineMillis);
+	}
+	if (auto it = j.find("WindowOutcomeRebuildDeadlineMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.WindowOutcomeRebuildDeadlineMillis);
+	}
 	if (auto it = j.find("BusyProbe"); it != j.end() && !it->is_null()) {
 		it->get_to(v.BusyProbe);
 	}
@@ -16294,8 +18305,14 @@ inline void from_json(const nlohmann::json& j, ReliabilitySettings& v) {
 	if (auto it = j.find("RewardInstrumentation"); it != j.end() && !it->is_null()) {
 		it->get_to(v.RewardInstrumentation);
 	}
+	if (auto it = j.find("LightClassifier"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LightClassifier);
+	}
 	if (auto it = j.find("QuarantineDampening"); it != j.end() && !it->is_null()) {
 		it->get_to(v.QuarantineDampening);
+	}
+	if (auto it = j.find("QuarantineReentryRampMillis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.QuarantineReentryRampMillis);
 	}
 }
 
@@ -16465,6 +18482,77 @@ inline void from_json(const nlohmann::json& j, RevokeOtherNetworkSessionsArgs& v
 	}
 }
 
+inline void to_json(nlohmann::json& j, const RotateProxyExitArgs& v) {
+	j = nlohmann::json::object();
+	if (v.client_id) {
+		j["client_id"] = *v.client_id;
+	}
+}
+inline void from_json(const nlohmann::json& j, RotateProxyExitArgs& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("client_id"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.client_id = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const RotateProxyExitError& v) {
+	j = nlohmann::json::object();
+	if (v.no_unique_supply) {
+		j["no_unique_supply"] = *v.no_unique_supply;
+	}
+	if (v.rate_limited) {
+		j["rate_limited"] = *v.rate_limited;
+	}
+	j["message"] = v.message;
+}
+inline void from_json(const nlohmann::json& j, RotateProxyExitError& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("no_unique_supply"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.no_unique_supply = std::move(tmp);
+	}
+	if (auto it = j.find("rate_limited"); it != j.end() && !it->is_null()) {
+		bool tmp{};
+		it->get_to(tmp);
+		v.rate_limited = std::move(tmp);
+	}
+	if (auto it = j.find("message"); it != j.end() && !it->is_null()) {
+		it->get_to(v.message);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const RotateProxyExitResult& v) {
+	j = nlohmann::json::object();
+	if (v.exit) {
+		j["exit"] = *v.exit;
+	}
+	if (v.error) {
+		j["error"] = *v.error;
+	}
+}
+inline void from_json(const nlohmann::json& j, RotateProxyExitResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("exit"); it != j.end() && !it->is_null()) {
+		ProxyExit tmp{};
+		it->get_to(tmp);
+		v.exit = std::move(tmp);
+	}
+	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
+		RotateProxyExitError tmp{};
+		it->get_to(tmp);
+		v.error = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const SetEmojiTagArgs& v) {
 	j = nlohmann::json::object();
 	j["emoji_tag"] = v.emoji_tag;
@@ -16602,32 +18690,6 @@ inline void from_json(const nlohmann::json& j, SetNetworkReferralResult& v) {
 	}
 }
 
-inline void to_json(nlohmann::json& j, const SetPayoutWalletArgs& v) {
-	j = nlohmann::json::object();
-	if (v.wallet_id) {
-		j["wallet_id"] = *v.wallet_id;
-	}
-}
-inline void from_json(const nlohmann::json& j, SetPayoutWalletArgs& v) {
-	if (!j.is_object()) {
-		return;
-	}
-	if (auto it = j.find("wallet_id"); it != j.end() && !it->is_null()) {
-		std::string tmp{};
-		it->get_to(tmp);
-		v.wallet_id = std::move(tmp);
-	}
-}
-
-inline void to_json(nlohmann::json& j, const SetPayoutWalletResult& v) {
-	j = nlohmann::json::object();
-}
-inline void from_json(const nlohmann::json& j, SetPayoutWalletResult& v) {
-	if (!j.is_object()) {
-		return;
-	}
-}
-
 inline void to_json(nlohmann::json& j, const SetPointsLeaderboardPublicArgs& v) {
 	j = nlohmann::json::object();
 	j["public"] = v.public_;
@@ -16716,6 +18778,8 @@ inline void to_json(nlohmann::json& j, const SnClaimRelayAccount& v) {
 	j = nlohmann::json::object();
 	j["coldkey_ss58"] = v.coldkey_ss58;
 	j["no_id"] = v.no_id;
+	j["kind"] = v.kind;
+	j["label"] = v.label;
 	j["index"] = v.index;
 	j["claimable_rao"] = v.claimable_rao;
 	j["value_tao_rao"] = v.value_tao_rao;
@@ -16753,6 +18817,12 @@ inline void from_json(const nlohmann::json& j, SnClaimRelayAccount& v) {
 	}
 	if (auto it = j.find("no_id"); it != j.end() && !it->is_null()) {
 		it->get_to(v.no_id);
+	}
+	if (auto it = j.find("kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.kind);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
 	}
 	if (auto it = j.find("index"); it != j.end() && !it->is_null()) {
 		it->get_to(v.index);
@@ -16883,6 +18953,9 @@ inline void to_json(nlohmann::json& j, const SnClaimRelayResult& v) {
 	if (v.accounts) {
 		j["accounts"] = *v.accounts;
 	}
+	if (v.unavailable_pools) {
+		j["unavailable_pools"] = *v.unavailable_pools;
+	}
 	if (v.error) {
 		j["error"] = *v.error;
 	}
@@ -16913,6 +18986,11 @@ inline void from_json(const nlohmann::json& j, SnClaimRelayResult& v) {
 		SnClaimRelayAccountList tmp{};
 		it->get_to(tmp);
 		v.accounts = std::move(tmp);
+	}
+	if (auto it = j.find("unavailable_pools"); it != j.end() && !it->is_null()) {
+		SnLedgerUnavailablePoolList tmp{};
+		it->get_to(tmp);
+		v.unavailable_pools = std::move(tmp);
 	}
 	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
 		SnClaimRelayError tmp{};
@@ -16960,6 +19038,10 @@ inline void to_json(nlohmann::json& j, const SnClaimStatusResult& v) {
 	if (v.accounts) {
 		j["accounts"] = *v.accounts;
 	}
+	if (v.unavailable_pools) {
+		j["unavailable_pools"] = *v.unavailable_pools;
+	}
+	j["partial"] = v.partial;
 	if (v.error) {
 		j["error"] = *v.error;
 	}
@@ -17050,6 +19132,14 @@ inline void from_json(const nlohmann::json& j, SnClaimStatusResult& v) {
 		SnClaimRelayAccountList tmp{};
 		it->get_to(tmp);
 		v.accounts = std::move(tmp);
+	}
+	if (auto it = j.find("unavailable_pools"); it != j.end() && !it->is_null()) {
+		SnLedgerUnavailablePoolList tmp{};
+		it->get_to(tmp);
+		v.unavailable_pools = std::move(tmp);
+	}
+	if (auto it = j.find("partial"); it != j.end() && !it->is_null()) {
+		it->get_to(v.partial);
 	}
 	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
 		SnError tmp{};
@@ -17290,6 +19380,254 @@ inline void from_json(const nlohmann::json& j, SnConnectWalletResult& v) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.warning = std::move(tmp);
+	}
+	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
+		SnError tmp{};
+		it->get_to(tmp);
+		v.error = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnCtfClientRole& v) {
+	j = nlohmann::json::object();
+	j["role"] = v.role;
+	j["candidate"] = v.candidate;
+	if (v.reason) {
+		j["reason"] = *v.reason;
+	}
+	if (v.country) {
+		j["country"] = *v.country;
+	}
+	if (v.unit_family) {
+		j["unit_family"] = *v.unit_family;
+	}
+	j["presence_present"] = v.presence_present;
+	j["presence_required"] = v.presence_required;
+	j["presence_samples"] = v.presence_samples;
+	j["presence_excused"] = v.presence_excused;
+	if (v.units_in_draw) {
+		j["units_in_draw"] = *v.units_in_draw;
+	}
+	j["won"] = v.won;
+	if (v.rank) {
+		j["rank"] = *v.rank;
+	}
+	j["slot_rao"] = v.slot_rao;
+	j["pot_share_rao"] = v.pot_share_rao;
+	j["pending"] = v.pending;
+	if (v.coldkey_ss58) {
+		j["coldkey_ss58"] = *v.coldkey_ss58;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnCtfClientRole& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("role"); it != j.end() && !it->is_null()) {
+		it->get_to(v.role);
+	}
+	if (auto it = j.find("candidate"); it != j.end() && !it->is_null()) {
+		it->get_to(v.candidate);
+	}
+	if (auto it = j.find("reason"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.reason = std::move(tmp);
+	}
+	if (auto it = j.find("country"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.country = std::move(tmp);
+	}
+	if (auto it = j.find("unit_family"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.unit_family = std::move(tmp);
+	}
+	if (auto it = j.find("presence_present"); it != j.end() && !it->is_null()) {
+		it->get_to(v.presence_present);
+	}
+	if (auto it = j.find("presence_required"); it != j.end() && !it->is_null()) {
+		it->get_to(v.presence_required);
+	}
+	if (auto it = j.find("presence_samples"); it != j.end() && !it->is_null()) {
+		it->get_to(v.presence_samples);
+	}
+	if (auto it = j.find("presence_excused"); it != j.end() && !it->is_null()) {
+		it->get_to(v.presence_excused);
+	}
+	if (auto it = j.find("units_in_draw"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.units_in_draw = std::move(tmp);
+	}
+	if (auto it = j.find("won"); it != j.end() && !it->is_null()) {
+		it->get_to(v.won);
+	}
+	if (auto it = j.find("rank"); it != j.end() && !it->is_null()) {
+		int64_t tmp{};
+		it->get_to(tmp);
+		v.rank = std::move(tmp);
+	}
+	if (auto it = j.find("slot_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.slot_rao);
+	}
+	if (auto it = j.find("pot_share_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pot_share_rao);
+	}
+	if (auto it = j.find("pending"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pending);
+	}
+	if (auto it = j.find("coldkey_ss58"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.coldkey_ss58 = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnCtfClientEpoch& v) {
+	j = nlohmann::json::object();
+	j["epoch"] = v.epoch;
+	j["drawn"] = v.drawn;
+	j["root_status"] = v.root_status;
+	if (v.provider) {
+		j["provider"] = *v.provider;
+	}
+	if (v.extender) {
+		j["extender"] = *v.extender;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnCtfClientEpoch& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("epoch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.epoch);
+	}
+	if (auto it = j.find("drawn"); it != j.end() && !it->is_null()) {
+		it->get_to(v.drawn);
+	}
+	if (auto it = j.find("root_status"); it != j.end() && !it->is_null()) {
+		it->get_to(v.root_status);
+	}
+	if (auto it = j.find("provider"); it != j.end() && !it->is_null()) {
+		SnCtfClientRole tmp{};
+		it->get_to(tmp);
+		v.provider = std::move(tmp);
+	}
+	if (auto it = j.find("extender"); it != j.end() && !it->is_null()) {
+		SnCtfClientRole tmp{};
+		it->get_to(tmp);
+		v.extender = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnCtfWin& v) {
+	j = nlohmann::json::object();
+	j["epoch"] = v.epoch;
+	j["role"] = v.role;
+	j["country"] = v.country;
+	j["rank"] = v.rank;
+	j["slot_rao"] = v.slot_rao;
+	j["pot_share_rao"] = v.pot_share_rao;
+	j["amount_rao"] = v.amount_rao;
+	j["pending"] = v.pending;
+	j["root_status"] = v.root_status;
+	j["coldkey_ss58"] = v.coldkey_ss58;
+	j["client_id"] = v.client_id;
+	j["claim_state"] = v.claim_state;
+}
+inline void from_json(const nlohmann::json& j, SnCtfWin& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("epoch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.epoch);
+	}
+	if (auto it = j.find("role"); it != j.end() && !it->is_null()) {
+		it->get_to(v.role);
+	}
+	if (auto it = j.find("country"); it != j.end() && !it->is_null()) {
+		it->get_to(v.country);
+	}
+	if (auto it = j.find("rank"); it != j.end() && !it->is_null()) {
+		it->get_to(v.rank);
+	}
+	if (auto it = j.find("slot_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.slot_rao);
+	}
+	if (auto it = j.find("pot_share_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pot_share_rao);
+	}
+	if (auto it = j.find("amount_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.amount_rao);
+	}
+	if (auto it = j.find("pending"); it != j.end() && !it->is_null()) {
+		it->get_to(v.pending);
+	}
+	if (auto it = j.find("root_status"); it != j.end() && !it->is_null()) {
+		it->get_to(v.root_status);
+	}
+	if (auto it = j.find("coldkey_ss58"); it != j.end() && !it->is_null()) {
+		it->get_to(v.coldkey_ss58);
+	}
+	if (auto it = j.find("client_id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.client_id);
+	}
+	if (auto it = j.find("claim_state"); it != j.end() && !it->is_null()) {
+		it->get_to(v.claim_state);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnCtfClientResult& v) {
+	j = nlohmann::json::object();
+	j["client_id"] = v.client_id;
+	j["as_of_millis"] = v.as_of_millis;
+	if (v.epochs) {
+		j["epochs"] = *v.epochs;
+	}
+	if (v.wins) {
+		j["wins"] = *v.wins;
+	}
+	if (v.unclaimed_wins) {
+		j["unclaimed_wins"] = *v.unclaimed_wins;
+	}
+	if (v.latest_win) {
+		j["latest_win"] = *v.latest_win;
+	}
+	if (v.error) {
+		j["error"] = *v.error;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnCtfClientResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("client_id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.client_id);
+	}
+	if (auto it = j.find("as_of_millis"); it != j.end() && !it->is_null()) {
+		it->get_to(v.as_of_millis);
+	}
+	if (auto it = j.find("epochs"); it != j.end() && !it->is_null()) {
+		SnCtfClientEpochList tmp{};
+		it->get_to(tmp);
+		v.epochs = std::move(tmp);
+	}
+	if (auto it = j.find("wins"); it != j.end() && !it->is_null()) {
+		SnCtfWinList tmp{};
+		it->get_to(tmp);
+		v.wins = std::move(tmp);
+	}
+	if (auto it = j.find("unclaimed_wins"); it != j.end() && !it->is_null()) {
+		SnCtfWinList tmp{};
+		it->get_to(tmp);
+		v.unclaimed_wins = std::move(tmp);
+	}
+	if (auto it = j.find("latest_win"); it != j.end() && !it->is_null()) {
+		SnCtfWin tmp{};
+		it->get_to(tmp);
+		v.latest_win = std::move(tmp);
 	}
 	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
 		SnError tmp{};
@@ -17749,6 +20087,10 @@ inline void to_json(nlohmann::json& j, const SnHeadResult& v) {
 	j["floor"] = v.floor;
 	j["rank_estimate"] = v.rank_estimate;
 	j["cutoff"] = v.cutoff;
+	j["in_head"] = v.in_head;
+	j["measurable"] = v.measurable;
+	j["not_measurable_reason"] = v.not_measurable_reason;
+	j["claim_prompt"] = v.claim_prompt;
 	j["bound"] = v.bound;
 	if (v.hotkey) {
 		j["hotkey"] = *v.hotkey;
@@ -17784,6 +20126,18 @@ inline void from_json(const nlohmann::json& j, SnHeadResult& v) {
 	}
 	if (auto it = j.find("cutoff"); it != j.end() && !it->is_null()) {
 		it->get_to(v.cutoff);
+	}
+	if (auto it = j.find("in_head"); it != j.end() && !it->is_null()) {
+		it->get_to(v.in_head);
+	}
+	if (auto it = j.find("measurable"); it != j.end() && !it->is_null()) {
+		it->get_to(v.measurable);
+	}
+	if (auto it = j.find("not_measurable_reason"); it != j.end() && !it->is_null()) {
+		it->get_to(v.not_measurable_reason);
+	}
+	if (auto it = j.find("claim_prompt"); it != j.end() && !it->is_null()) {
+		it->get_to(v.claim_prompt);
 	}
 	if (auto it = j.find("bound"); it != j.end() && !it->is_null()) {
 		it->get_to(v.bound);
@@ -17823,6 +20177,8 @@ inline void to_json(nlohmann::json& j, const SnLedgerAccount& v) {
 	j = nlohmann::json::object();
 	j["vault"] = v.vault;
 	j["no_id"] = v.no_id;
+	j["kind"] = v.kind;
+	j["label"] = v.label;
 	j["index"] = v.index;
 	j["finalized_rao"] = v.finalized_rao;
 	j["claimable_rao"] = v.claimable_rao;
@@ -17839,6 +20195,12 @@ inline void from_json(const nlohmann::json& j, SnLedgerAccount& v) {
 	}
 	if (auto it = j.find("no_id"); it != j.end() && !it->is_null()) {
 		it->get_to(v.no_id);
+	}
+	if (auto it = j.find("kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.kind);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
 	}
 	if (auto it = j.find("index"); it != j.end() && !it->is_null()) {
 		it->get_to(v.index);
@@ -17865,6 +20227,10 @@ inline void to_json(nlohmann::json& j, const SnLedgerAccountsResult& v) {
 	if (v.accounts) {
 		j["accounts"] = *v.accounts;
 	}
+	if (v.unavailable_pools) {
+		j["unavailable_pools"] = *v.unavailable_pools;
+	}
+	j["partial"] = v.partial;
 	if (v.coldkey_ss58) {
 		j["coldkey_ss58"] = *v.coldkey_ss58;
 	}
@@ -17881,6 +20247,14 @@ inline void from_json(const nlohmann::json& j, SnLedgerAccountsResult& v) {
 		it->get_to(tmp);
 		v.accounts = std::move(tmp);
 	}
+	if (auto it = j.find("unavailable_pools"); it != j.end() && !it->is_null()) {
+		SnLedgerUnavailablePoolList tmp{};
+		it->get_to(tmp);
+		v.unavailable_pools = std::move(tmp);
+	}
+	if (auto it = j.find("partial"); it != j.end() && !it->is_null()) {
+		it->get_to(v.partial);
+	}
 	if (auto it = j.find("coldkey_ss58"); it != j.end() && !it->is_null()) {
 		std::string tmp{};
 		it->get_to(tmp);
@@ -17890,6 +20264,146 @@ inline void from_json(const nlohmann::json& j, SnLedgerAccountsResult& v) {
 		SnError tmp{};
 		it->get_to(tmp);
 		v.error = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnLedgerClaimItem& v) {
+	j = nlohmann::json::object();
+	j["no_id"] = v.no_id;
+	j["index"] = v.index;
+	j["root_index"] = v.root_index;
+	j["kind"] = v.kind;
+	j["label"] = v.label;
+	j["amount_rao"] = v.amount_rao;
+}
+inline void from_json(const nlohmann::json& j, SnLedgerClaimItem& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("no_id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.no_id);
+	}
+	if (auto it = j.find("index"); it != j.end() && !it->is_null()) {
+		it->get_to(v.index);
+	}
+	if (auto it = j.find("root_index"); it != j.end() && !it->is_null()) {
+		it->get_to(v.root_index);
+	}
+	if (auto it = j.find("kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.kind);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
+	}
+	if (auto it = j.find("amount_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.amount_rao);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnLedgerClaimOutcome& v) {
+	j = nlohmann::json::object();
+	j["no_id"] = v.no_id;
+	j["index"] = v.index;
+	j["status"] = v.status;
+	j["amount_rao"] = v.amount_rao;
+	if (v.message) {
+		j["message"] = *v.message;
+	}
+}
+inline void from_json(const nlohmann::json& j, SnLedgerClaimOutcome& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("no_id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.no_id);
+	}
+	if (auto it = j.find("index"); it != j.end() && !it->is_null()) {
+		it->get_to(v.index);
+	}
+	if (auto it = j.find("status"); it != j.end() && !it->is_null()) {
+		it->get_to(v.status);
+	}
+	if (auto it = j.find("amount_rao"); it != j.end() && !it->is_null()) {
+		it->get_to(v.amount_rao);
+	}
+	if (auto it = j.find("message"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.message = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnLedgerClaimTransactionsResult& v) {
+	j = nlohmann::json::object();
+	if (v.transactions) {
+		j["transactions"] = *v.transactions;
+	}
+	if (v.still_claimable) {
+		j["still_claimable"] = *v.still_claimable;
+	}
+	j["payer_address"] = v.payer_address;
+	j["payer_balance_wei"] = v.payer_balance_wei;
+	j["fee_per_gas_wei"] = v.fee_per_gas_wei;
+	j["max_cost_wei"] = v.max_cost_wei;
+	j["all_cost_wei"] = v.all_cost_wei;
+	j["needs_gas"] = v.needs_gas;
+}
+inline void from_json(const nlohmann::json& j, SnLedgerClaimTransactionsResult& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("transactions"); it != j.end() && !it->is_null()) {
+		SnLedgerUnsignedTxList tmp{};
+		it->get_to(tmp);
+		v.transactions = std::move(tmp);
+	}
+	if (auto it = j.find("still_claimable"); it != j.end() && !it->is_null()) {
+		SnLedgerClaimOutcomeList tmp{};
+		it->get_to(tmp);
+		v.still_claimable = std::move(tmp);
+	}
+	if (auto it = j.find("payer_address"); it != j.end() && !it->is_null()) {
+		it->get_to(v.payer_address);
+	}
+	if (auto it = j.find("payer_balance_wei"); it != j.end() && !it->is_null()) {
+		it->get_to(v.payer_balance_wei);
+	}
+	if (auto it = j.find("fee_per_gas_wei"); it != j.end() && !it->is_null()) {
+		it->get_to(v.fee_per_gas_wei);
+	}
+	if (auto it = j.find("max_cost_wei"); it != j.end() && !it->is_null()) {
+		it->get_to(v.max_cost_wei);
+	}
+	if (auto it = j.find("all_cost_wei"); it != j.end() && !it->is_null()) {
+		it->get_to(v.all_cost_wei);
+	}
+	if (auto it = j.find("needs_gas"); it != j.end() && !it->is_null()) {
+		it->get_to(v.needs_gas);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const SnLedgerUnavailablePool& v) {
+	j = nlohmann::json::object();
+	j["vault"] = v.vault;
+	j["no_id"] = v.no_id;
+	j["kind"] = v.kind;
+	j["label"] = v.label;
+}
+inline void from_json(const nlohmann::json& j, SnLedgerUnavailablePool& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("vault"); it != j.end() && !it->is_null()) {
+		it->get_to(v.vault);
+	}
+	if (auto it = j.find("no_id"); it != j.end() && !it->is_null()) {
+		it->get_to(v.no_id);
+	}
+	if (auto it = j.find("kind"); it != j.end() && !it->is_null()) {
+		it->get_to(v.kind);
+	}
+	if (auto it = j.find("label"); it != j.end() && !it->is_null()) {
+		it->get_to(v.label);
 	}
 }
 
@@ -17904,6 +20418,11 @@ inline void to_json(nlohmann::json& j, const SnLedgerUnsignedTx& v) {
 	j["value"] = v.value;
 	j["amount_rao"] = v.amount_rao;
 	j["gas"] = v.gas;
+	j["vault"] = v.vault;
+	j["batch"] = v.batch;
+	if (v.items) {
+		j["items"] = *v.items;
+	}
 }
 inline void from_json(const nlohmann::json& j, SnLedgerUnsignedTx& v) {
 	if (!j.is_object()) {
@@ -17935,6 +20454,17 @@ inline void from_json(const nlohmann::json& j, SnLedgerUnsignedTx& v) {
 	}
 	if (auto it = j.find("gas"); it != j.end() && !it->is_null()) {
 		it->get_to(v.gas);
+	}
+	if (auto it = j.find("vault"); it != j.end() && !it->is_null()) {
+		it->get_to(v.vault);
+	}
+	if (auto it = j.find("batch"); it != j.end() && !it->is_null()) {
+		it->get_to(v.batch);
+	}
+	if (auto it = j.find("items"); it != j.end() && !it->is_null()) {
+		SnLedgerClaimItemList tmp{};
+		it->get_to(tmp);
+		v.items = std::move(tmp);
 	}
 }
 
@@ -19001,6 +21531,31 @@ inline void from_json(const nlohmann::json& j, SolanaPaymentUrlArgs& v) {
 	}
 }
 
+inline void to_json(nlohmann::json& j, const SolanaWalletFailure& v) {
+	j = nlohmann::json::object();
+	j["failure"] = v.failure;
+	j["message_key"] = v.message_key;
+	if (v.wallet_name) {
+		j["wallet_name"] = *v.wallet_name;
+	}
+}
+inline void from_json(const nlohmann::json& j, SolanaWalletFailure& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("failure"); it != j.end() && !it->is_null()) {
+		it->get_to(v.failure);
+	}
+	if (auto it = j.find("message_key"); it != j.end() && !it->is_null()) {
+		it->get_to(v.message_key);
+	}
+	if (auto it = j.find("wallet_name"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.wallet_name = std::move(tmp);
+	}
+}
+
 inline void to_json(nlohmann::json& j, const StripeCreateCheckoutSessionArgs& v) {
 	j = nlohmann::json::object();
 	j["item_id"] = v.item_id;
@@ -19611,7 +22166,6 @@ inline void to_json(nlohmann::json& j, const SubscriptionBalanceResult& v) {
 	if (v.active_transfer_balances) {
 		j["active_transfer_balances"] = *v.active_transfer_balances;
 	}
-	j["pending_payout_usd_nano_cents"] = v.pending_payout_usd_nano_cents;
 	j["update_time"] = v.update_time;
 	if (v.guest) {
 		j["guest"] = *v.guest;
@@ -19630,6 +22184,9 @@ inline void to_json(nlohmann::json& j, const SubscriptionBalanceResult& v) {
 	}
 	if (v.crypto_assets) {
 		j["crypto_assets"] = *v.crypto_assets;
+	}
+	if (v.crypto_unavailable_assets) {
+		j["crypto_unavailable_assets"] = *v.crypto_unavailable_assets;
 	}
 	if (v.crypto_term) {
 		j["crypto_term"] = *v.crypto_term;
@@ -19666,9 +22223,6 @@ inline void from_json(const nlohmann::json& j, SubscriptionBalanceResult& v) {
 		it->get_to(tmp);
 		v.active_transfer_balances = std::move(tmp);
 	}
-	if (auto it = j.find("pending_payout_usd_nano_cents"); it != j.end() && !it->is_null()) {
-		it->get_to(v.pending_payout_usd_nano_cents);
-	}
 	if (auto it = j.find("update_time"); it != j.end() && !it->is_null()) {
 		it->get_to(v.update_time);
 	}
@@ -19701,6 +22255,11 @@ inline void from_json(const nlohmann::json& j, SubscriptionBalanceResult& v) {
 		CryptoPaymentAssetList tmp{};
 		it->get_to(tmp);
 		v.crypto_assets = std::move(tmp);
+	}
+	if (auto it = j.find("crypto_unavailable_assets"); it != j.end() && !it->is_null()) {
+		CryptoPaymentAssetList tmp{};
+		it->get_to(tmp);
+		v.crypto_unavailable_assets = std::move(tmp);
 	}
 	if (auto it = j.find("crypto_term"); it != j.end() && !it->is_null()) {
 		CryptoTerm tmp{};
@@ -20675,6 +23234,9 @@ inline void to_json(nlohmann::json& j, const VerifyStorePurchaseResult& v) {
 	if (v.expiry_time) {
 		j["expiry_time"] = *v.expiry_time;
 	}
+	if (v.error) {
+		j["error"] = *v.error;
+	}
 }
 inline void from_json(const nlohmann::json& j, VerifyStorePurchaseResult& v) {
 	if (!j.is_object()) {
@@ -20687,6 +23249,36 @@ inline void from_json(const nlohmann::json& j, VerifyStorePurchaseResult& v) {
 		std::string tmp{};
 		it->get_to(tmp);
 		v.expiry_time = std::move(tmp);
+	}
+	if (auto it = j.find("error"); it != j.end() && !it->is_null()) {
+		OnboardingError tmp{};
+		it->get_to(tmp);
+		v.error = std::move(tmp);
+	}
+}
+
+inline void to_json(nlohmann::json& j, const VerifyStripeCheckoutArgs& v) {
+	j = nlohmann::json::object();
+	if (v.session_id) {
+		j["session_id"] = *v.session_id;
+	}
+	if (v.subscription_id) {
+		j["subscription_id"] = *v.subscription_id;
+	}
+}
+inline void from_json(const nlohmann::json& j, VerifyStripeCheckoutArgs& v) {
+	if (!j.is_object()) {
+		return;
+	}
+	if (auto it = j.find("session_id"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.session_id = std::move(tmp);
+	}
+	if (auto it = j.find("subscription_id"); it != j.end() && !it->is_null()) {
+		std::string tmp{};
+		it->get_to(tmp);
+		v.subscription_id = std::move(tmp);
 	}
 }
 
@@ -20938,6 +23530,8 @@ inline void to_json(nlohmann::json& j, const WindowStatus& v) {
 	j["ProviderV4OnlyCount"] = v.ProviderV4OnlyCount;
 	j["ProviderV6OnlyCount"] = v.ProviderV6OnlyCount;
 	j["Ipv6Available"] = v.Ipv6Available;
+	j["UdpAvailable"] = v.UdpAvailable;
+	j["LimitedWindowSize"] = v.LimitedWindowSize;
 	j["StallReason"] = v.StallReason;
 	j["Failed"] = v.Failed;
 }
@@ -20980,6 +23574,12 @@ inline void from_json(const nlohmann::json& j, WindowStatus& v) {
 	}
 	if (auto it = j.find("Ipv6Available"); it != j.end() && !it->is_null()) {
 		it->get_to(v.Ipv6Available);
+	}
+	if (auto it = j.find("UdpAvailable"); it != j.end() && !it->is_null()) {
+		it->get_to(v.UdpAvailable);
+	}
+	if (auto it = j.find("LimitedWindowSize"); it != j.end() && !it->is_null()) {
+		it->get_to(v.LimitedWindowSize);
 	}
 	if (auto it = j.find("StallReason"); it != j.end() && !it->is_null()) {
 		it->get_to(v.StallReason);
@@ -21060,6 +23660,7 @@ using DeviceConfigurationChangedListener = std::function<void()>;
 using DeviceRecreatedListener = std::function<void()>;
 using DeviceSetNameCallback = std::function<void(std::optional<DeviceSetNameResult> result, std::optional<std::string> err_param)>;
 using DnsResolverSettingsChangeListener = std::function<void(std::optional<DnsResolverSettings> dns_resolver_settings)>;
+using DnsResolverStatusChangeListener = std::function<void(std::optional<DnsResolverStatus> dns_resolver_status)>;
 using ExtenderProvideStatusChangeListener = std::function<void(std::optional<ExtenderProvideStatus> status)>;
 using ExtenderStatusChangeListener = std::function<void(std::optional<ExtenderStatus> status)>;
 using ExtenderViewControllerListener = std::function<void(std::optional<ExtenderStatus> status)>;
@@ -21086,13 +23687,11 @@ using GetNetworkReferralCodeCallback = std::function<void(std::optional<GetNetwo
 using GetNetworkReliabilityCallback = std::function<void(std::optional<GetNetworkReliabilityResult> result, std::optional<std::string> err_param)>;
 using GetNetworkSessionsCallback = std::function<void(NetworkSessionsResult result, std::optional<std::string> err_param)>;
 using GetNetworkUserCallback = std::function<void(std::optional<GetNetworkUserResult> result, std::optional<std::string> err_param)>;
-using GetPayoutWalletCallback = std::function<void(std::optional<GetPayoutWalletIdResult> result, std::optional<std::string> err_param)>;
 using GetPointsLeaderboardCallback = std::function<void(std::optional<PointsLeaderboardResult> result, std::optional<std::string> err_param)>;
 using GetProviderStatusCallback = std::function<void(std::optional<GetProviderStatusResult> result, std::optional<std::string> err_param)>;
 using GetReferralNetworkCallback = std::function<void(std::optional<GetReferralNetworkResult> result, std::optional<std::string> err_param)>;
 using GetTransferStatsCallback = std::function<void(std::optional<TransferStatsResult> result, std::optional<std::string> err_param)>;
 using GridListener = std::function<void()>;
-using IsCreatingExternalWalletListener = std::function<void(bool p0)>;
 using IsNetworkUserLoadingListener = std::function<void(bool p0)>;
 using IsNetworkUserUpdatingListener = std::function<void(bool p0)>;
 using IsRemovingWalletListener = std::function<void(bool p0)>;
@@ -21102,6 +23701,8 @@ using ListApiKeysCallback = std::function<void(std::optional<ListApiKeysResult> 
 using LocalOverrideAppIdsListener = std::function<void()>;
 using LocalStateSaveListener = std::function<void(DeviceLocalSaveResult result)>;
 using LocationMatchListener = std::function<void()>;
+using ManageDevicesListener = std::function<void(std::optional<ManageDevicesSnapshot> snapshot)>;
+using ManageDevicesSignInRetry = std::function<void()>;
 using NetworkBlockLocationCallback = std::function<void(std::optional<NetworkBlockLocationResult> result, std::optional<std::string> err_param)>;
 using NetworkCheckCallback = std::function<void(std::optional<NetworkCheckResult> result, std::optional<std::string> err_param)>;
 using NetworkClientsListener = std::function<void(std::optional<NetworkClientInfoList> network_clients)>;
@@ -21123,11 +23724,11 @@ using OnboardingOfferIssueCallback = std::function<void(std::optional<Onboarding
 using PacketStatsChangeListener = std::function<void(std::optional<PacketStats> packet_stats)>;
 using ParseByJwtCallback = std::function<void(std::optional<ByJwt> result, bool ok_param)>;
 using PaymentsListener = std::function<void()>;
-using PayoutWalletListener = std::function<void(std::string p0)>;
 using PeersListener = std::function<void(std::optional<NetworkPeerList> peers)>;
 using PerformanceProfileChangeListener = std::function<void(std::optional<PerformanceProfile> performance_profile)>;
 using PointsLeaderboardListener = std::function<void()>;
 using PostQuantumIdentityListener = std::function<void()>;
+using ProFeaturesListener = std::function<void(std::optional<ProFeaturesSnapshot> snapshot)>;
 using ProvideChangeListener = std::function<void(bool provide_enabled)>;
 using ProvideControlModeChangeListener = std::function<void(std::string provide_control_mode)>;
 using ProvideModeChangeListener = std::function<void(int64_t provide_mode)>;
@@ -21151,6 +23752,7 @@ using RemoteChangeListener = std::function<void(bool remote_connected)>;
 using RemoveAuthCallback = std::function<void(std::optional<RemoveAuthResult> result, std::optional<std::string> err_param)>;
 using RemoveNetworkClientCallback = std::function<void(std::optional<RemoveNetworkClientResult> result, std::optional<std::string> err_param)>;
 using RemoveWalletCallback = std::function<void(std::optional<RemoveWalletResult> result, std::optional<std::string> err_param)>;
+using RotateProxyExitCallback = std::function<void(std::optional<RotateProxyExitResult> result, std::optional<std::string> err_param)>;
 using RouteLocalChangeListener = std::function<void(bool route_local)>;
 using SelectedLocationListener = std::function<void(std::optional<ConnectLocation> location)>;
 using SelectedProviderLocationChangeListener = std::function<void()>;
@@ -21160,7 +23762,6 @@ using SessionSignOutCallback = std::function<void(SessionSignOutResult p0, std::
 using SetEmojiTagCallback = std::function<void(std::optional<SetEmojiTagResult> result, std::optional<std::string> err_param)>;
 using SetNetworkLeaderboardPublicCallback = std::function<void(std::optional<SetNetworkRankingPublicResult> result, std::optional<std::string> err_param)>;
 using SetNetworkReferralCallback = std::function<void(std::optional<SetNetworkReferralResult> result, std::optional<std::string> err_param)>;
-using SetPayoutWalletCallback = std::function<void(std::optional<SetPayoutWalletResult> result, std::optional<std::string> err_param)>;
 using SetPointsLeaderboardPublicCallback = std::function<void(std::optional<SetPointsLeaderboardPublicResult> result, std::optional<std::string> err_param)>;
 using SetupNewDeviceCallback = std::function<bool(Device device, std::optional<ProxyConfigResult> proxy_config_result)>;
 struct SnClaimCallback {
@@ -21175,6 +23776,7 @@ using SnClaimRelayClaimNowCallback = std::function<void(std::optional<SnClaimRel
 using SnClaimStatusCallback = std::function<void(std::optional<SnClaimStatusResult> result, std::optional<std::string> err_param)>;
 using SnClaimsCallback = std::function<void(std::optional<SnClaimsResult> result, std::optional<std::string> err_param)>;
 using SnConnectWalletCallback = std::function<void(std::optional<SnConnectWalletResult> result, std::optional<std::string> err_param)>;
+using SnCtfClientCallback = std::function<void(std::optional<SnCtfClientResult> result, std::optional<std::string> err_param)>;
 using SnEpochCallback = std::function<void(std::optional<SnEpochResult> result, std::optional<std::string> err_param)>;
 using SnFleetClaimCallback = std::function<void(std::optional<SnFleetClaimState> result, std::optional<std::string> err_param)>;
 struct SnFleetClaimStore {
@@ -21234,6 +23836,7 @@ using ValidateReferralCodeCallback = std::function<void(std::optional<ValidateRe
 using VerifyAppleTransactionCallback = std::function<void(std::optional<VerifyStorePurchaseResult> result, std::optional<std::string> err_param)>;
 using VerifyPlayPurchaseCallback = std::function<void(std::optional<VerifyStorePurchaseResult> result, std::optional<std::string> err_param)>;
 using VerifySeekerNftHolderCallback = std::function<void(std::optional<VerifySeekerNftHolderResult> result, std::optional<std::string> err_param)>;
+using VerifyStripeCheckoutCallback = std::function<void(std::optional<VerifyStorePurchaseResult> result, std::optional<std::string> err_param)>;
 struct ViewController {
 	std::function<void()> close;
 	std::function<void()> start;
@@ -21291,6 +23894,7 @@ public:
 	Sub addContractStatusChangeListener(ContractStatusChangeListener listener) const;
 	Sub addDefaultLocationChangeListener(DefaultLocationChangeListener listener) const;
 	Sub addDnsResolverSettingsChangeListener(DnsResolverSettingsChangeListener listener) const;
+	Sub addDnsResolverStatusChangeListener(DnsResolverStatusChangeListener listener) const;
 	Sub addEgressContractDetailsChangeListener(ContractDetailsChangeListener listener) const;
 	Sub addEgressContractStatsChangeListener(ContractStatsChangeListener listener) const;
 	Sub addExtenderProvideStatusChangeListener(ExtenderProvideStatusChangeListener listener) const;
@@ -21346,7 +23950,9 @@ public:
 	int64_t getControlIpFamilyPolicy() const;
 	std::string getControlIpFamilyStatus() const;
 	std::optional<ConnectLocation> getDefaultLocation() const;
+	int64_t getDnsBlockedCount() const;
 	std::optional<DnsResolverSettings> getDnsResolverSettings() const;
+	std::optional<DnsResolverStatus> getDnsResolverStatus() const;
 	bool getDone() const;
 	std::optional<ContractDetailsList> getEgressContractDetails() const;
 	std::optional<ContractStats> getEgressContractStats() const;
@@ -21368,6 +23974,7 @@ public:
 	std::string getProvideControlMode() const;
 	bool getProvideEnabled() const;
 	bool getProvideExtender() const;
+	bool getProvideExtenderPortMapping() const;
 	int64_t getProvideMode() const;
 	std::string getProvideNetworkMode() const;
 	bool getProvidePaused() const;
@@ -21400,6 +24007,8 @@ public:
 	void removeConnectedProvider(const std::string& client_id) const;
 	void removeDestination() const;
 	void resetExtenders() const;
+	bool retryClientLimit() const;
+	bool retryClientLimitAfterChange() const;
 	void setAllowForeground(bool allow_foreground) const;
 	void setBlockActionOverrides(const std::optional<BlockActionOverrideList>& overrides) const;
 	void setBlockerEnabled(bool blocker_enabled) const;
@@ -21417,6 +24026,7 @@ public:
 	void setPerformanceProfile(const std::optional<PerformanceProfile>& performance_profile) const;
 	void setProvideControlMode(const std::string& mode) const;
 	void setProvideExtender(bool provide_extender) const;
+	void setProvideExtenderPortMapping(bool port_mapping) const;
 	void setProvideMode(int64_t provide_mode) const;
 	void setProvideNetworkMode(const std::string& mode) const;
 	void setProvidePaused(bool provide_paused) const;
@@ -21490,6 +24100,7 @@ public:
 	void createStripePaymentIntent(const std::optional<StripeCreatePaymentIntentArgs>& args, StripePaymentIntentCallback callback) const;
 	void deleteApiKey(const std::optional<DeleteApiKeyArgs>& args, DeleteApiKeyCallback callback) const;
 	void deviceSetName(const std::optional<DeviceSetNameArgs>& device_set_name, DeviceSetNameCallback callback) const;
+	void dismissAccountSignInNotice() const;
 	void findLocations(const std::optional<FindLocationsArgs>& find_locations, FindLocationsCallback callback) const;
 	void findProviderLocations(const std::optional<FindLocationsArgs>& find_locations, FindLocationsCallback callback) const;
 	void findProviders(const std::optional<FindProvidersArgs>& find_providers, FindProvidersCallback callback) const;
@@ -21497,6 +24108,7 @@ public:
 	void generateSeedphrase(const std::optional<GenerateSeedphraseArgs>& args, GenerateSeedphraseCallback callback) const;
 	void getAccountPayments(GetAccountPaymentsCallback callback) const;
 	void getAccountPoints(GetAccountPointsCallback callback) const;
+	std::string getAccountSignInRequiredCause() const;
 	void getAccountWallets(GetAccountWalletsCallback callback) const;
 	std::string getAuthLogoutCause() const;
 	std::string getByJwt() const;
@@ -21505,6 +24117,8 @@ public:
 	void getCryptoPaymentAssets(CryptoPaymentAssetsCallback callback) const;
 	void getCryptoPaymentStatus(const std::optional<CryptoPaymentStatusArgs>& args, CryptoPaymentStatusCallback callback) const;
 	void getLeaderboard(const std::optional<GetLeaderboardArgs>& args, GetLeaderboardCallback callback) const;
+	std::string getMailLocaleTimeZone() const;
+	std::optional<StringList> getMailLocales() const;
 	void getNetworkBlockedLocations(GetNetworkBlockedLocationsCallback callback) const;
 	void getNetworkClients(GetNetworkClientsCallback callback) const;
 	void getNetworkLeaderboardRanking(GetNetworkLeaderboardRankingCallback callback) const;
@@ -21514,12 +24128,12 @@ public:
 	void getNetworkSessionOperation(const std::string& operation_id, SessionOperationCallback callback) const;
 	void getNetworkSessions(GetNetworkSessionsCallback callback) const;
 	void getNetworkUser(GetNetworkUserCallback callback) const;
-	void getPayoutWallet(GetPayoutWalletCallback callback) const;
 	void getPointsLeaderboard(const std::optional<GetPointsLeaderboardArgs>& args, GetPointsLeaderboardCallback callback) const;
 	void getProviderLocations(FindLocationsCallback callback) const;
 	void getProviderStatus(GetProviderStatusCallback callback) const;
 	void getReferralNetwork(GetReferralNetworkCallback callback) const;
 	void getTransferStats(GetTransferStatsCallback callback) const;
+	bool hasAccountSignInNotice() const;
 	bool hasNetworkCredential() const;
 	bool isAuthLogoutCurrent(int64_t generation) const;
 	void listApiKeys(ListApiKeysCallback callback) const;
@@ -21534,6 +24148,8 @@ public:
 	void onboardingFeedbackToken(const std::string& token, int64_t rating, const std::string& reason, OnboardingFeedbackTokenCallback callback) const;
 	void onboardingOfferIssue(const std::optional<OnboardingOfferIssueArgs>& args, OnboardingOfferIssueCallback callback) const;
 	ClientSessionViewController openClientSessionViewController() const;
+	ManageDevicesViewController openManageDevicesViewController() const;
+	ProFeaturesViewController openProFeaturesViewController() const;
 	void redeemBalanceCode(const std::optional<RedeemBalanceCodeArgs>& args, RedeemBalanceCodeCallback callback) const;
 	void refreshJwt(RefreshJwtCallback callback) const;
 	std::optional<RefreshJwtResult> refreshJwtSync() const;
@@ -21542,18 +24158,21 @@ public:
 	void removeNetworkClient(const std::optional<RemoveNetworkClientArgs>& args, RemoveNetworkClientCallback callback) const;
 	std::optional<RemoveNetworkClientResult> removeNetworkClientSync(const std::optional<RemoveNetworkClientArgs>& args) const;
 	void removeWallet(const std::optional<RemoveWalletArgs>& remove_wallet, RemoveWalletCallback callback) const;
+	void reportStripePurchase(const std::optional<VerifyStripeCheckoutArgs>& args, VerifyStripeCheckoutCallback callback) const;
 	void requestJwtRefresh() const;
 	void requoteCryptoPayment(const std::optional<CryptoPaymentStatusArgs>& args, CryptoPaymentIntentCallback callback) const;
 	void revokeNetworkSession(const std::optional<RevokeNetworkSessionArgs>& args, SessionOperationCallback callback) const;
 	void revokeOtherNetworkSessions(const std::optional<RevokeOtherNetworkSessionsArgs>& args, SessionOperationCallback callback) const;
+	void rotateProxyExit(const std::optional<RotateProxyExitArgs>& args, RotateProxyExitCallback callback) const;
+	std::optional<RotateProxyExitResult> rotateProxyExitSync(const std::optional<RotateProxyExitArgs>& args) const;
 	void sendFeedback(const std::optional<FeedbackSendArgs>& send_feedback, SendFeedbackCallback callback) const;
 	void setByJwt(const std::string& by_jwt) const;
 	void setClientInfo(const std::optional<ClientInfo>& info) const;
 	void setEmojiTag(const std::optional<SetEmojiTagArgs>& args, SetEmojiTagCallback callback) const;
+	void setMailLocale(const std::string& time_zone, const std::optional<StringList>& locales) const;
 	void setNetworkCredentialStore(const LocalState& store) const;
 	void setNetworkLeaderboardPublic(const std::optional<SetNetworkRankingPublicArgs>& args, SetNetworkLeaderboardPublicCallback callback) const;
 	void setNetworkReferral(const std::optional<SetNetworkReferralArgs>& args, SetNetworkReferralCallback callback) const;
-	void setPayoutWallet(const std::optional<SetPayoutWalletArgs>& payout_wallet, SetPayoutWalletCallback callback) const;
 	void setPointsLeaderboardPublic(const std::optional<SetPointsLeaderboardPublicArgs>& args, SetPointsLeaderboardPublicCallback callback) const;
 	void signOut(SessionSignOutCallback callback) const;
 	void snClaimRelay(SnClaimRelayCallback callback) const;
@@ -21594,6 +24213,7 @@ public:
 	void verifyPlayPurchase(const std::optional<VerifyPlayPurchaseArgs>& args, VerifyPlayPurchaseCallback callback) const;
 	std::optional<VerifyStorePurchaseResult> verifyPlayPurchaseSync(const std::optional<VerifyPlayPurchaseArgs>& args) const;
 	void verifySeekerHolder(const std::optional<VerifySeekerNftHolderArgs>& verify, VerifySeekerNftHolderCallback callback) const;
+	void verifyStripeCheckout(const std::optional<VerifyStripeCheckoutArgs>& args, VerifyStripeCheckoutCallback callback) const;
 	void walletBalance(WalletBalanceCallback callback) const;
 	void walletCircleInit(WalletCircleInitCallback callback) const;
 	void walletCircleTransferOut(const std::optional<WalletCircleTransferOutArgs>& wallet_circle_transfer_out, WalletCircleTransferOutCallback callback) const;
@@ -21718,6 +24338,14 @@ public:
 	void setLocale(const std::string& locale) const;
 };
 
+class ClientLimitNoticeTracker final : public detail::Handle {
+public:
+	ClientLimitNoticeTracker() = default;
+	explicit ClientLimitNoticeTracker(uint64_t h) : detail::Handle(h) {}
+	std::string reset() const;
+	std::string update(const std::optional<ClientLimitStatus>& status, bool connect_requested) const;
+};
+
 class ClientRefreshIntegrityNotice final : public detail::Handle {
 public:
 	ClientRefreshIntegrityNotice() = default;
@@ -21760,6 +24388,28 @@ public:
 	bool getUnsupported() const;
 };
 
+class ClientSessionGroup final : public detail::Handle {
+public:
+	ClientSessionGroup() = default;
+	explicit ClientSessionGroup(uint64_t h) : detail::Handle(h) {}
+	int64_t getCount() const;
+	bool getExpanded() const;
+	bool getHasMore() const;
+	std::string getKind() const;
+	NetworkSessionInfoList getSessions() const;
+};
+
+class ClientSessionGroupList final : public detail::Handle {
+public:
+	ClientSessionGroupList() = default;
+	explicit ClientSessionGroupList(uint64_t h) : detail::Handle(h) {}
+	void add(const ClientSessionGroup& value) const;
+	bool contains(const ClientSessionGroup& v) const;
+	ClientSessionGroup get(int64_t i) const;
+	int64_t len() const;
+	void unmarshalJSON(const uint8_t* b, int32_t b_len) const;
+};
+
 class ClientSessionSnapshot final : public detail::Handle {
 public:
 	ClientSessionSnapshot() = default;
@@ -21770,12 +24420,17 @@ public:
 	ClientSessionError getError() const;
 	int64_t getEventId() const;
 	std::string getGeneration() const;
+	ClientSessionGroupList getGroups() const;
 	std::string getLegacyCoverage() const;
 	bool getLoaded() const;
 	bool getLoading() const;
+	int64_t getOtherSessionCount() const;
 	bool getRefreshing() const;
+	int64_t getSessionCount() const;
 	NetworkSessionInfoList getSessions() const;
+	bool getSessionsHasMore() const;
 	bool getSupported() const;
+	bool getTruncated() const;
 };
 
 class ClientSessionViewController final : public detail::Handle {
@@ -21790,7 +24445,9 @@ public:
 	void revokeOtherSessions() const;
 	void revokeSession(const std::string& session_id) const;
 	void setForeground(bool foreground) const;
+	void setGroupExpanded(const std::string& kind, bool expanded) const;
 	void setVisible(bool visible) const;
+	void showMoreSessions(const std::string& kind) const;
 	void start() const;
 	void stop() const;
 };
@@ -21901,6 +24558,7 @@ public:
 	void closeCryptoInvoiceViewController(const CryptoInvoiceViewController& vc) const;
 	void closeDevicesViewController(const DevicesViewController& vc) const;
 	void closeLocationsViewController(const LocationsViewController& vc) const;
+	void closeManageDevicesViewController(const ManageDevicesViewController& vc) const;
 	void closePeerViewController(const PeerViewController& vc) const;
 	void closePointsLeaderboardViewController(const PointsLeaderboardViewController& vc) const;
 	void closePostQuantumIdentityViewController(const PostQuantumIdentityViewController& vc) const;
@@ -21920,10 +24578,12 @@ public:
 	std::string getFirstLoadTimelineJson() const;
 	DeviceLocalKeyMaterial getKeyMaterial() const;
 	DeviceLocalSaveResult getLastLocalStateSaveResult() const;
+	double getLimitedWindowSizeFraction() const;
 	std::optional<MemoryStats> getMemoryStats() const;
 	std::optional<StringList> getPinnedAppIds() const;
 	std::optional<ProbeResultList> getProbeResults() const;
 	std::optional<ProvideSecretKeyList> getProvideSecretKeys() const;
+	bool getProviderClientKeyPublished() const;
 	bool getProviderClientKeyRegistered() const;
 	bool getProviderConnected() const;
 	bool getProviderReady() const;
@@ -21953,6 +24613,7 @@ public:
 	ExtenderViewController openExtenderViewController() const;
 	FeedbackViewController openFeedbackViewController() const;
 	LocationsViewController openLocationsViewController() const;
+	ManageDevicesViewController openManageDevicesViewController() const;
 	NetworkUserViewController openNetworkUserViewController() const;
 	PeerViewController openPeerViewController() const;
 	PointsLeaderboardViewController openPointsLeaderboardViewController() const;
@@ -21968,6 +24629,7 @@ public:
 	bool probeSuiteRunning() const;
 	void querySubprotocols(const std::string& destination_client_id, int64_t timeout_millis, SubprotocolsQueryCallback callback) const;
 	void reconnectChecked(const std::optional<ConnectLocation>& location) const;
+	void resetLimitedWindowSizeFraction() const;
 	void resetReliabilityMetrics() const;
 	void resetReliabilitySettings() const;
 	void saveKeyMaterial() const;
@@ -21982,6 +24644,7 @@ public:
 	void setDefaultLocationChecked(const std::optional<ConnectLocation>& location) const;
 	void setFlowOwnerLookup(FlowOwnerLookup lookup) const;
 	void setKeyMaterial(const DeviceLocalKeyMaterial& key_material) const;
+	void setLimitedWindowSizeFraction(double fraction) const;
 	void setNetworkMetered(bool metered) const;
 	void setPerformanceDegraded(bool degraded) const;
 	void setReliabilitySettings(const std::optional<ReliabilitySettings>& reliability_settings) const;
@@ -22001,10 +24664,12 @@ public:
 	void snClaimStatus(SnClaimStatusCallback callback) const;
 	std::optional<SnUnsignedTxList> snClaimTransactions(const std::optional<Int64List>& epochs) const;
 	void snClaims(SnClaimsCallback callback) const;
+	void snCtfClient(SnCtfClientCallback callback) const;
 	void snGasBalance(SnGasBalanceCallback callback) const;
 	void snLedgerAccounts(SnLedgerAccountsCallback callback) const;
 	void snLedgerClaim(SnLedgerClaimCallback callback) const;
 	std::optional<SnLedgerUnsignedTxList> snLedgerClaimTransactions() const;
+	std::optional<SnLedgerClaimTransactionsResult> snLedgerClaimTransactionsForPayer(const std::string& payer_address) const;
 	bool stallExit(const std::string& client_id, bool stalled) const;
 	bool startProbeSuite(const std::optional<ProbeSuiteConfig>& config) const;
 	void stopProbeSuite() const;
@@ -22087,6 +24752,7 @@ public:
 	void closeCryptoInvoiceViewController(const CryptoInvoiceViewController& vc) const;
 	void closeDevicesViewController(const DevicesViewController& vc) const;
 	void closeLocationsViewController(const LocationsViewController& vc) const;
+	void closeManageDevicesViewController(const ManageDevicesViewController& vc) const;
 	void closePeerViewController(const PeerViewController& vc) const;
 	void closePointsLeaderboardViewController(const PointsLeaderboardViewController& vc) const;
 	void closePostQuantumIdentityViewController(const PostQuantumIdentityViewController& vc) const;
@@ -22123,6 +24789,7 @@ public:
 	ExtenderViewController openExtenderViewController() const;
 	FeedbackViewController openFeedbackViewController() const;
 	LocationsViewController openLocationsViewController() const;
+	ManageDevicesViewController openManageDevicesViewController() const;
 	NetworkUserViewController openNetworkUserViewController() const;
 	PeerViewController openPeerViewController() const;
 	PointsLeaderboardViewController openPointsLeaderboardViewController() const;
@@ -22150,10 +24817,12 @@ public:
 	void snClaimStatus(SnClaimStatusCallback callback) const;
 	std::optional<SnUnsignedTxList> snClaimTransactions(const std::optional<Int64List>& epochs) const;
 	void snClaims(SnClaimsCallback callback) const;
+	void snCtfClient(SnCtfClientCallback callback) const;
 	void snGasBalance(SnGasBalanceCallback callback) const;
 	void snLedgerAccounts(SnLedgerAccountsCallback callback) const;
 	void snLedgerClaim(SnLedgerClaimCallback callback) const;
 	std::optional<SnLedgerUnsignedTxList> snLedgerClaimTransactions() const;
+	std::optional<SnLedgerClaimTransactionsResult> snLedgerClaimTransactionsForPayer(const std::string& payer_address) const;
 	bool stallExit(const std::string& exit_client_id, bool stalled) const;
 	bool startProbeSuite(const std::optional<ProbeSuiteConfig>& config) const;
 	void stopProbeSuite() const;
@@ -22249,6 +24918,7 @@ class LocalAuthStateSnapshot final : public detail::Handle {
 public:
 	LocalAuthStateSnapshot() = default;
 	explicit LocalAuthStateSnapshot(uint64_t h) : detail::Handle(h) {}
+	bool getAccountSignInRequired() const;
 	std::string getByClientJwt() const;
 	std::string getByJwt() const;
 	bool getEmpty() const;
@@ -22288,6 +24958,7 @@ public:
 	std::optional<PerformanceProfile> getPerformanceProfile() const;
 	std::string getProvideControlMode() const;
 	bool getProvideExtender() const;
+	bool getProvideExtenderPortMapping() const;
 	int64_t getProvideMode() const;
 	std::string getProvideNetworkMode() const;
 	std::optional<ProvideSecretKeyList> getProvideSecretKeys() const;
@@ -22330,6 +25001,7 @@ public:
 	void setPerformanceProfile(const std::optional<PerformanceProfile>& profile) const;
 	void setProvideControlMode(const std::string& mode) const;
 	void setProvideExtender(bool provide_extender) const;
+	void setProvideExtenderPortMapping(bool port_mapping) const;
 	void setProvideMode(int64_t provide_mode) const;
 	void setProvideNetworkMode(const std::string& provide_network_mode) const;
 	void setProvideSecretKeys(const std::optional<ProvideSecretKeyList>& provide_secret_key_list) const;
@@ -22387,6 +25059,20 @@ public:
 	void stop() const;
 };
 
+class ManageDevicesViewController final : public detail::Handle {
+public:
+	ManageDevicesViewController() = default;
+	explicit ManageDevicesViewController(uint64_t h) : detail::Handle(h) {}
+	Sub addManageDevicesListener(ManageDevicesListener listener) const;
+	void close() const;
+	bool getCanManage() const;
+	std::optional<ManageDevicesSnapshot> getSnapshot() const;
+	void refresh() const;
+	void removeDevice(const std::string& client_id) const;
+	void start() const;
+	void stop() const;
+};
+
 class NetworkNameValidationViewController final : public detail::Handle {
 public:
 	NetworkNameValidationViewController() = default;
@@ -22402,6 +25088,7 @@ public:
 	NetworkSessionInfo() = default;
 	explicit NetworkSessionInfo(uint64_t h) : detail::Handle(h) {}
 	int64_t getAcceptUntil() const;
+	std::string getClientKind() const;
 	int64_t getCreateTime() const;
 	bool getCurrent() const;
 	std::string getKind() const;
@@ -22409,6 +25096,7 @@ public:
 	SessionLastUsed getLastUsed() const;
 	std::string getOriginSessionId() const;
 	std::string getSessionId() const;
+	std::string getSessionKind() const;
 	int64_t getTokenExpireTime() const;
 };
 
@@ -22431,6 +25119,7 @@ public:
 	int64_t getEventId() const;
 	std::string getGeneration() const;
 	std::string getLegacyCoverage() const;
+	std::string getNextCursor() const;
 	NetworkSessionInfoList getSessions() const;
 };
 
@@ -22614,6 +25303,29 @@ public:
 	void stop() const;
 };
 
+class ProFeaturesNoticeTracker final : public detail::Handle {
+public:
+	ProFeaturesNoticeTracker() = default;
+	explicit ProFeaturesNoticeTracker(uint64_t h) : detail::Handle(h) {}
+	std::string dismiss() const;
+	std::string getShownPrompt() const;
+	std::string reset() const;
+	std::string update(const std::optional<ProFeaturesStatus>& status) const;
+};
+
+class ProFeaturesViewController final : public detail::Handle {
+public:
+	ProFeaturesViewController() = default;
+	explicit ProFeaturesViewController(uint64_t h) : detail::Handle(h) {}
+	Sub addProFeaturesListener(ProFeaturesListener listener) const;
+	void close() const;
+	void dismissMainNotice() const;
+	std::optional<ProFeaturesSnapshot> getSnapshot() const;
+	void refresh() const;
+	void start() const;
+	void stop() const;
+};
+
 class ProvideViewController final : public detail::Handle {
 public:
 	ProvideViewController() = default;
@@ -22695,7 +25407,9 @@ public:
 	std::string getCity() const;
 	std::string getCountry() const;
 	std::string getCountryCode() const;
+	std::string getDeviceKind() const;
 	std::string getDeviceType() const;
+	std::string getDistribution() const;
 	std::string getRegion() const;
 	int64_t getUnixTime() const;
 };
@@ -22786,6 +25500,7 @@ public:
 	int64_t getPendingByteCount() const;
 	std::string getPurchaseConfirmationGiveUpReason() const;
 	std::string getPurchaseConfirmationState() const;
+	std::string getShownPlan() const;
 	int64_t getStartBalanceByteCount() const;
 	std::optional<SubscriptionBalanceResult> getSubscriptionBalanceResult() const;
 	std::optional<SubscriptionList> getSubscriptions() const;
@@ -22802,6 +25517,19 @@ public:
 	void stop() const;
 };
 
+class SubscriptionProTracker final : public detail::Handle {
+public:
+	SubscriptionProTracker() = default;
+	explicit SubscriptionProTracker(uint64_t h) : detail::Handle(h) {}
+	bool balanceFailed() const;
+	bool balanceLoaded(bool server_is_pro) const;
+	bool getIsPro() const;
+	bool getLastReadFailed() const;
+	std::string getShownPlan() const;
+	void reset() const;
+	bool setJwt(const std::string& by_jwt) const;
+};
+
 class Tunnel final : public detail::Handle {
 public:
 	Tunnel() = default;
@@ -22816,29 +25544,21 @@ public:
 	WalletViewController() = default;
 	explicit WalletViewController(uint64_t h) : detail::Handle(h) {}
 	Sub addAccountWalletsListener(AccountWalletsListener listener) const;
-	void addExternalWallet(const std::string& address, const std::string& blockchain) const;
-	Sub addIsCreatingExternalWalletListener(IsCreatingExternalWalletListener listener) const;
 	Sub addIsRemovingWalletListener(IsRemovingWalletListener listener) const;
 	Sub addPaymentsListener(PaymentsListener listener) const;
-	Sub addPayoutWalletListener(PayoutWalletListener listener) const;
 	Sub addUnpaidByteCountListener(UnpaidByteCountListener listener) const;
 	void close() const;
 	void fetchAccountWallets() const;
 	void fetchPayments() const;
-	void fetchPayoutWallet() const;
 	void fetchTransferStats() const;
 	std::optional<AccountWallet> filterWalletsById(const std::string& id_str) const;
 	std::optional<AccountPaymentsList> getAccountPayments() const;
-	std::string getNextPayoutDate() const;
-	std::string getPayoutWalletId() const;
 	int64_t getUnpaidByteCount() const;
 	std::optional<AccountWalletsList> getWallets() const;
 	void removeWallet(const std::string& wallet_id) const;
 	void setIsPollingAccountWallets(bool is_polling) const;
-	void setIsPollingPayoutWallet(bool is_polling) const;
 	void start() const;
 	void stop() const;
-	void updatePayoutWallet(const std::string& wallet_id) const;
 	void validateAddress(const std::string& address, const std::string& blockchain, ValidateAddressCallback callback) const;
 };
 
@@ -24672,6 +27392,34 @@ inline void oneshot_dns_resolver_settings_change(void* user_data, const char* dn
 	delete f;
 }
 
+inline void retained_dns_resolver_status_change(void* user_data, const char* dns_resolver_status_json) {
+	auto* f = static_cast<DnsResolverStatusChangeListener*>(user_data);
+	try {
+		std::optional<DnsResolverStatus> dns_resolver_status_v;
+		if (dns_resolver_status_json) {
+			dns_resolver_status_v = parseJson<DnsResolverStatus>(dns_resolver_status_json);
+		}
+		(*f)(std::move(dns_resolver_status_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_dns_resolver_status_change(void* user_data, const char* dns_resolver_status_json) {
+	auto* f = static_cast<DnsResolverStatusChangeListener*>(user_data);
+	try {
+		std::optional<DnsResolverStatus> dns_resolver_status_v;
+		if (dns_resolver_status_json) {
+			dns_resolver_status_v = parseJson<DnsResolverStatus>(dns_resolver_status_json);
+		}
+		(*f)(std::move(dns_resolver_status_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
 inline void retained_extender_provide_status_change(void* user_data, const char* status_json) {
 	auto* f = static_cast<ExtenderProvideStatusChangeListener*>(user_data);
 	try {
@@ -25478,42 +28226,6 @@ inline void oneshot_get_network_user(void* user_data, const char* result_json, c
 	delete f;
 }
 
-inline void retained_get_payout_wallet(void* user_data, const char* result_json, const char* err_param) {
-	auto* f = static_cast<GetPayoutWalletCallback*>(user_data);
-	try {
-		std::optional<GetPayoutWalletIdResult> result_v;
-		if (result_json) {
-			result_v = parseJson<GetPayoutWalletIdResult>(result_json);
-		}
-		std::optional<std::string> err_param_v;
-		if (err_param) {
-			err_param_v = std::string(err_param);
-		}
-		(*f)(std::move(result_v), std::move(err_param_v));
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-}
-inline void oneshot_get_payout_wallet(void* user_data, const char* result_json, const char* err_param) {
-	auto* f = static_cast<GetPayoutWalletCallback*>(user_data);
-	try {
-		std::optional<GetPayoutWalletIdResult> result_v;
-		if (result_json) {
-			result_v = parseJson<GetPayoutWalletIdResult>(result_json);
-		}
-		std::optional<std::string> err_param_v;
-		if (err_param) {
-			err_param_v = std::string(err_param);
-		}
-		(*f)(std::move(result_v), std::move(err_param_v));
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-	delete f;
-}
-
 inline void retained_get_points_leaderboard(void* user_data, const char* result_json, const char* err_param) {
 	auto* f = static_cast<GetPointsLeaderboardCallback*>(user_data);
 	try {
@@ -25700,26 +28412,6 @@ inline void oneshot_io_loop_done(void* user_data) {
 }
 
 #endif
-inline void retained_is_creating_external_wallet(void* user_data, bool p0) {
-	auto* f = static_cast<IsCreatingExternalWalletListener*>(user_data);
-	try {
-		(*f)(p0);
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-}
-inline void oneshot_is_creating_external_wallet(void* user_data, bool p0) {
-	auto* f = static_cast<IsCreatingExternalWalletListener*>(user_data);
-	try {
-		(*f)(p0);
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-	delete f;
-}
-
 inline void retained_is_network_user_loading(void* user_data, bool p0) {
 	auto* f = static_cast<IsNetworkUserLoadingListener*>(user_data);
 	try {
@@ -25909,6 +28601,54 @@ inline void retained_location_match(void* user_data) {
 }
 inline void oneshot_location_match(void* user_data) {
 	auto* f = static_cast<LocationMatchListener*>(user_data);
+	try {
+		(*f)();
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
+inline void retained_manage_devices(void* user_data, const char* snapshot_json) {
+	auto* f = static_cast<ManageDevicesListener*>(user_data);
+	try {
+		std::optional<ManageDevicesSnapshot> snapshot_v;
+		if (snapshot_json) {
+			snapshot_v = parseJson<ManageDevicesSnapshot>(snapshot_json);
+		}
+		(*f)(std::move(snapshot_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_manage_devices(void* user_data, const char* snapshot_json) {
+	auto* f = static_cast<ManageDevicesListener*>(user_data);
+	try {
+		std::optional<ManageDevicesSnapshot> snapshot_v;
+		if (snapshot_json) {
+			snapshot_v = parseJson<ManageDevicesSnapshot>(snapshot_json);
+		}
+		(*f)(std::move(snapshot_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
+inline void retained_manage_devices_sign_in_retry(void* user_data) {
+	auto* f = static_cast<ManageDevicesSignInRetry*>(user_data);
+	try {
+		(*f)();
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_manage_devices_sign_in_retry(void* user_data) {
+	auto* f = static_cast<ManageDevicesSignInRetry*>(user_data);
 	try {
 		(*f)();
 	} catch (const std::exception& e) {
@@ -26524,26 +29264,6 @@ inline void oneshot_payments(void* user_data) {
 	delete f;
 }
 
-inline void retained_payout_wallet(void* user_data, const char* p0) {
-	auto* f = static_cast<PayoutWalletListener*>(user_data);
-	try {
-		(*f)(std::string(p0 ? p0 : ""));
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-}
-inline void oneshot_payout_wallet(void* user_data, const char* p0) {
-	auto* f = static_cast<PayoutWalletListener*>(user_data);
-	try {
-		(*f)(std::string(p0 ? p0 : ""));
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-	delete f;
-}
-
 inline void retained_peers(void* user_data, const char* peers_json) {
 	auto* f = static_cast<PeersListener*>(user_data);
 	try {
@@ -26633,6 +29353,34 @@ inline void oneshot_post_quantum_identity(void* user_data) {
 	auto* f = static_cast<PostQuantumIdentityListener*>(user_data);
 	try {
 		(*f)();
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
+inline void retained_pro_features(void* user_data, const char* snapshot_json) {
+	auto* f = static_cast<ProFeaturesListener*>(user_data);
+	try {
+		std::optional<ProFeaturesSnapshot> snapshot_v;
+		if (snapshot_json) {
+			snapshot_v = parseJson<ProFeaturesSnapshot>(snapshot_json);
+		}
+		(*f)(std::move(snapshot_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_pro_features(void* user_data, const char* snapshot_json) {
+	auto* f = static_cast<ProFeaturesListener*>(user_data);
+	try {
+		std::optional<ProFeaturesSnapshot> snapshot_v;
+		if (snapshot_json) {
+			snapshot_v = parseJson<ProFeaturesSnapshot>(snapshot_json);
+		}
+		(*f)(std::move(snapshot_v));
 	} catch (const std::exception& e) {
 		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
 	} catch (...) {
@@ -27222,6 +29970,42 @@ inline void oneshot_remove_wallet(void* user_data, const char* result_json, cons
 	delete f;
 }
 
+inline void retained_rotate_proxy_exit(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<RotateProxyExitCallback*>(user_data);
+	try {
+		std::optional<RotateProxyExitResult> result_v;
+		if (result_json) {
+			result_v = parseJson<RotateProxyExitResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_rotate_proxy_exit(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<RotateProxyExitCallback*>(user_data);
+	try {
+		std::optional<RotateProxyExitResult> result_v;
+		if (result_json) {
+			result_v = parseJson<RotateProxyExitResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
 inline void retained_route_local_change(void* user_data, bool route_local) {
 	auto* f = static_cast<RouteLocalChangeListener*>(user_data);
 	try {
@@ -27481,42 +30265,6 @@ inline void oneshot_set_network_referral(void* user_data, const char* result_jso
 		std::optional<SetNetworkReferralResult> result_v;
 		if (result_json) {
 			result_v = parseJson<SetNetworkReferralResult>(result_json);
-		}
-		std::optional<std::string> err_param_v;
-		if (err_param) {
-			err_param_v = std::string(err_param);
-		}
-		(*f)(std::move(result_v), std::move(err_param_v));
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-	delete f;
-}
-
-inline void retained_set_payout_wallet(void* user_data, const char* result_json, const char* err_param) {
-	auto* f = static_cast<SetPayoutWalletCallback*>(user_data);
-	try {
-		std::optional<SetPayoutWalletResult> result_v;
-		if (result_json) {
-			result_v = parseJson<SetPayoutWalletResult>(result_json);
-		}
-		std::optional<std::string> err_param_v;
-		if (err_param) {
-			err_param_v = std::string(err_param);
-		}
-		(*f)(std::move(result_v), std::move(err_param_v));
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
-	} catch (...) {
-	}
-}
-inline void oneshot_set_payout_wallet(void* user_data, const char* result_json, const char* err_param) {
-	auto* f = static_cast<SetPayoutWalletCallback*>(user_data);
-	try {
-		std::optional<SetPayoutWalletResult> result_v;
-		if (result_json) {
-			result_v = parseJson<SetPayoutWalletResult>(result_json);
 		}
 		std::optional<std::string> err_param_v;
 		if (err_param) {
@@ -27848,6 +30596,42 @@ inline void oneshot_sn_connect_wallet(void* user_data, const char* result_json, 
 		std::optional<SnConnectWalletResult> result_v;
 		if (result_json) {
 			result_v = parseJson<SnConnectWalletResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
+inline void retained_sn_ctf_client(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<SnCtfClientCallback*>(user_data);
+	try {
+		std::optional<SnCtfClientResult> result_v;
+		if (result_json) {
+			result_v = parseJson<SnCtfClientResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_sn_ctf_client(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<SnCtfClientCallback*>(user_data);
+	try {
+		std::optional<SnCtfClientResult> result_v;
+		if (result_json) {
+			result_v = parseJson<SnCtfClientResult>(result_json);
 		}
 		std::optional<std::string> err_param_v;
 		if (err_param) {
@@ -29381,6 +32165,42 @@ inline void oneshot_verify_seeker_nft_holder(void* user_data, const char* result
 	delete f;
 }
 
+inline void retained_verify_stripe_checkout(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<VerifyStripeCheckoutCallback*>(user_data);
+	try {
+		std::optional<VerifyStorePurchaseResult> result_v;
+		if (result_json) {
+			result_v = parseJson<VerifyStorePurchaseResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+}
+inline void oneshot_verify_stripe_checkout(void* user_data, const char* result_json, const char* err_param) {
+	auto* f = static_cast<VerifyStripeCheckoutCallback*>(user_data);
+	try {
+		std::optional<VerifyStorePurchaseResult> result_v;
+		if (result_json) {
+			result_v = parseJson<VerifyStorePurchaseResult>(result_json);
+		}
+		std::optional<std::string> err_param_v;
+		if (err_param) {
+			err_param_v = std::string(err_param);
+		}
+		(*f)(std::move(result_v), std::move(err_param_v));
+	} catch (const std::exception& e) {
+		std::fprintf(stderr, "urnet callback error: %s\n", e.what());
+	} catch (...) {
+	}
+	delete f;
+}
+
 inline void retained_view_controller_close(void* user_data) {
 	auto* f = static_cast<ViewController*>(user_data);
 	try {
@@ -29794,6 +32614,17 @@ inline Sub Device::addDnsResolverSettingsChangeListener(DnsResolverSettingsChang
 		listener_fn = std::make_shared<DnsResolverSettingsChangeListener>(std::move(listener));
 	}
 	Sub r(urnet_device_add_dns_resolver_settings_change_listener(handle(), listener_fn ? &detail::retained_dns_resolver_settings_change : nullptr, listener_fn.get()));
+	if (listener_fn) {
+		r.retain(listener_fn);
+	}
+	return r;
+}
+inline Sub Device::addDnsResolverStatusChangeListener(DnsResolverStatusChangeListener listener) const {
+	std::shared_ptr<DnsResolverStatusChangeListener> listener_fn;
+	if (listener) {
+		listener_fn = std::make_shared<DnsResolverStatusChangeListener>(std::move(listener));
+	}
+	Sub r(urnet_device_add_dns_resolver_status_change_listener(handle(), listener_fn ? &detail::retained_dns_resolver_status_change : nullptr, listener_fn.get()));
 	if (listener_fn) {
 		r.retain(listener_fn);
 	}
@@ -30272,6 +33103,10 @@ inline std::optional<ConnectLocation> Device::getDefaultLocation() const {
 	}
 	return detail::parseJson<ConnectLocation>(r_s->c_str());
 }
+inline int64_t Device::getDnsBlockedCount() const {
+	int64_t r = urnet_device_get_dns_blocked_count(handle());
+	return r;
+}
 inline std::optional<DnsResolverSettings> Device::getDnsResolverSettings() const {
 	char* r_c = urnet_device_get_dns_resolver_settings(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -30279,6 +33114,14 @@ inline std::optional<DnsResolverSettings> Device::getDnsResolverSettings() const
 		return std::nullopt;
 	}
 	return detail::parseJson<DnsResolverSettings>(r_s->c_str());
+}
+inline std::optional<DnsResolverStatus> Device::getDnsResolverStatus() const {
+	char* r_c = urnet_device_get_dns_resolver_status(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsResolverStatus>(r_s->c_str());
 }
 inline bool Device::getDone() const {
 	bool r = urnet_device_get_done(handle());
@@ -30410,6 +33253,10 @@ inline bool Device::getProvideEnabled() const {
 }
 inline bool Device::getProvideExtender() const {
 	bool r = urnet_device_get_provide_extender(handle());
+	return r;
+}
+inline bool Device::getProvideExtenderPortMapping() const {
+	bool r = urnet_device_get_provide_extender_port_mapping(handle());
 	return r;
 }
 inline int64_t Device::getProvideMode() const {
@@ -30613,6 +33460,14 @@ inline void Device::removeDestination() const {
 inline void Device::resetExtenders() const {
 	urnet_device_reset_extenders(handle());
 }
+inline bool Device::retryClientLimit() const {
+	bool r = urnet_device_retry_client_limit(handle());
+	return r;
+}
+inline bool Device::retryClientLimitAfterChange() const {
+	bool r = urnet_device_retry_client_limit_after_change(handle());
+	return r;
+}
 inline void Device::setAllowForeground(bool allow_foreground) const {
 	urnet_device_set_allow_foreground(handle(), allow_foreground);
 }
@@ -30705,6 +33560,9 @@ inline void Device::setProvideControlMode(const std::string& mode) const {
 }
 inline void Device::setProvideExtender(bool provide_extender) const {
 	urnet_device_set_provide_extender(handle(), provide_extender);
+}
+inline void Device::setProvideExtenderPortMapping(bool port_mapping) const {
+	urnet_device_set_provide_extender_port_mapping(handle(), port_mapping);
 }
 inline void Device::setProvideMode(int64_t provide_mode) const {
 	urnet_device_set_provide_mode(handle(), provide_mode);
@@ -31149,6 +34007,9 @@ inline void Api::deviceSetName(const std::optional<DeviceSetNameArgs>& device_se
 	auto* callback_fn = callback ? new DeviceSetNameCallback(std::move(callback)) : nullptr;
 	urnet_api_device_set_name(handle(), device_set_name_c, callback_fn ? &detail::oneshot_device_set_name : nullptr, callback_fn);
 }
+inline void Api::dismissAccountSignInNotice() const {
+	urnet_api_dismiss_account_sign_in_notice(handle());
+}
 inline void Api::findLocations(const std::optional<FindLocationsArgs>& find_locations, FindLocationsCallback callback) const {
 	std::string find_locations_json;
 	const char* find_locations_c = nullptr;
@@ -31207,6 +34068,10 @@ inline void Api::getAccountPoints(GetAccountPointsCallback callback) const {
 	auto* callback_fn = callback ? new GetAccountPointsCallback(std::move(callback)) : nullptr;
 	urnet_api_get_account_points(handle(), callback_fn ? &detail::oneshot_get_account_points : nullptr, callback_fn);
 }
+inline std::string Api::getAccountSignInRequiredCause() const {
+	char* r_c = urnet_api_get_account_sign_in_required_cause(handle());
+	return detail::takeString(r_c);
+}
 inline void Api::getAccountWallets(GetAccountWalletsCallback callback) const {
 	auto* callback_fn = callback ? new GetAccountWalletsCallback(std::move(callback)) : nullptr;
 	urnet_api_get_account_wallets(handle(), callback_fn ? &detail::oneshot_get_account_wallets : nullptr, callback_fn);
@@ -31261,6 +34126,18 @@ inline void Api::getLeaderboard(const std::optional<GetLeaderboardArgs>& args, G
 	auto* callback_fn = callback ? new GetLeaderboardCallback(std::move(callback)) : nullptr;
 	urnet_api_get_leaderboard(handle(), args_c, callback_fn ? &detail::oneshot_get_leaderboard : nullptr, callback_fn);
 }
+inline std::string Api::getMailLocaleTimeZone() const {
+	char* r_c = urnet_api_get_mail_locale_time_zone(handle());
+	return detail::takeString(r_c);
+}
+inline std::optional<StringList> Api::getMailLocales() const {
+	char* r_c = urnet_api_get_mail_locales(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<StringList>(r_s->c_str());
+}
 inline void Api::getNetworkBlockedLocations(GetNetworkBlockedLocationsCallback callback) const {
 	auto* callback_fn = callback ? new GetNetworkBlockedLocationsCallback(std::move(callback)) : nullptr;
 	urnet_api_get_network_blocked_locations(handle(), callback_fn ? &detail::oneshot_get_network_blocked_locations : nullptr, callback_fn);
@@ -31297,10 +34174,6 @@ inline void Api::getNetworkUser(GetNetworkUserCallback callback) const {
 	auto* callback_fn = callback ? new GetNetworkUserCallback(std::move(callback)) : nullptr;
 	urnet_api_get_network_user(handle(), callback_fn ? &detail::oneshot_get_network_user : nullptr, callback_fn);
 }
-inline void Api::getPayoutWallet(GetPayoutWalletCallback callback) const {
-	auto* callback_fn = callback ? new GetPayoutWalletCallback(std::move(callback)) : nullptr;
-	urnet_api_get_payout_wallet(handle(), callback_fn ? &detail::oneshot_get_payout_wallet : nullptr, callback_fn);
-}
 inline void Api::getPointsLeaderboard(const std::optional<GetPointsLeaderboardArgs>& args, GetPointsLeaderboardCallback callback) const {
 	std::string args_json;
 	const char* args_c = nullptr;
@@ -31326,6 +34199,10 @@ inline void Api::getReferralNetwork(GetReferralNetworkCallback callback) const {
 inline void Api::getTransferStats(GetTransferStatsCallback callback) const {
 	auto* callback_fn = callback ? new GetTransferStatsCallback(std::move(callback)) : nullptr;
 	urnet_api_get_transfer_stats(handle(), callback_fn ? &detail::oneshot_get_transfer_stats : nullptr, callback_fn);
+}
+inline bool Api::hasAccountSignInNotice() const {
+	bool r = urnet_api_has_account_sign_in_notice(handle());
+	return r;
 }
 inline bool Api::hasNetworkCredential() const {
 	bool r = urnet_api_has_network_credential(handle());
@@ -31429,6 +34306,14 @@ inline ClientSessionViewController Api::openClientSessionViewController() const 
 	ClientSessionViewController r(urnet_api_open_client_session_view_controller(handle()));
 	return r;
 }
+inline ManageDevicesViewController Api::openManageDevicesViewController() const {
+	ManageDevicesViewController r(urnet_api_open_manage_devices_view_controller(handle()));
+	return r;
+}
+inline ProFeaturesViewController Api::openProFeaturesViewController() const {
+	ProFeaturesViewController r(urnet_api_open_pro_features_view_controller(handle()));
+	return r;
+}
 inline void Api::redeemBalanceCode(const std::optional<RedeemBalanceCodeArgs>& args, RedeemBalanceCodeCallback callback) const {
 	std::string args_json;
 	const char* args_c = nullptr;
@@ -31513,6 +34398,16 @@ inline void Api::removeWallet(const std::optional<RemoveWalletArgs>& remove_wall
 	auto* callback_fn = callback ? new RemoveWalletCallback(std::move(callback)) : nullptr;
 	urnet_api_remove_wallet(handle(), remove_wallet_c, callback_fn ? &detail::oneshot_remove_wallet : nullptr, callback_fn);
 }
+inline void Api::reportStripePurchase(const std::optional<VerifyStripeCheckoutArgs>& args, VerifyStripeCheckoutCallback callback) const {
+	std::string args_json;
+	const char* args_c = nullptr;
+	if (args) {
+		args_json = nlohmann::json(*args).dump();
+		args_c = args_json.c_str();
+	}
+	auto* callback_fn = callback ? new VerifyStripeCheckoutCallback(std::move(callback)) : nullptr;
+	urnet_api_report_stripe_purchase(handle(), args_c, callback_fn ? &detail::oneshot_verify_stripe_checkout : nullptr, callback_fn);
+}
 inline void Api::requestJwtRefresh() const {
 	urnet_api_request_jwt_refresh(handle());
 }
@@ -31546,6 +34441,34 @@ inline void Api::revokeOtherNetworkSessions(const std::optional<RevokeOtherNetwo
 	auto* callback_fn = callback ? new SessionOperationCallback(std::move(callback)) : nullptr;
 	urnet_api_revoke_other_network_sessions(handle(), args_c, callback_fn ? &detail::oneshot_session_operation : nullptr, callback_fn);
 }
+inline void Api::rotateProxyExit(const std::optional<RotateProxyExitArgs>& args, RotateProxyExitCallback callback) const {
+	std::string args_json;
+	const char* args_c = nullptr;
+	if (args) {
+		args_json = nlohmann::json(*args).dump();
+		args_c = args_json.c_str();
+	}
+	auto* callback_fn = callback ? new RotateProxyExitCallback(std::move(callback)) : nullptr;
+	urnet_api_rotate_proxy_exit(handle(), args_c, callback_fn ? &detail::oneshot_rotate_proxy_exit : nullptr, callback_fn);
+}
+inline std::optional<RotateProxyExitResult> Api::rotateProxyExitSync(const std::optional<RotateProxyExitArgs>& args) const {
+	std::string args_json;
+	const char* args_c = nullptr;
+	if (args) {
+		args_json = nlohmann::json(*args).dump();
+		args_c = args_json.c_str();
+	}
+	char* err_c = nullptr;
+	char* r_c = urnet_api_rotate_proxy_exit_sync(handle(), args_c, &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<RotateProxyExitResult>(r_s->c_str());
+}
 inline void Api::sendFeedback(const std::optional<FeedbackSendArgs>& send_feedback, SendFeedbackCallback callback) const {
 	std::string send_feedback_json;
 	const char* send_feedback_c = nullptr;
@@ -31578,6 +34501,15 @@ inline void Api::setEmojiTag(const std::optional<SetEmojiTagArgs>& args, SetEmoj
 	auto* callback_fn = callback ? new SetEmojiTagCallback(std::move(callback)) : nullptr;
 	urnet_api_set_emoji_tag(handle(), args_c, callback_fn ? &detail::oneshot_set_emoji_tag : nullptr, callback_fn);
 }
+inline void Api::setMailLocale(const std::string& time_zone, const std::optional<StringList>& locales) const {
+	std::string locales_json;
+	const char* locales_c = nullptr;
+	if (locales) {
+		locales_json = nlohmann::json(*locales).dump();
+		locales_c = locales_json.c_str();
+	}
+	urnet_api_set_mail_locale(handle(), time_zone.c_str(), locales_c);
+}
 inline void Api::setNetworkCredentialStore(const LocalState& store) const {
 	urnet_api_set_network_credential_store(handle(), store.handle());
 }
@@ -31600,16 +34532,6 @@ inline void Api::setNetworkReferral(const std::optional<SetNetworkReferralArgs>&
 	}
 	auto* callback_fn = callback ? new SetNetworkReferralCallback(std::move(callback)) : nullptr;
 	urnet_api_set_network_referral(handle(), args_c, callback_fn ? &detail::oneshot_set_network_referral : nullptr, callback_fn);
-}
-inline void Api::setPayoutWallet(const std::optional<SetPayoutWalletArgs>& payout_wallet, SetPayoutWalletCallback callback) const {
-	std::string payout_wallet_json;
-	const char* payout_wallet_c = nullptr;
-	if (payout_wallet) {
-		payout_wallet_json = nlohmann::json(*payout_wallet).dump();
-		payout_wallet_c = payout_wallet_json.c_str();
-	}
-	auto* callback_fn = callback ? new SetPayoutWalletCallback(std::move(callback)) : nullptr;
-	urnet_api_set_payout_wallet(handle(), payout_wallet_c, callback_fn ? &detail::oneshot_set_payout_wallet : nullptr, callback_fn);
 }
 inline void Api::setPointsLeaderboardPublic(const std::optional<SetPointsLeaderboardPublicArgs>& args, SetPointsLeaderboardPublicCallback callback) const {
 	std::string args_json;
@@ -31978,6 +34900,16 @@ inline void Api::verifySeekerHolder(const std::optional<VerifySeekerNftHolderArg
 	}
 	auto* callback_fn = callback ? new VerifySeekerNftHolderCallback(std::move(callback)) : nullptr;
 	urnet_api_verify_seeker_holder(handle(), verify_c, callback_fn ? &detail::oneshot_verify_seeker_nft_holder : nullptr, callback_fn);
+}
+inline void Api::verifyStripeCheckout(const std::optional<VerifyStripeCheckoutArgs>& args, VerifyStripeCheckoutCallback callback) const {
+	std::string args_json;
+	const char* args_c = nullptr;
+	if (args) {
+		args_json = nlohmann::json(*args).dump();
+		args_c = args_json.c_str();
+	}
+	auto* callback_fn = callback ? new VerifyStripeCheckoutCallback(std::move(callback)) : nullptr;
+	urnet_api_verify_stripe_checkout(handle(), args_c, callback_fn ? &detail::oneshot_verify_stripe_checkout : nullptr, callback_fn);
 }
 inline void Api::walletBalance(WalletBalanceCallback callback) const {
 	auto* callback_fn = callback ? new WalletBalanceCallback(std::move(callback)) : nullptr;
@@ -32460,6 +35392,20 @@ inline void ClientEventQueue::setAppVersion(const std::string& app_version) cons
 inline void ClientEventQueue::setLocale(const std::string& locale) const {
 	urnet_client_event_queue_set_locale(handle(), locale.c_str());
 }
+inline std::string ClientLimitNoticeTracker::reset() const {
+	char* r_c = urnet_client_limit_notice_tracker_reset(handle());
+	return detail::takeString(r_c);
+}
+inline std::string ClientLimitNoticeTracker::update(const std::optional<ClientLimitStatus>& status, bool connect_requested) const {
+	std::string status_json;
+	const char* status_c = nullptr;
+	if (status) {
+		status_json = nlohmann::json(*status).dump();
+		status_c = status_json.c_str();
+	}
+	char* r_c = urnet_client_limit_notice_tracker_update(handle(), status_c, connect_requested);
+	return detail::takeString(r_c);
+}
 inline bool ClientRefreshIntegrityNotice::closeApiIfCurrent() const {
 	bool r = urnet_client_refresh_integrity_notice_close_api_if_current(handle());
 	return r;
@@ -32537,6 +35483,51 @@ inline bool ClientSessionError::getUnsupported() const {
 	bool r = urnet_client_session_error_get_unsupported(handle());
 	return r;
 }
+inline int64_t ClientSessionGroup::getCount() const {
+	int64_t r = urnet_client_session_group_get_count(handle());
+	return r;
+}
+inline bool ClientSessionGroup::getExpanded() const {
+	bool r = urnet_client_session_group_get_expanded(handle());
+	return r;
+}
+inline bool ClientSessionGroup::getHasMore() const {
+	bool r = urnet_client_session_group_get_has_more(handle());
+	return r;
+}
+inline std::string ClientSessionGroup::getKind() const {
+	char* r_c = urnet_client_session_group_get_kind(handle());
+	return detail::takeString(r_c);
+}
+inline NetworkSessionInfoList ClientSessionGroup::getSessions() const {
+	NetworkSessionInfoList r(urnet_client_session_group_get_sessions(handle()));
+	return r;
+}
+inline void ClientSessionGroupList::add(const ClientSessionGroup& value) const {
+	urnet_client_session_group_list_add(handle(), value.handle());
+}
+inline bool ClientSessionGroupList::contains(const ClientSessionGroup& v) const {
+	bool r = urnet_client_session_group_list_contains(handle(), v.handle());
+	return r;
+}
+inline ClientSessionGroup ClientSessionGroupList::get(int64_t i) const {
+	ClientSessionGroup r(urnet_client_session_group_list_get(handle(), i));
+	return r;
+}
+inline int64_t ClientSessionGroupList::len() const {
+	int64_t r = urnet_client_session_group_list_len(handle());
+	return r;
+}
+inline void ClientSessionGroupList::unmarshalJSON(const uint8_t* b, int32_t b_len) const {
+	char* err_c = nullptr;
+	bool ok = urnet_client_session_group_list_unmarshal_json(handle(), b, b_len, &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	if (!ok) {
+		throw Error("urnet: urnet_client_session_group_list_unmarshal_json failed");
+	}
+}
 inline ClientSessionActionList ClientSessionSnapshot::getActions() const {
 	ClientSessionActionList r(urnet_client_session_snapshot_get_actions(handle()));
 	return r;
@@ -32561,6 +35552,10 @@ inline std::string ClientSessionSnapshot::getGeneration() const {
 	char* r_c = urnet_client_session_snapshot_get_generation(handle());
 	return detail::takeString(r_c);
 }
+inline ClientSessionGroupList ClientSessionSnapshot::getGroups() const {
+	ClientSessionGroupList r(urnet_client_session_snapshot_get_groups(handle()));
+	return r;
+}
 inline std::string ClientSessionSnapshot::getLegacyCoverage() const {
 	char* r_c = urnet_client_session_snapshot_get_legacy_coverage(handle());
 	return detail::takeString(r_c);
@@ -32573,16 +35568,32 @@ inline bool ClientSessionSnapshot::getLoading() const {
 	bool r = urnet_client_session_snapshot_get_loading(handle());
 	return r;
 }
+inline int64_t ClientSessionSnapshot::getOtherSessionCount() const {
+	int64_t r = urnet_client_session_snapshot_get_other_session_count(handle());
+	return r;
+}
 inline bool ClientSessionSnapshot::getRefreshing() const {
 	bool r = urnet_client_session_snapshot_get_refreshing(handle());
+	return r;
+}
+inline int64_t ClientSessionSnapshot::getSessionCount() const {
+	int64_t r = urnet_client_session_snapshot_get_session_count(handle());
 	return r;
 }
 inline NetworkSessionInfoList ClientSessionSnapshot::getSessions() const {
 	NetworkSessionInfoList r(urnet_client_session_snapshot_get_sessions(handle()));
 	return r;
 }
+inline bool ClientSessionSnapshot::getSessionsHasMore() const {
+	bool r = urnet_client_session_snapshot_get_sessions_has_more(handle());
+	return r;
+}
 inline bool ClientSessionSnapshot::getSupported() const {
 	bool r = urnet_client_session_snapshot_get_supported(handle());
+	return r;
+}
+inline bool ClientSessionSnapshot::getTruncated() const {
+	bool r = urnet_client_session_snapshot_get_truncated(handle());
 	return r;
 }
 inline Sub ClientSessionViewController::addClientSessionListener(ClientSessionListener listener) const {
@@ -32618,8 +35629,14 @@ inline void ClientSessionViewController::revokeSession(const std::string& sessio
 inline void ClientSessionViewController::setForeground(bool foreground) const {
 	urnet_client_session_view_controller_set_foreground(handle(), foreground);
 }
+inline void ClientSessionViewController::setGroupExpanded(const std::string& kind, bool expanded) const {
+	urnet_client_session_view_controller_set_group_expanded(handle(), kind.c_str(), expanded);
+}
 inline void ClientSessionViewController::setVisible(bool visible) const {
 	urnet_client_session_view_controller_set_visible(handle(), visible);
+}
+inline void ClientSessionViewController::showMoreSessions(const std::string& kind) const {
+	urnet_client_session_view_controller_show_more_sessions(handle(), kind.c_str());
 }
 inline void ClientSessionViewController::start() const {
 	urnet_client_session_view_controller_start(handle());
@@ -33057,6 +36074,9 @@ inline void DeviceLocal::closeDevicesViewController(const DevicesViewController&
 inline void DeviceLocal::closeLocationsViewController(const LocationsViewController& vc) const {
 	urnet_device_local_close_locations_view_controller(handle(), vc.handle());
 }
+inline void DeviceLocal::closeManageDevicesViewController(const ManageDevicesViewController& vc) const {
+	urnet_device_local_close_manage_devices_view_controller(handle(), vc.handle());
+}
 inline void DeviceLocal::closePeerViewController(const PeerViewController& vc) const {
 	urnet_device_local_close_peer_view_controller(handle(), vc.handle());
 }
@@ -33155,6 +36175,10 @@ inline DeviceLocalSaveResult DeviceLocal::getLastLocalStateSaveResult() const {
 	DeviceLocalSaveResult r(urnet_device_local_get_last_local_state_save_result(handle()));
 	return r;
 }
+inline double DeviceLocal::getLimitedWindowSizeFraction() const {
+	double r = urnet_device_local_get_limited_window_size_fraction(handle());
+	return r;
+}
 inline std::optional<MemoryStats> DeviceLocal::getMemoryStats() const {
 	char* r_c = urnet_device_local_get_memory_stats(handle());
 	auto r_s = detail::takeStringOpt(r_c);
@@ -33186,6 +36210,10 @@ inline std::optional<ProvideSecretKeyList> DeviceLocal::getProvideSecretKeys() c
 		return std::nullopt;
 	}
 	return detail::parseJson<ProvideSecretKeyList>(r_s->c_str());
+}
+inline bool DeviceLocal::getProviderClientKeyPublished() const {
+	bool r = urnet_device_local_get_provider_client_key_published(handle());
+	return r;
 }
 inline bool DeviceLocal::getProviderClientKeyRegistered() const {
 	bool r = urnet_device_local_get_provider_client_key_registered(handle());
@@ -33328,6 +36356,10 @@ inline LocationsViewController DeviceLocal::openLocationsViewController() const 
 	LocationsViewController r(urnet_device_local_open_locations_view_controller(handle()));
 	return r;
 }
+inline ManageDevicesViewController DeviceLocal::openManageDevicesViewController() const {
+	ManageDevicesViewController r(urnet_device_local_open_manage_devices_view_controller(handle()));
+	return r;
+}
 inline NetworkUserViewController DeviceLocal::openNetworkUserViewController() const {
 	NetworkUserViewController r(urnet_device_local_open_network_user_view_controller(handle()));
 	return r;
@@ -33399,6 +36431,9 @@ inline void DeviceLocal::reconnectChecked(const std::optional<ConnectLocation>& 
 	if (!ok) {
 		throw Error("urnet: urnet_device_local_reconnect_checked failed");
 	}
+}
+inline void DeviceLocal::resetLimitedWindowSizeFraction() const {
+	urnet_device_local_reset_limited_window_size_fraction(handle());
 }
 inline void DeviceLocal::resetReliabilityMetrics() const {
 	urnet_device_local_reset_reliability_metrics(handle());
@@ -33498,6 +36533,9 @@ inline void DeviceLocal::setFlowOwnerLookup(FlowOwnerLookup lookup) const {
 }
 inline void DeviceLocal::setKeyMaterial(const DeviceLocalKeyMaterial& key_material) const {
 	urnet_device_local_set_key_material(handle(), key_material.handle());
+}
+inline void DeviceLocal::setLimitedWindowSizeFraction(double fraction) const {
+	urnet_device_local_set_limited_window_size_fraction(handle(), fraction);
 }
 inline void DeviceLocal::setNetworkMetered(bool metered) const {
 	urnet_device_local_set_network_metered(handle(), metered);
@@ -33629,6 +36667,10 @@ inline void DeviceLocal::snClaims(SnClaimsCallback callback) const {
 	auto* callback_fn = callback ? new SnClaimsCallback(std::move(callback)) : nullptr;
 	urnet_device_local_sn_claims(handle(), callback_fn ? &detail::oneshot_sn_claims : nullptr, callback_fn);
 }
+inline void DeviceLocal::snCtfClient(SnCtfClientCallback callback) const {
+	auto* callback_fn = callback ? new SnCtfClientCallback(std::move(callback)) : nullptr;
+	urnet_device_local_sn_ctf_client(handle(), callback_fn ? &detail::oneshot_sn_ctf_client : nullptr, callback_fn);
+}
 inline void DeviceLocal::snGasBalance(SnGasBalanceCallback callback) const {
 	auto* callback_fn = callback ? new SnGasBalanceCallback(std::move(callback)) : nullptr;
 	urnet_device_local_sn_gas_balance(handle(), callback_fn ? &detail::oneshot_sn_gas_balance : nullptr, callback_fn);
@@ -33658,6 +36700,18 @@ inline std::optional<SnLedgerUnsignedTxList> DeviceLocal::snLedgerClaimTransacti
 		return std::nullopt;
 	}
 	return detail::parseJson<SnLedgerUnsignedTxList>(r_s->c_str());
+}
+inline std::optional<SnLedgerClaimTransactionsResult> DeviceLocal::snLedgerClaimTransactionsForPayer(const std::string& payer_address) const {
+	char* err_c = nullptr;
+	char* r_c = urnet_device_local_sn_ledger_claim_transactions_for_payer(handle(), payer_address.c_str(), &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnLedgerClaimTransactionsResult>(r_s->c_str());
 }
 inline bool DeviceLocal::stallExit(const std::string& client_id, bool stalled) const {
 	bool r = urnet_device_local_stall_exit(handle(), client_id.c_str(), stalled);
@@ -33908,6 +36962,9 @@ inline void DeviceRemote::closeDevicesViewController(const DevicesViewController
 inline void DeviceRemote::closeLocationsViewController(const LocationsViewController& vc) const {
 	urnet_device_remote_close_locations_view_controller(handle(), vc.handle());
 }
+inline void DeviceRemote::closeManageDevicesViewController(const ManageDevicesViewController& vc) const {
+	urnet_device_remote_close_manage_devices_view_controller(handle(), vc.handle());
+}
 inline void DeviceRemote::closePeerViewController(const PeerViewController& vc) const {
 	urnet_device_remote_close_peer_view_controller(handle(), vc.handle());
 }
@@ -34093,6 +37150,10 @@ inline LocationsViewController DeviceRemote::openLocationsViewController() const
 	LocationsViewController r(urnet_device_remote_open_locations_view_controller(handle()));
 	return r;
 }
+inline ManageDevicesViewController DeviceRemote::openManageDevicesViewController() const {
+	ManageDevicesViewController r(urnet_device_remote_open_manage_devices_view_controller(handle()));
+	return r;
+}
 inline NetworkUserViewController DeviceRemote::openNetworkUserViewController() const {
 	NetworkUserViewController r(urnet_device_remote_open_network_user_view_controller(handle()));
 	return r;
@@ -34254,6 +37315,10 @@ inline void DeviceRemote::snClaims(SnClaimsCallback callback) const {
 	auto* callback_fn = callback ? new SnClaimsCallback(std::move(callback)) : nullptr;
 	urnet_device_remote_sn_claims(handle(), callback_fn ? &detail::oneshot_sn_claims : nullptr, callback_fn);
 }
+inline void DeviceRemote::snCtfClient(SnCtfClientCallback callback) const {
+	auto* callback_fn = callback ? new SnCtfClientCallback(std::move(callback)) : nullptr;
+	urnet_device_remote_sn_ctf_client(handle(), callback_fn ? &detail::oneshot_sn_ctf_client : nullptr, callback_fn);
+}
 inline void DeviceRemote::snGasBalance(SnGasBalanceCallback callback) const {
 	auto* callback_fn = callback ? new SnGasBalanceCallback(std::move(callback)) : nullptr;
 	urnet_device_remote_sn_gas_balance(handle(), callback_fn ? &detail::oneshot_sn_gas_balance : nullptr, callback_fn);
@@ -34283,6 +37348,18 @@ inline std::optional<SnLedgerUnsignedTxList> DeviceRemote::snLedgerClaimTransact
 		return std::nullopt;
 	}
 	return detail::parseJson<SnLedgerUnsignedTxList>(r_s->c_str());
+}
+inline std::optional<SnLedgerClaimTransactionsResult> DeviceRemote::snLedgerClaimTransactionsForPayer(const std::string& payer_address) const {
+	char* err_c = nullptr;
+	char* r_c = urnet_device_remote_sn_ledger_claim_transactions_for_payer(handle(), payer_address.c_str(), &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnLedgerClaimTransactionsResult>(r_s->c_str());
 }
 inline bool DeviceRemote::stallExit(const std::string& exit_client_id, bool stalled) const {
 	bool r = urnet_device_remote_stall_exit(handle(), exit_client_id.c_str(), stalled);
@@ -34562,6 +37639,10 @@ inline void IoLoop::close() const {
 	urnet_io_loop_close(handle());
 }
 #endif
+inline bool LocalAuthStateSnapshot::getAccountSignInRequired() const {
+	bool r = urnet_local_auth_state_snapshot_get_account_sign_in_required(handle());
+	return r;
+}
 inline std::string LocalAuthStateSnapshot::getByClientJwt() const {
 	char* r_c = urnet_local_auth_state_snapshot_get_by_client_jwt(handle());
 	return detail::takeString(r_c);
@@ -34771,6 +37852,10 @@ inline std::string LocalState::getProvideControlMode() const {
 }
 inline bool LocalState::getProvideExtender() const {
 	bool r = urnet_local_state_get_provide_extender(handle());
+	return r;
+}
+inline bool LocalState::getProvideExtenderPortMapping() const {
+	bool r = urnet_local_state_get_provide_extender_port_mapping(handle());
 	return r;
 }
 inline int64_t LocalState::getProvideMode() const {
@@ -35181,6 +38266,16 @@ inline void LocalState::setProvideExtender(bool provide_extender) const {
 		throw Error("urnet: urnet_local_state_set_provide_extender failed");
 	}
 }
+inline void LocalState::setProvideExtenderPortMapping(bool port_mapping) const {
+	char* err_c = nullptr;
+	bool ok = urnet_local_state_set_provide_extender_port_mapping(handle(), port_mapping, &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	if (!ok) {
+		throw Error("urnet: urnet_local_state_set_provide_extender_port_mapping failed");
+	}
+}
 inline void LocalState::setProvideMode(int64_t provide_mode) const {
 	char* err_c = nullptr;
 	bool ok = urnet_local_state_set_provide_mode(handle(), provide_mode, &err_c);
@@ -35379,6 +38474,44 @@ inline void LoginViewController::start() const {
 inline void LoginViewController::stop() const {
 	urnet_login_view_controller_stop(handle());
 }
+inline Sub ManageDevicesViewController::addManageDevicesListener(ManageDevicesListener listener) const {
+	std::shared_ptr<ManageDevicesListener> listener_fn;
+	if (listener) {
+		listener_fn = std::make_shared<ManageDevicesListener>(std::move(listener));
+	}
+	Sub r(urnet_manage_devices_view_controller_add_manage_devices_listener(handle(), listener_fn ? &detail::retained_manage_devices : nullptr, listener_fn.get()));
+	if (listener_fn) {
+		r.retain(listener_fn);
+	}
+	return r;
+}
+inline void ManageDevicesViewController::close() const {
+	urnet_manage_devices_view_controller_close(handle());
+}
+inline bool ManageDevicesViewController::getCanManage() const {
+	bool r = urnet_manage_devices_view_controller_get_can_manage(handle());
+	return r;
+}
+inline std::optional<ManageDevicesSnapshot> ManageDevicesViewController::getSnapshot() const {
+	char* r_c = urnet_manage_devices_view_controller_get_snapshot(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ManageDevicesSnapshot>(r_s->c_str());
+}
+inline void ManageDevicesViewController::refresh() const {
+	urnet_manage_devices_view_controller_refresh(handle());
+}
+inline void ManageDevicesViewController::removeDevice(const std::string& client_id) const {
+	urnet_manage_devices_view_controller_remove_device(handle(), client_id.c_str());
+}
+inline void ManageDevicesViewController::start() const {
+	urnet_manage_devices_view_controller_start(handle());
+}
+inline void ManageDevicesViewController::stop() const {
+	urnet_manage_devices_view_controller_stop(handle());
+}
 inline void NetworkNameValidationViewController::close() const {
 	urnet_network_name_validation_view_controller_close(handle());
 }
@@ -35395,6 +38528,10 @@ inline void NetworkNameValidationViewController::stop() const {
 inline int64_t NetworkSessionInfo::getAcceptUntil() const {
 	int64_t r = urnet_network_session_info_get_accept_until(handle());
 	return r;
+}
+inline std::string NetworkSessionInfo::getClientKind() const {
+	char* r_c = urnet_network_session_info_get_client_kind(handle());
+	return detail::takeString(r_c);
 }
 inline int64_t NetworkSessionInfo::getCreateTime() const {
 	int64_t r = urnet_network_session_info_get_create_time(handle());
@@ -35422,6 +38559,10 @@ inline std::string NetworkSessionInfo::getOriginSessionId() const {
 }
 inline std::string NetworkSessionInfo::getSessionId() const {
 	char* r_c = urnet_network_session_info_get_session_id(handle());
+	return detail::takeString(r_c);
+}
+inline std::string NetworkSessionInfo::getSessionKind() const {
+	char* r_c = urnet_network_session_info_get_session_kind(handle());
 	return detail::takeString(r_c);
 }
 inline int64_t NetworkSessionInfo::getTokenExpireTime() const {
@@ -35467,6 +38608,10 @@ inline std::string NetworkSessionsResult::getGeneration() const {
 }
 inline std::string NetworkSessionsResult::getLegacyCoverage() const {
 	char* r_c = urnet_network_sessions_result_get_legacy_coverage(handle());
+	return detail::takeString(r_c);
+}
+inline std::string NetworkSessionsResult::getNextCursor() const {
+	char* r_c = urnet_network_sessions_result_get_next_cursor(handle());
 	return detail::takeString(r_c);
 }
 inline NetworkSessionInfoList NetworkSessionsResult::getSessions() const {
@@ -36187,6 +39332,62 @@ inline void PostQuantumIdentityViewController::start() const {
 inline void PostQuantumIdentityViewController::stop() const {
 	urnet_post_quantum_identity_view_controller_stop(handle());
 }
+inline std::string ProFeaturesNoticeTracker::dismiss() const {
+	char* r_c = urnet_pro_features_notice_tracker_dismiss(handle());
+	return detail::takeString(r_c);
+}
+inline std::string ProFeaturesNoticeTracker::getShownPrompt() const {
+	char* r_c = urnet_pro_features_notice_tracker_get_shown_prompt(handle());
+	return detail::takeString(r_c);
+}
+inline std::string ProFeaturesNoticeTracker::reset() const {
+	char* r_c = urnet_pro_features_notice_tracker_reset(handle());
+	return detail::takeString(r_c);
+}
+inline std::string ProFeaturesNoticeTracker::update(const std::optional<ProFeaturesStatus>& status) const {
+	std::string status_json;
+	const char* status_c = nullptr;
+	if (status) {
+		status_json = nlohmann::json(*status).dump();
+		status_c = status_json.c_str();
+	}
+	char* r_c = urnet_pro_features_notice_tracker_update(handle(), status_c);
+	return detail::takeString(r_c);
+}
+inline Sub ProFeaturesViewController::addProFeaturesListener(ProFeaturesListener listener) const {
+	std::shared_ptr<ProFeaturesListener> listener_fn;
+	if (listener) {
+		listener_fn = std::make_shared<ProFeaturesListener>(std::move(listener));
+	}
+	Sub r(urnet_pro_features_view_controller_add_pro_features_listener(handle(), listener_fn ? &detail::retained_pro_features : nullptr, listener_fn.get()));
+	if (listener_fn) {
+		r.retain(listener_fn);
+	}
+	return r;
+}
+inline void ProFeaturesViewController::close() const {
+	urnet_pro_features_view_controller_close(handle());
+}
+inline void ProFeaturesViewController::dismissMainNotice() const {
+	urnet_pro_features_view_controller_dismiss_main_notice(handle());
+}
+inline std::optional<ProFeaturesSnapshot> ProFeaturesViewController::getSnapshot() const {
+	char* r_c = urnet_pro_features_view_controller_get_snapshot(handle());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ProFeaturesSnapshot>(r_s->c_str());
+}
+inline void ProFeaturesViewController::refresh() const {
+	urnet_pro_features_view_controller_refresh(handle());
+}
+inline void ProFeaturesViewController::start() const {
+	urnet_pro_features_view_controller_start(handle());
+}
+inline void ProFeaturesViewController::stop() const {
+	urnet_pro_features_view_controller_stop(handle());
+}
 inline void ProvideViewController::close() const {
 	urnet_provide_view_controller_close(handle());
 }
@@ -36420,8 +39621,16 @@ inline std::string SessionLastUsed::getCountryCode() const {
 	char* r_c = urnet_session_last_used_get_country_code(handle());
 	return detail::takeString(r_c);
 }
+inline std::string SessionLastUsed::getDeviceKind() const {
+	char* r_c = urnet_session_last_used_get_device_kind(handle());
+	return detail::takeString(r_c);
+}
 inline std::string SessionLastUsed::getDeviceType() const {
 	char* r_c = urnet_session_last_used_get_device_type(handle());
+	return detail::takeString(r_c);
+}
+inline std::string SessionLastUsed::getDistribution() const {
+	char* r_c = urnet_session_last_used_get_distribution(handle());
 	return detail::takeString(r_c);
 }
 inline std::string SessionLastUsed::getRegion() const {
@@ -36729,6 +39938,10 @@ inline std::string SubscriptionBalanceViewController::getPurchaseConfirmationSta
 	char* r_c = urnet_subscription_balance_view_controller_get_purchase_confirmation_state(handle());
 	return detail::takeString(r_c);
 }
+inline std::string SubscriptionBalanceViewController::getShownPlan() const {
+	char* r_c = urnet_subscription_balance_view_controller_get_shown_plan(handle());
+	return detail::takeString(r_c);
+}
 inline int64_t SubscriptionBalanceViewController::getStartBalanceByteCount() const {
 	int64_t r = urnet_subscription_balance_view_controller_get_start_balance_byte_count(handle());
 	return r;
@@ -36783,6 +39996,33 @@ inline void SubscriptionBalanceViewController::startPurchaseConfirmation() const
 inline void SubscriptionBalanceViewController::stop() const {
 	urnet_subscription_balance_view_controller_stop(handle());
 }
+inline bool SubscriptionProTracker::balanceFailed() const {
+	bool r = urnet_subscription_pro_tracker_balance_failed(handle());
+	return r;
+}
+inline bool SubscriptionProTracker::balanceLoaded(bool server_is_pro) const {
+	bool r = urnet_subscription_pro_tracker_balance_loaded(handle(), server_is_pro);
+	return r;
+}
+inline bool SubscriptionProTracker::getIsPro() const {
+	bool r = urnet_subscription_pro_tracker_get_is_pro(handle());
+	return r;
+}
+inline bool SubscriptionProTracker::getLastReadFailed() const {
+	bool r = urnet_subscription_pro_tracker_get_last_read_failed(handle());
+	return r;
+}
+inline std::string SubscriptionProTracker::getShownPlan() const {
+	char* r_c = urnet_subscription_pro_tracker_get_shown_plan(handle());
+	return detail::takeString(r_c);
+}
+inline void SubscriptionProTracker::reset() const {
+	urnet_subscription_pro_tracker_reset(handle());
+}
+inline bool SubscriptionProTracker::setJwt(const std::string& by_jwt) const {
+	bool r = urnet_subscription_pro_tracker_set_jwt(handle(), by_jwt.c_str());
+	return r;
+}
 inline void Tunnel::cancel() const {
 	urnet_tunnel_cancel(handle());
 }
@@ -36799,20 +40039,6 @@ inline Sub WalletViewController::addAccountWalletsListener(AccountWalletsListene
 		listener_fn = std::make_shared<AccountWalletsListener>(std::move(listener));
 	}
 	Sub r(urnet_wallet_view_controller_add_account_wallets_listener(handle(), listener_fn ? &detail::retained_account_wallets : nullptr, listener_fn.get()));
-	if (listener_fn) {
-		r.retain(listener_fn);
-	}
-	return r;
-}
-inline void WalletViewController::addExternalWallet(const std::string& address, const std::string& blockchain) const {
-	urnet_wallet_view_controller_add_external_wallet(handle(), address.c_str(), blockchain.c_str());
-}
-inline Sub WalletViewController::addIsCreatingExternalWalletListener(IsCreatingExternalWalletListener listener) const {
-	std::shared_ptr<IsCreatingExternalWalletListener> listener_fn;
-	if (listener) {
-		listener_fn = std::make_shared<IsCreatingExternalWalletListener>(std::move(listener));
-	}
-	Sub r(urnet_wallet_view_controller_add_is_creating_external_wallet_listener(handle(), listener_fn ? &detail::retained_is_creating_external_wallet : nullptr, listener_fn.get()));
 	if (listener_fn) {
 		r.retain(listener_fn);
 	}
@@ -36840,17 +40066,6 @@ inline Sub WalletViewController::addPaymentsListener(PaymentsListener listener) 
 	}
 	return r;
 }
-inline Sub WalletViewController::addPayoutWalletListener(PayoutWalletListener listener) const {
-	std::shared_ptr<PayoutWalletListener> listener_fn;
-	if (listener) {
-		listener_fn = std::make_shared<PayoutWalletListener>(std::move(listener));
-	}
-	Sub r(urnet_wallet_view_controller_add_payout_wallet_listener(handle(), listener_fn ? &detail::retained_payout_wallet : nullptr, listener_fn.get()));
-	if (listener_fn) {
-		r.retain(listener_fn);
-	}
-	return r;
-}
 inline Sub WalletViewController::addUnpaidByteCountListener(UnpaidByteCountListener listener) const {
 	std::shared_ptr<UnpaidByteCountListener> listener_fn;
 	if (listener) {
@@ -36871,9 +40086,6 @@ inline void WalletViewController::fetchAccountWallets() const {
 inline void WalletViewController::fetchPayments() const {
 	urnet_wallet_view_controller_fetch_payments(handle());
 }
-inline void WalletViewController::fetchPayoutWallet() const {
-	urnet_wallet_view_controller_fetch_payout_wallet(handle());
-}
 inline void WalletViewController::fetchTransferStats() const {
 	urnet_wallet_view_controller_fetch_transfer_stats(handle());
 }
@@ -36893,14 +40105,6 @@ inline std::optional<AccountPaymentsList> WalletViewController::getAccountPaymen
 	}
 	return detail::parseJson<AccountPaymentsList>(r_s->c_str());
 }
-inline std::string WalletViewController::getNextPayoutDate() const {
-	char* r_c = urnet_wallet_view_controller_get_next_payout_date(handle());
-	return detail::takeString(r_c);
-}
-inline std::string WalletViewController::getPayoutWalletId() const {
-	char* r_c = urnet_wallet_view_controller_get_payout_wallet_id(handle());
-	return detail::takeString(r_c);
-}
 inline int64_t WalletViewController::getUnpaidByteCount() const {
 	int64_t r = urnet_wallet_view_controller_get_unpaid_byte_count(handle());
 	return r;
@@ -36919,24 +40123,11 @@ inline void WalletViewController::removeWallet(const std::string& wallet_id) con
 inline void WalletViewController::setIsPollingAccountWallets(bool is_polling) const {
 	urnet_wallet_view_controller_set_is_polling_account_wallets(handle(), is_polling);
 }
-inline void WalletViewController::setIsPollingPayoutWallet(bool is_polling) const {
-	urnet_wallet_view_controller_set_is_polling_payout_wallet(handle(), is_polling);
-}
 inline void WalletViewController::start() const {
 	urnet_wallet_view_controller_start(handle());
 }
 inline void WalletViewController::stop() const {
 	urnet_wallet_view_controller_stop(handle());
-}
-inline void WalletViewController::updatePayoutWallet(const std::string& wallet_id) const {
-	char* err_c = nullptr;
-	bool ok = urnet_wallet_view_controller_update_payout_wallet(handle(), wallet_id.c_str(), &err_c);
-	if (err_c) {
-		detail::throwError(err_c);
-	}
-	if (!ok) {
-		throw Error("urnet: urnet_wallet_view_controller_update_payout_wallet failed");
-	}
 }
 inline void WalletViewController::validateAddress(const std::string& address, const std::string& blockchain, ValidateAddressCallback callback) const {
 	std::shared_ptr<ValidateAddressCallback> callback_fn;
@@ -37099,6 +40290,10 @@ inline std::string buildSolanaPaymentUrl(const std::optional<SolanaPaymentUrlArg
 	}
 	return detail::takeString(r_c);
 }
+inline bool cantReachOnStall(const std::string& previous_stall_reason, const std::string& stall_reason) {
+	bool r = urnet_cant_reach_on_stall(previous_stall_reason.c_str(), stall_reason.c_str());
+	return r;
+}
 inline bool checkCryptoPaymentUri(const std::string& asset, const std::string& uri, const std::string& address) {
 	bool r = urnet_check_crypto_payment_uri(asset.c_str(), uri.c_str(), address.c_str());
 	return r;
@@ -37226,9 +40421,55 @@ inline std::string connectLinkUrl(const std::optional<NetworkSpaceKey>& key, con
 	char* r_c = urnet_connect_link_url(key_c, values_c, target.c_str());
 	return detail::takeString(r_c);
 }
+inline std::optional<DnsResolverSettings> copyDnsResolverSettings(const std::optional<DnsResolverSettings>& settings) {
+	std::string settings_json;
+	const char* settings_c = nullptr;
+	if (settings) {
+		settings_json = nlohmann::json(*settings).dump();
+		settings_c = settings_json.c_str();
+	}
+	char* r_c = urnet_copy_dns_resolver_settings(settings_c);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsResolverSettings>(r_s->c_str());
+}
 inline std::string createPaymentReference() {
 	char* r_c = urnet_create_payment_reference();
 	return detail::takeString(r_c);
+}
+inline int64_t cryptoAssetDecimals(const std::string& asset) {
+	int64_t r = urnet_crypto_asset_decimals(asset.c_str());
+	return r;
+}
+inline std::string cryptoAssetIconKey(const std::string& asset) {
+	char* r_c = urnet_crypto_asset_icon_key(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string cryptoAssetLabel(const std::string& asset) {
+	char* r_c = urnet_crypto_asset_label(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string cryptoAssetLabelKey(const std::string& asset) {
+	char* r_c = urnet_crypto_asset_label_key(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::optional<CryptoAssetLines> cryptoAssetLinesFor(const std::string& asset) {
+	char* r_c = urnet_crypto_asset_lines_for(asset.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<CryptoAssetLines>(r_s->c_str());
+}
+inline std::string cryptoAssetMarket(const std::string& asset) {
+	char* r_c = urnet_crypto_asset_market(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline int64_t cryptoAssetQuoteDecimals(const std::string& asset) {
+	int64_t r = urnet_crypto_asset_quote_decimals(asset.c_str());
+	return r;
 }
 inline bool cryptoAssetSells(const std::optional<CryptoPaymentAssetList>& assets, const std::string& asset, const std::string& item) {
 	std::string assets_json;
@@ -37242,6 +40483,74 @@ inline bool cryptoAssetSells(const std::optional<CryptoPaymentAssetList>& assets
 }
 inline std::string cryptoAssetTicker(const std::string& asset) {
 	char* r_c = urnet_crypto_asset_ticker(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string cryptoPaidAsset(const std::string& market, const std::string& asset) {
+	char* r_c = urnet_crypto_paid_asset(market.c_str(), asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string cryptoPaymentEventProduct(const std::string& asset) {
+	char* r_c = urnet_crypto_payment_event_product(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string cryptoPaymentQrText(const std::string& asset, const std::string& uri, const std::string& address) {
+	char* r_c = urnet_crypto_payment_qr_text(asset.c_str(), uri.c_str(), address.c_str());
+	return detail::takeString(r_c);
+}
+inline bool cryptoPaymentShowsMemo(const std::string& asset, const std::string& memo) {
+	bool r = urnet_crypto_payment_shows_memo(asset.c_str(), memo.c_str());
+	return r;
+}
+inline std::optional<CryptoPaymentStepList> cryptoPaymentSteps(const std::string& asset, const std::string& status, int64_t confirmations, int64_t confirmations_required) {
+	char* r_c = urnet_crypto_payment_steps(asset.c_str(), status.c_str(), confirmations, confirmations_required);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<CryptoPaymentStepList>(r_s->c_str());
+}
+inline std::string cryptoPaymentTabCoin(const std::optional<CryptoPaymentTab>& tab, const std::string& last_chosen, const std::string& remembered) {
+	std::string tab_json;
+	const char* tab_c = nullptr;
+	if (tab) {
+		tab_json = nlohmann::json(*tab).dump();
+		tab_c = tab_json.c_str();
+	}
+	char* r_c = urnet_crypto_payment_tab_coin(tab_c, last_chosen.c_str(), remembered.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string cryptoPaymentTabId(const std::string& asset) {
+	char* r_c = urnet_crypto_payment_tab_id(asset.c_str());
+	return detail::takeString(r_c);
+}
+inline std::optional<CryptoPaymentTabList> cryptoPaymentTabs(const std::optional<CryptoPaymentAssetList>& assets, const std::optional<CryptoPaymentAssetList>& unavailable_assets, const std::optional<StringList>& items) {
+	std::string assets_json;
+	const char* assets_c = nullptr;
+	if (assets) {
+		assets_json = nlohmann::json(*assets).dump();
+		assets_c = assets_json.c_str();
+	}
+	std::string unavailable_assets_json;
+	const char* unavailable_assets_c = nullptr;
+	if (unavailable_assets) {
+		unavailable_assets_json = nlohmann::json(*unavailable_assets).dump();
+		unavailable_assets_c = unavailable_assets_json.c_str();
+	}
+	std::string items_json;
+	const char* items_c = nullptr;
+	if (items) {
+		items_json = nlohmann::json(*items).dump();
+		items_c = items_json.c_str();
+	}
+	char* r_c = urnet_crypto_payment_tabs(assets_c, unavailable_assets_c, items_c);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<CryptoPaymentTabList>(r_s->c_str());
+}
+inline std::string cryptoPaymentUriScheme(const std::string& asset) {
+	char* r_c = urnet_crypto_payment_uri_scheme(asset.c_str());
 	return detail::takeString(r_c);
 }
 inline bool cryptoTermNoticeDue(const std::optional<CryptoTerm>& term) {
@@ -37329,6 +40638,82 @@ inline std::optional<TunnelDnsSetting> defaultTunnelDnsSetting() {
 		return std::nullopt;
 	}
 	return detail::parseJson<TunnelDnsSetting>(r_s->c_str());
+}
+inline std::optional<DnsSelectionSummary> describeDnsResolverSettings(const std::optional<DnsResolverSettings>& settings, const std::string& exit_country_code) {
+	std::string settings_json;
+	const char* settings_c = nullptr;
+	if (settings) {
+		settings_json = nlohmann::json(*settings).dump();
+		settings_c = settings_json.c_str();
+	}
+	char* r_c = urnet_describe_dns_resolver_settings(settings_c, exit_country_code.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsSelectionSummary>(r_s->c_str());
+}
+inline std::optional<DnsStatusSummary> describeDnsResolverStatus(const std::optional<DnsResolverSettings>& settings, const std::optional<DnsResolverStatus>& status) {
+	std::string settings_json;
+	const char* settings_c = nullptr;
+	if (settings) {
+		settings_json = nlohmann::json(*settings).dump();
+		settings_c = settings_json.c_str();
+	}
+	std::string status_json;
+	const char* status_c = nullptr;
+	if (status) {
+		status_json = nlohmann::json(*status).dump();
+		status_c = status_json.c_str();
+	}
+	char* r_c = urnet_describe_dns_resolver_status(settings_c, status_c);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsStatusSummary>(r_s->c_str());
+}
+inline std::optional<DnsResolverSettings> dnsResolverSettingsAsCustom(const std::optional<DnsResolverSettings>& base) {
+	std::string base_json;
+	const char* base_c = nullptr;
+	if (base) {
+		base_json = nlohmann::json(*base).dump();
+		base_c = base_json.c_str();
+	}
+	char* r_c = urnet_dns_resolver_settings_as_custom(base_c);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsResolverSettings>(r_s->c_str());
+}
+inline std::optional<DnsResolverSettings> dnsResolverSettingsWithFallback(const std::optional<DnsResolverSettings>& base, bool enable_fallback) {
+	std::string base_json;
+	const char* base_c = nullptr;
+	if (base) {
+		base_json = nlohmann::json(*base).dump();
+		base_c = base_json.c_str();
+	}
+	char* r_c = urnet_dns_resolver_settings_with_fallback(base_c, enable_fallback);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsResolverSettings>(r_s->c_str());
+}
+inline std::optional<DnsResolverSettings> dnsResolverSettingsWithPreset(const std::optional<DnsResolverSettings>& base, const std::string& preset_id, const std::string& personal_id) {
+	std::string base_json;
+	const char* base_c = nullptr;
+	if (base) {
+		base_json = nlohmann::json(*base).dump();
+		base_c = base_json.c_str();
+	}
+	char* r_c = urnet_dns_resolver_settings_with_preset(base_c, preset_id.c_str(), personal_id.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsResolverSettings>(r_s->c_str());
 }
 inline std::string encodeBase58(const uint8_t* data, int32_t data_len) {
 	char* r_c = urnet_encode_base58(data, data_len);
@@ -37512,6 +40897,40 @@ inline int64_t getDefaultTunnelMtu() {
 	int64_t r = urnet_get_default_tunnel_mtu();
 	return r;
 }
+inline std::optional<DnsPickList> getDnsPicks(const std::string& exit_country_code) {
+	char* r_c = urnet_get_dns_picks(exit_country_code.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsPickList>(r_s->c_str());
+}
+inline std::optional<DnsPreset> getDnsPreset(const std::string& preset_id) {
+	char* r_c = urnet_get_dns_preset(preset_id.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsPreset>(r_s->c_str());
+}
+inline std::string getDnsPresetPersonalIdForEdit(const std::optional<DnsResolverSettings>& settings, const std::string& preset_id) {
+	std::string settings_json;
+	const char* settings_c = nullptr;
+	if (settings) {
+		settings_json = nlohmann::json(*settings).dump();
+		settings_c = settings_json.c_str();
+	}
+	char* r_c = urnet_get_dns_preset_personal_id_for_edit(settings_c, preset_id.c_str());
+	return detail::takeString(r_c);
+}
+inline std::optional<DnsPresetProviderList> getDnsPresetProviders() {
+	char* r_c = urnet_get_dns_preset_providers();
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<DnsPresetProviderList>(r_s->c_str());
+}
 inline std::string getExtenderColorHex(const std::string& ip) {
 	char* r_c = urnet_get_extender_color_hex(ip.c_str());
 	return detail::takeString(r_c);
@@ -37646,6 +41065,10 @@ inline bool isBalanceCodeFormatValid(const std::string& secret) {
 	bool r = urnet_is_balance_code_format_valid(secret.c_str());
 	return r;
 }
+inline bool isCantReachError(const std::string& error_message) {
+	bool r = urnet_is_cant_reach_error(error_message.c_str());
+	return r;
+}
 inline bool isCheckoutRedirect(const std::string& uri) {
 	bool r = urnet_is_checkout_redirect(uri.c_str());
 	return r;
@@ -37656,6 +41079,16 @@ inline bool isPointsLeaderboardSort(const std::string& sort) {
 }
 inline bool isPurchaseReportTerminal(const std::string& status) {
 	bool r = urnet_is_purchase_report_terminal(status.c_str());
+	return r;
+}
+inline bool isSandboxPurchaseRefusal(const std::optional<VerifyStorePurchaseResult>& result) {
+	std::string result_json;
+	const char* result_c = nullptr;
+	if (result) {
+		result_json = nlohmann::json(*result).dump();
+		result_c = result_json.c_str();
+	}
+	bool r = urnet_is_sandbox_purchase_refusal(result_c);
 	return r;
 }
 inline bool isValidPaymentReference(const std::string& s) {
@@ -37726,6 +41159,18 @@ inline std::optional<ClientInfo> newClientInfo(const std::string& device_type, c
 		return std::nullopt;
 	}
 	return detail::parseJson<ClientInfo>(r_s->c_str());
+}
+inline std::optional<ClientInfo> newClientInfoWithDistribution(const std::string& device_type, const std::string& app_version, const std::string& distribution) {
+	char* r_c = urnet_new_client_info_with_distribution(device_type.c_str(), app_version.c_str(), distribution.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ClientInfo>(r_s->c_str());
+}
+inline ClientLimitNoticeTracker newClientLimitNoticeTracker() {
+	ClientLimitNoticeTracker r(urnet_new_client_limit_notice_tracker());
+	return r;
 }
 inline std::optional<ClientEvent> newConnectFirstEvent() {
 	char* r_c = urnet_new_connect_first_event();
@@ -37922,6 +41367,10 @@ inline DeviceRemote newPlatformDeviceRemote(const NetworkSpace& network_space, c
 	}
 	return r;
 }
+inline ProFeaturesNoticeTracker newProFeaturesNoticeTracker() {
+	ProFeaturesNoticeTracker r(urnet_new_pro_features_notice_tracker());
+	return r;
+}
 inline ProxyDevice newProxyDeviceWithDefaults(const std::optional<ProxyConfig>& proxy_config, SetupNewDeviceCallback setup_new_device_callback) {
 	std::string proxy_config_json;
 	const char* proxy_config_c = nullptr;
@@ -37970,6 +41419,17 @@ inline std::optional<ClientEvent> newPurchaseStartedEvent(const std::string& sto
 		return std::nullopt;
 	}
 	return detail::parseJson<ClientEvent>(r_s->c_str());
+}
+inline ManageDevicesViewController newSignInManageDevicesViewController(const Api& api, const std::string& network_by_jwt, ManageDevicesSignInRetry retry) {
+	std::shared_ptr<ManageDevicesSignInRetry> retry_fn;
+	if (retry) {
+		retry_fn = std::make_shared<ManageDevicesSignInRetry>(std::move(retry));
+	}
+	ManageDevicesViewController r(urnet_new_sign_in_manage_devices_view_controller(api.handle(), network_by_jwt.c_str(), retry_fn ? &detail::retained_manage_devices_sign_in_retry : nullptr, retry_fn.get()));
+	if (retry_fn) {
+		r.retain(retry_fn);
+	}
+	return r;
 }
 inline std::optional<ClientEvent> newSignupOptoutChangedEvent(bool product_updates) {
 	char* r_c = urnet_new_signup_optout_changed_event(product_updates);
@@ -38030,6 +41490,10 @@ inline SubscriptionBalanceViewController newSubscriptionBalanceViewController(co
 	SubscriptionBalanceViewController r(urnet_new_subscription_balance_view_controller(api.handle()));
 	return r;
 }
+inline SubscriptionProTracker newSubscriptionProTracker() {
+	SubscriptionProTracker r(urnet_new_subscription_pro_tracker());
+	return r;
+}
 inline int64_t newTimeUnixMilli(int64_t unix_milli) {
 	int64_t r = urnet_new_time_unix_milli(unix_milli);
 	return r;
@@ -38084,6 +41548,10 @@ inline std::string normalExtenderGossipMode(const std::string& mode) {
 }
 inline std::string normalizeBittensorSignature(const std::string& signature) {
 	char* r_c = urnet_normalize_bittensor_signature(signature.c_str());
+	return detail::takeString(r_c);
+}
+inline std::string normalizeDnsPresetPersonalId(const std::string& preset_id, const std::string& input) {
+	char* r_c = urnet_normalize_dns_preset_personal_id(preset_id.c_str(), input.c_str());
 	return detail::takeString(r_c);
 }
 inline std::optional<ConnectedProviderLocationList> orderConnectedProviderLocations(const std::optional<ConnectedProviderLocationList>& locations) {
@@ -38188,6 +41656,10 @@ inline std::optional<StringList> paymentMethods(const std::optional<CryptoPaymen
 	}
 	return detail::parseJson<StringList>(r_s->c_str());
 }
+inline std::string planAccountName(const std::string& network_name, bool guest) {
+	char* r_c = urnet_plan_account_name(network_name.c_str(), guest);
+	return detail::takeString(r_c);
+}
 inline std::optional<PointsLeaderboardKey> pointsLeaderboardKeyOf(const std::optional<PointsLeaderboardRow>& row) {
 	std::string row_json;
 	const char* row_c = nullptr;
@@ -38214,6 +41686,20 @@ inline int64_t pointsToNanoPoints(double points) {
 	int64_t r = urnet_points_to_nano_points(points);
 	return r;
 }
+inline std::optional<ProFeaturesStatus> proFeaturesStatusFor(const std::optional<NetworkClientsResult>& result) {
+	std::string result_json;
+	const char* result_c = nullptr;
+	if (result) {
+		result_json = nlohmann::json(*result).dump();
+		result_c = result_json.c_str();
+	}
+	char* r_c = urnet_pro_features_status_for(result_c);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<ProFeaturesStatus>(r_s->c_str());
+}
 inline std::string publicIdentityKeyHash(const uint8_t* public_key, int32_t public_key_len) {
 	char* r_c = urnet_public_identity_key_hash(public_key, public_key_len);
 	return detail::takeString(r_c);
@@ -38221,6 +41707,16 @@ inline std::string publicIdentityKeyHash(const uint8_t* public_key, int32_t publ
 inline int64_t purchaseReportBackoffMillis(int64_t attempt) {
 	int64_t r = urnet_purchase_report_backoff_millis(attempt);
 	return r;
+}
+inline std::string purchaseReportErrorCode(const std::optional<VerifyStorePurchaseResult>& result) {
+	std::string result_json;
+	const char* result_c = nullptr;
+	if (result) {
+		result_json = nlohmann::json(*result).dump();
+		result_c = result_json.c_str();
+	}
+	char* r_c = urnet_purchase_report_error_code(result_c);
+	return detail::takeString(r_c);
 }
 inline std::string recordTunnelRecoveryStage(const std::string& stage, const std::string& result, bool intended, bool consumer_present, bool has_location, int64_t provider_count, int64_t generation) {
 	char* r_c = urnet_record_tunnel_recovery_stage(stage.c_str(), result.c_str(), intended, consumer_present, has_location, provider_count, generation);
@@ -38286,6 +41782,9 @@ inline void setControlIpFamilyPolicy(int64_t policy) {
 }
 inline void setDeviceRpcH1PlusEnabled(bool enabled) {
 	urnet_set_device_rpc_h1_plus_enabled(enabled);
+}
+inline void setDnsPresetsHideAdBlocking(bool hide) {
+	urnet_set_dns_presets_hide_ad_blocking(hide);
 }
 inline void setEgressInterfaceIndex(int64_t index4, int64_t index6) {
 	urnet_set_egress_interface_index(index4, index6);
@@ -38381,6 +41880,22 @@ inline void snClaimsFor(const std::optional<SnChainSettings>& settings, const st
 	auto* callback_fn = callback ? new SnClaimsCallback(std::move(callback)) : nullptr;
 	urnet_sn_claims_for(settings_c, coldkey_ss58.c_str(), from_epoch, callback_fn ? &detail::oneshot_sn_claims : nullptr, callback_fn);
 }
+inline std::optional<SnCtfClientResult> snCtfClientOf(const std::string& answer_json) {
+	char* r_c = urnet_sn_ctf_client_of(answer_json.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnCtfClientResult>(r_s->c_str());
+}
+inline std::optional<SnCtfClientResult> snCtfClientOfResponse(int64_t status_code, const std::string& answer_json, bool network_credential) {
+	char* r_c = urnet_sn_ctf_client_of_response(status_code, answer_json.c_str(), network_credential);
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnCtfClientResult>(r_s->c_str());
+}
 inline std::string snFleetBindingDigest(const std::string& binding_json) {
 	char* err_c = nullptr;
 	char* r_c = urnet_sn_fleet_binding_digest(binding_json.c_str(), &err_c);
@@ -38409,6 +41924,48 @@ inline void snLedgerAccountsFor(const std::optional<SnChainSettings>& settings, 
 	auto* callback_fn = callback ? new SnLedgerAccountsCallback(std::move(callback)) : nullptr;
 	urnet_sn_ledger_accounts_for(settings_c, coldkey_ss58.c_str(), callback_fn ? &detail::oneshot_sn_ledger_accounts : nullptr, callback_fn);
 }
+inline std::optional<SnLedgerClaimOutcomeList> snLedgerClaimOutcomesFor(const std::optional<SnChainSettings>& settings, const std::string& coldkey_ss58, const std::optional<SnLedgerUnsignedTx>& tx, const std::string& receipt_json) {
+	std::string settings_json;
+	const char* settings_c = nullptr;
+	if (settings) {
+		settings_json = nlohmann::json(*settings).dump();
+		settings_c = settings_json.c_str();
+	}
+	std::string tx_json;
+	const char* tx_c = nullptr;
+	if (tx) {
+		tx_json = nlohmann::json(*tx).dump();
+		tx_c = tx_json.c_str();
+	}
+	char* err_c = nullptr;
+	char* r_c = urnet_sn_ledger_claim_outcomes_for(settings_c, coldkey_ss58.c_str(), tx_c, receipt_json.c_str(), &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnLedgerClaimOutcomeList>(r_s->c_str());
+}
+inline std::optional<SnLedgerClaimOutcomeList> snLedgerClaimOutcomesOf(const std::optional<SnLedgerUnsignedTx>& tx, const std::string& receipt_json) {
+	std::string tx_json;
+	const char* tx_c = nullptr;
+	if (tx) {
+		tx_json = nlohmann::json(*tx).dump();
+		tx_c = tx_json.c_str();
+	}
+	char* err_c = nullptr;
+	char* r_c = urnet_sn_ledger_claim_outcomes_of(tx_c, receipt_json.c_str(), &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnLedgerClaimOutcomeList>(r_s->c_str());
+}
 inline std::optional<SnLedgerUnsignedTxList> snLedgerClaimTransactionsFor(const std::optional<SnChainSettings>& settings, const std::string& coldkey_ss58) {
 	std::string settings_json;
 	const char* settings_c = nullptr;
@@ -38427,6 +41984,24 @@ inline std::optional<SnLedgerUnsignedTxList> snLedgerClaimTransactionsFor(const 
 	}
 	return detail::parseJson<SnLedgerUnsignedTxList>(r_s->c_str());
 }
+inline std::optional<SnLedgerClaimTransactionsResult> snLedgerClaimTransactionsForPayer(const std::optional<SnChainSettings>& settings, const std::string& coldkey_ss58, const std::string& payer_address) {
+	std::string settings_json;
+	const char* settings_c = nullptr;
+	if (settings) {
+		settings_json = nlohmann::json(*settings).dump();
+		settings_c = settings_json.c_str();
+	}
+	char* err_c = nullptr;
+	char* r_c = urnet_sn_ledger_claim_transactions_for_payer(settings_c, coldkey_ss58.c_str(), payer_address.c_str(), &err_c);
+	if (err_c) {
+		detail::throwError(err_c);
+	}
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SnLedgerClaimTransactionsResult>(r_s->c_str());
+}
 inline std::string snPayoutLeafHex(const std::string& coldkey_ss58, int64_t share_bps) {
 	char* r_c = urnet_sn_payout_leaf_hex(coldkey_ss58.c_str(), share_bps);
 	return detail::takeString(r_c);
@@ -38438,6 +42013,14 @@ inline std::optional<SnChainSettings> snTestnetChainSettings() {
 		return std::nullopt;
 	}
 	return detail::parseJson<SnChainSettings>(r_s->c_str());
+}
+inline std::optional<SolanaWalletFailure> solanaWalletFailureFor(const std::string& source, const std::string& code, const std::string& wallet_name) {
+	char* r_c = urnet_solana_wallet_failure_for(source.c_str(), code.c_str(), wallet_name.c_str());
+	auto r_s = detail::takeStringOpt(r_c);
+	if (!r_s) {
+		return std::nullopt;
+	}
+	return detail::parseJson<SolanaWalletFailure>(r_s->c_str());
 }
 inline std::string suggestEmojiTag(int64_t count) {
 	char* r_c = urnet_suggest_emoji_tag(count);
@@ -38533,6 +42116,11 @@ inline int64_t usdToNanoCents(double usd) {
 /* error id: "" on success, else the refusal's id or URNET_ERROR_ID_INTERNAL */
 inline std::string validateControlDohUrl(const std::string& doh_url) {
 	char* r_c = urnet_validate_control_doh_url(doh_url.c_str());
+	return detail::takeString(r_c);
+}
+/* error id: "" on success, else the refusal's id or URNET_ERROR_ID_INTERNAL */
+inline std::string validateDnsPresetPersonalId(const std::string& preset_id, const std::string& personal_id) {
+	char* r_c = urnet_validate_dns_preset_personal_id(preset_id.c_str(), personal_id.c_str());
 	return detail::takeString(r_c);
 }
 inline std::optional<EmojiTagValidation> validateEmojiTag(const std::string& tag) {

@@ -255,6 +255,17 @@ type DeviceRemote struct {
 
 	networkSpace *NetworkSpace
 	byJwt        string
+	// removes this remote's ingress dns callback from its network space, nil
+	// when it registered none (device_remote_ingress_dns.go). Set once in the
+	// constructor and taken under closeOnce
+	ingressDnsUnsub func()
+	// the newest ingress dns the space handed this remote and its space
+	// revision, which the hand-off loop sends. Guarded by stateLock
+	ingressDns         *DeviceRemoteIngressDns
+	ingressDnsRevision uint64
+	// the revision of the newest queued ingress dns, watched by the hand-off
+	// loop. Nil when the remote registered no callback
+	ingressDnsRevisionMonitor *connect.MonitorValue[uint64]
 	// why the server ended this remote's sign-in, set before its AuthLogout
 	// listeners run (GetAuthLogoutCause). A rejection the device process
 	// answered over rpc carries its typed status (DeviceRemoteHttpResponseError).
@@ -351,6 +362,7 @@ type DeviceRemote struct {
 	ingressContractStatsChangeListeners      map[connect.Id]ContractStatsChangeListener
 	ingressContractDetailsChangeListeners    map[connect.Id]ContractDetailsChangeListener
 	dnsResolverSettingsChangeListeners       map[connect.Id]DnsResolverSettingsChangeListener
+	dnsResolverStatusChangeListeners         map[connect.Id]DnsResolverStatusChangeListener
 	networkPeersChangeListeners              map[connect.Id]NetworkPeersChangeListener
 
 	providerPacketStatsChangeListeners            map[connect.Id]PacketStatsChangeListener
@@ -391,6 +403,9 @@ type DeviceRemote struct {
 	// the settings the listeners are told, and their delivery
 	// (device_remote_setting_state.go). Guarded by stateLock
 	settingsTold deviceRemoteSettingsTold
+	// the settings this remote saves for the next one
+	// (device_remote_saved_settings.go)
+	savedSettings deviceRemoteSavedSettings
 	// Guarded by stateLock. A status RPC must not replace a notification or
 	// another status reply published while it was in flight.
 	contractStatusRevision uint64
@@ -416,6 +431,9 @@ type DeviceRemote struct {
 	// the last client limit status the local device answered or pushed, so
 	// a status read while the rpc is down still says when the device retries
 	lastClientLimitStatus *ClientLimitStatus
+	// the last dns resolver status read or pushed, which the getter answers
+	// while the device process cannot be reached
+	lastDnsResolverStatus *DnsResolverStatus
 	// the last transport quality the local device answered or pushed, read
 	// while the rpc is down. Guarded by stateLock, as is the revision, which
 	// keeps a read from replacing a push or another read published while it
@@ -617,6 +635,7 @@ func newDeviceRemoteWithOverrides(
 		ingressContractStatsChangeListeners:      map[connect.Id]ContractStatsChangeListener{},
 		ingressContractDetailsChangeListeners:    map[connect.Id]ContractDetailsChangeListener{},
 		dnsResolverSettingsChangeListeners:       map[connect.Id]DnsResolverSettingsChangeListener{},
+		dnsResolverStatusChangeListeners:         map[connect.Id]DnsResolverStatusChangeListener{},
 		networkPeersChangeListeners:              map[connect.Id]NetworkPeersChangeListener{},
 		jwtRefreshListeners:                      connect.NewCallbackList[JwtRefreshListener](),
 		connectedProviderLocationChangeListeners: connect.NewCallbackList[ConnectedProviderLocationChangeListener](),
@@ -665,6 +684,14 @@ func newDeviceRemoteWithOverrides(
 			deviceRemote.state.ControlIpFamilyPolicy.Set(policy)
 		}
 	}
+	// the kill switch, split rules, dns settings and blocker the app saved,
+	// queued for the device the same way: the device does not keep them
+	// (device_remote_saved_settings.go)
+	deviceRemote.queueSavedSettings()
+	// the app's connection region and bootstrap DoH servers, queued for the
+	// device's own copy of the space, and handed to it again whenever the app
+	// changes them (device_remote_ingress_dns.go)
+	deviceRemote.queueIngressDns()
 
 	deviceRemote.viewControllerManager = *newViewControllerManager(ctx, deviceRemote)
 
@@ -812,6 +839,7 @@ func (self *DeviceRemote) takeSyncRequest() *DeviceRemoteSyncRequest {
 		IngressContractStatsChangeListenerIds:           slices.Collect(maps.Keys(self.ingressContractStatsChangeListeners)),
 		IngressContractDetailsChangeListenerIds:         slices.Collect(maps.Keys(self.ingressContractDetailsChangeListeners)),
 		DnsResolverSettingsChangeListenerIds:            slices.Collect(maps.Keys(self.dnsResolverSettingsChangeListeners)),
+		DnsResolverStatusChangeListenerIds:              slices.Collect(maps.Keys(self.dnsResolverStatusChangeListeners)),
 		NetworkPeersChangeListenerIds:                   slices.Collect(maps.Keys(self.networkPeersChangeListeners)),
 		ProviderPacketStatsChangeListenerIds:            slices.Collect(maps.Keys(self.providerPacketStatsChangeListeners)),
 		ProviderEgressContractStatsChangeListenerIds:    slices.Collect(maps.Keys(self.providerEgressContractStatsChangeListeners)),
@@ -1056,6 +1084,12 @@ func (self *DeviceRemote) run() {
 					// A nil value is a one-shot reset and is deliberately cleared.
 					self.state.ReliabilitySettings = syncRequest.State.ReliabilitySettings
 				}
+				if !self.state.IngressDns.IsSet && syncRequest.State.IngressDns.IsSet {
+					// the app's ingress dns, kept for the next device as the
+					// reliability override is; a newer value the app queued
+					// during this sync stands (device_remote_ingress_dns.go)
+					self.state.IngressDns = syncRequest.State.IngressDns
+				}
 				self.syncMonitor.NotifyAll()
 			}()
 			restoreState = false
@@ -1265,16 +1299,24 @@ func (self *DeviceRemote) SetPerformanceProfile(performanceProfile *PerformanceP
 		}()
 		if success {
 			self.state.PerformanceProfile.Unset()
-			self.lastKnownState.PerformanceProfile.Set(performanceProfile)
 		} else {
 			self.state.PerformanceProfile.Set(performanceProfile)
 		}
+		// kept as last known also while pending, so the getter answers it
+		// while a sync that took it is in flight (device_remote_setting_state.go)
+		self.lastKnownState.PerformanceProfile.Set(performanceProfile)
 	}()
 }
 
 func (self *DeviceRemote) GetPerformanceProfile() *PerformanceProfile {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.PerformanceProfile.IsSet {
+		return clonePerformanceProfile(self.state.PerformanceProfile.Value)
+	}
 
 	performanceProfile, success := func() (*PerformanceProfile, bool) {
 		if self.service == nil {
@@ -1439,8 +1481,9 @@ func (self *DeviceRemote) GetExtenderProvideStatus() *ExtenderProvideStatus {
 // GetClientLimitStatus reads through to the local device, whose provider holds
 // the platform connection (on ios that is the packet tunnel extension). With no
 // service it degrades to the last known readout, and to no hold when there has
-// never been one. A device process too old to answer keeps its rpc session and
-// reads no hold.
+// never been one or the last one's retry time has passed, since the device
+// ends a hold then by itself. A device process too old to answer keeps its
+// rpc session and reads no hold.
 func (self *DeviceRemote) GetClientLimitStatus() *ClientLimitStatus {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
@@ -1463,10 +1506,79 @@ func (self *DeviceRemote) GetClientLimitStatus() *ClientLimitStatus {
 	if success {
 		return status
 	}
-	if self.lastClientLimitStatus != nil {
-		return cloneClientLimitStatus(self.lastClientLimitStatus)
+	return cachedClientLimitStatus(self.lastClientLimitStatus, time.Now())
+}
+
+// cachedClientLimitStatus is a remote's last client limit readout as it reads
+// at `now` with no service: none when there is none, or when it is a hold whose
+// retry time has passed, which the device has ended by itself since, so a
+// caller never acts on a hold that is over (a health audit that keeps off a
+// held tunnel).
+func cachedClientLimitStatus(last *ClientLimitStatus, now time.Time) *ClientLimitStatus {
+	if last == nil {
+		return noneClientLimitStatus()
 	}
-	return noneClientLimitStatus()
+	if last.Status == ClientLimitStatusExceeded && last.RetryTime <= now.UnixMilli() {
+		return noneClientLimitStatus()
+	}
+	return cloneClientLimitStatus(last)
+}
+
+// RetryClientLimit asks the local device, whose provider holds the platform
+// connection, to end its client limit hold (DeviceLocal.RetryClientLimit). With
+// no service it ends none: nothing is queued, since a retry is the user's
+// answer to a hold now and a later replay could end a hold the user never saw.
+// A device process too old to answer keeps its rpc session and ends none, which
+// is what the caller reads from false.
+func (self *DeviceRemote) RetryClientLimit() bool {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	if self.service == nil {
+		return false
+	}
+	retried, err := rpcCallNoArgAllowMissingMethod[bool](
+		self.service,
+		"DeviceLocalRpc.RetryClientLimit",
+		self.closeService,
+	)
+	if err != nil {
+		return false
+	}
+	return retried
+}
+
+// RetryClientLimitAfterChange asks the local device to end its client limit
+// hold after a change that frees a slot or raises the limit
+// (DeviceLocal.RetryClientLimitAfterChange). With no service it ends none, as
+// RetryClientLimit does. A device process too old to know it gets
+// RetryClientLimit instead, which still ends the hold within its floor.
+func (self *DeviceRemote) RetryClientLimitAfterChange() bool {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	if self.service == nil {
+		return false
+	}
+	retried, err := rpcCallNoArgAllowMissingMethod[bool](
+		self.service,
+		"DeviceLocalRpc.RetryClientLimitAfterChange",
+		self.closeService,
+	)
+	if err != nil {
+		if !rpcMissingMethodError(err) || self.service == nil {
+			return false
+		}
+		retried, err = rpcCallNoArgAllowMissingMethod[bool](
+			self.service,
+			"DeviceLocalRpc.RetryClientLimit",
+			self.closeService,
+		)
+		if err != nil {
+			return false
+		}
+	}
+	return retried
 }
 
 // GetTransportDelay reads through to the local device, whose multi client
@@ -1541,6 +1653,11 @@ func (self *DeviceRemote) GetProvideExtender() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.ProvideExtender.IsSet {
+		return self.state.ProvideExtender.Value
+	}
 	if self.service != nil {
 		// as the status above: a device process that does not have the method
 		// yet keeps its session. The row is hidden against it, since its status
@@ -1574,8 +1691,11 @@ func (self *DeviceRemote) SetProvideExtender(provideExtender bool) {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	// a queued value is kept as last known too, so the getter answers it while
+	// a sync that took it is in flight (device_remote_setting_state.go)
 	if self.service == nil {
 		self.state.ProvideExtender.Set(provideExtender)
+		self.lastKnownState.ProvideExtender.Set(provideExtender)
 		return
 	}
 	err := rpcCallVoidAllowMissingMethod(
@@ -1593,6 +1713,74 @@ func (self *DeviceRemote) SetProvideExtender(provideExtender bool) {
 		self.log.Infof("[dr]provide extender dropped: the device process has no setter")
 	default:
 		self.state.ProvideExtender.Set(provideExtender)
+		self.lastKnownState.ProvideExtender.Set(provideExtender)
+	}
+}
+
+// GetProvideExtenderPortMapping reads the router port mapping setting through
+// to the local device, which owns the space it is stored in (connect
+// EXTENDER.md S10). A device that cannot be reached, or one too old to answer,
+// reads the value queued for it, else the last value read, else off -- the
+// apps' default, so an app never shows a port opened that it cannot confirm.
+func (self *DeviceRemote) GetProvideExtenderPortMapping() bool {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.ProvideExtenderPortMapping.IsSet {
+		return self.state.ProvideExtenderPortMapping.Value
+	}
+	if self.service != nil {
+		portMapping, err := rpcCallNoArgAllowMissingMethod[bool](
+			self.service,
+			"DeviceLocalRpc.GetProvideExtenderPortMapping",
+			self.closeService,
+		)
+		if err == nil {
+			self.lastKnownState.ProvideExtenderPortMapping.Set(portMapping)
+			return portMapping
+		}
+	}
+	return self.state.ProvideExtenderPortMapping.Get(self.lastKnownState.ProvideExtenderPortMapping.Get(false))
+}
+
+// SetProvideExtenderPortMapping writes the setting through to the local device,
+// which persists it and applies it at once (S10). While the device process
+// cannot be reached the value is queued and replayed at the next sync, as the
+// provider extender setting is. A device process too old to have the setter
+// drops the write instead of queueing it: it maps nothing, and a queued value
+// would replay on every reconnect. A hosted device never runs the role (G1), so
+// the setter is guarded there as SetProvideExtender is.
+func (self *DeviceRemote) SetProvideExtenderPortMapping(portMapping bool) {
+	if self.hostedIncompatibleGuarded("SetProvideExtenderPortMapping") {
+		return
+	}
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	// a queued value is kept as last known too, as SetProvideExtender keeps it
+	if self.service == nil {
+		self.state.ProvideExtenderPortMapping.Set(portMapping)
+		self.lastKnownState.ProvideExtenderPortMapping.Set(portMapping)
+		return
+	}
+	err := rpcCallVoidAllowMissingMethod(
+		self.service,
+		"DeviceLocalRpc.SetProvideExtenderPortMapping",
+		portMapping,
+		self.closeService,
+	)
+	switch {
+	case err == nil:
+		self.state.ProvideExtenderPortMapping.Unset()
+		self.lastKnownState.ProvideExtenderPortMapping.Set(portMapping)
+	case rpcMissingMethodError(err):
+		self.state.ProvideExtenderPortMapping.Unset()
+		self.log.Infof("[dr]provide extender port mapping dropped: the device process has no setter")
+	default:
+		self.state.ProvideExtenderPortMapping.Set(portMapping)
+		self.lastKnownState.ProvideExtenderPortMapping.Set(portMapping)
 	}
 }
 
@@ -1604,6 +1792,11 @@ func (self *DeviceRemote) GetMeasurementsEnabled() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.MeasurementsEnabled.IsSet {
+		return self.state.MeasurementsEnabled.Value
+	}
 	if self.service != nil {
 		measurementsEnabled, err := rpcCallNoArgAllowMissingMethod[bool](
 			self.service,
@@ -1633,8 +1826,10 @@ func (self *DeviceRemote) SetMeasurementsEnabled(measurementsEnabled bool) {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	// a queued value is kept as last known too, as SetProvideExtender keeps it
 	if self.service == nil {
 		self.state.MeasurementsEnabled.Set(measurementsEnabled)
+		self.lastKnownState.MeasurementsEnabled.Set(measurementsEnabled)
 		return
 	}
 	err := rpcCallVoidAllowMissingMethod(
@@ -1652,6 +1847,7 @@ func (self *DeviceRemote) SetMeasurementsEnabled(measurementsEnabled bool) {
 		self.log.Infof("[dr]measurements enabled dropped: the device process has no setter")
 	default:
 		self.state.MeasurementsEnabled.Set(measurementsEnabled)
+		self.lastKnownState.MeasurementsEnabled.Set(measurementsEnabled)
 	}
 }
 
@@ -2062,6 +2258,12 @@ func (self *DeviceRemote) GetCanShowRatingDialog() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.CanShowRatingDialog.IsSet {
+		return self.state.CanShowRatingDialog.Value
+	}
+
 	canShowRatingDialog, success := func() (bool, bool) {
 		if self.service == nil {
 			return false, false
@@ -2109,7 +2311,7 @@ func (self *DeviceRemote) SetCanShowRatingDialog(canShowRatingDialog bool) {
 		}
 	}()
 	if event {
-		self.canShowRatingDialogChanged(self.GetCanShowRatingDialog())
+		self.canShowRatingDialogChanged(self.GetCanShowRatingDialog(), false)
 	}
 }
 
@@ -2120,6 +2322,12 @@ func (self *DeviceRemote) SetCanShowRatingDialog(canShowRatingDialog bool) {
 func (self *DeviceRemote) GetCanPromptIntroFunnel() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.CanPromptIntroFunnel.IsSet {
+		return self.state.CanPromptIntroFunnel.Value
+	}
 
 	canPromptIntroFunnel, success := func() (bool, bool) {
 		if self.service == nil {
@@ -2168,13 +2376,19 @@ func (self *DeviceRemote) SetCanPromptIntroFunnel(canPromptIntroFunnel bool) {
 		}
 	}()
 	if event {
-		self.canPromptIntroFunnelChanged(self.GetCanPromptIntroFunnel())
+		self.canPromptIntroFunnelChanged(self.GetCanPromptIntroFunnel(), false)
 	}
 }
 
 func (self *DeviceRemote) GetCanRefer() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.CanRefer.IsSet {
+		return self.state.CanRefer.Value
+	}
 
 	canRefer, success := func() (bool, bool) {
 		if self.service == nil {
@@ -2223,13 +2437,19 @@ func (self *DeviceRemote) SetCanRefer(canRefer bool) {
 		}
 	}()
 	if event {
-		self.canReferChanged(self.GetCanRefer())
+		self.canReferChanged(self.GetCanRefer(), false)
 	}
 }
 
 func (self *DeviceRemote) GetAllowForeground() bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.AllowForeground.IsSet {
+		return self.state.AllowForeground.Value
+	}
 
 	allowForeground, success := func() (bool, bool) {
 		if self.service == nil {
@@ -2278,7 +2498,7 @@ func (self *DeviceRemote) SetAllowForeground(allowForeground bool) {
 		}
 	}()
 	if event {
-		self.allowForegroundChanged(self.GetAllowForeground())
+		self.allowForegroundChanged(self.GetAllowForeground(), false)
 	}
 }
 
@@ -2353,6 +2573,7 @@ func (self *DeviceRemote) GetRouteLocal() bool {
 
 func (self *DeviceRemote) SetBlockerEnabled(blockerEnabled bool) {
 	deliver := false
+	var save func()
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -2375,39 +2596,51 @@ func (self *DeviceRemote) SetBlockerEnabled(blockerEnabled bool) {
 		}
 		self.lastKnownState.BlockerEnabled.Set(blockerEnabled)
 		deliver = self.settingsTold.blockerEnabled.tellWithLock(blockerEnabled)
+		save = self.learnBlockerEnabledWithLock(blockerEnabled, deviceRemoteSettingSet)
 	}()
+	if save != nil {
+		save()
+	}
 	if deliver {
 		self.deliverBlockerEnabled()
 	}
 }
 
 func (self *DeviceRemote) GetBlockerEnabled() bool {
-	self.stateLock.Lock()
-	defer self.stateLock.Unlock()
+	var save func()
+	blockerEnabled := func() bool {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
 
-	// a pending write is the device's state once delivered; the device's own
-	// answer predates it
-	if self.state.BlockerEnabled.IsSet {
-		return self.state.BlockerEnabled.Value
-	}
-
-	blockerEnabled, success := func() (bool, bool) {
-		if self.service == nil {
-			return false, false
+		// a pending write is the device's state once delivered; the device's own
+		// answer predates it
+		if self.state.BlockerEnabled.IsSet {
+			return self.state.BlockerEnabled.Value
 		}
 
-		blockerEnabled, err := rpcCallNoArg[bool](self.service, "DeviceLocalRpc.GetBlockerEnabled", self.closeService)
-		if err != nil {
-			return false, false
+		blockerEnabled, success := func() (bool, bool) {
+			if self.service == nil {
+				return false, false
+			}
+
+			blockerEnabled, err := rpcCallNoArg[bool](self.service, "DeviceLocalRpc.GetBlockerEnabled", self.closeService)
+			if err != nil {
+				return false, false
+			}
+			self.lastKnownState.BlockerEnabled.Set(blockerEnabled)
+			save = self.learnBlockerEnabledWithLock(blockerEnabled, deviceRemoteSettingReported)
+			return blockerEnabled, true
+		}()
+		if success {
+			return blockerEnabled
+		} else {
+			return self.lastKnownState.BlockerEnabled.Get(self.settings.DefaultBlockerEnabled)
 		}
-		self.lastKnownState.BlockerEnabled.Set(blockerEnabled)
-		return blockerEnabled, true
 	}()
-	if success {
-		return blockerEnabled
-	} else {
-		return self.lastKnownState.BlockerEnabled.Get(self.settings.DefaultBlockerEnabled)
+	if save != nil {
+		save()
 	}
+	return blockerEnabled
 }
 
 type listenerRpcCall func(*rpcClient, string, any, func()) error
@@ -3351,13 +3584,19 @@ func (self *DeviceRemote) SetProvideNetworkMode(provideNetworkMode ProvideNetwor
 		}
 	}()
 	if event {
-		self.provideNetworkModeChanged(self.GetProvideNetworkMode())
+		self.provideNetworkModeChanged(self.GetProvideNetworkMode(), false)
 	}
 }
 
 func (self *DeviceRemote) GetProvideNetworkMode() ProvideNetworkMode {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.ProvideNetworkMode.IsSet {
+		return self.state.ProvideNetworkMode.Value
+	}
 
 	provideNetworkMode, success := func() (ProvideNetworkMode, bool) {
 		if self.service == nil {
@@ -3808,6 +4047,15 @@ func (self *DeviceRemote) GetDefaultLocation() *ConnectLocation {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if self.state.DefaultLocation.IsSet {
+		if self.state.DefaultLocation.Value == nil {
+			return nil
+		}
+		return self.state.DefaultLocation.Value.toConnectLocation()
+	}
+
 	defaultLocation, success := func() (*ConnectLocation, bool) {
 		if self.service == nil {
 			return nil, false
@@ -3823,12 +4071,6 @@ func (self *DeviceRemote) GetDefaultLocation() *ConnectLocation {
 	if success {
 		return defaultLocation
 	} else {
-		if self.state.DefaultLocation.IsSet {
-			if self.state.DefaultLocation.Value == nil {
-				return nil
-			}
-			return self.state.DefaultLocation.Value.toConnectLocation()
-		}
 		if self.lastKnownState.DefaultLocation.IsSet {
 			if self.lastKnownState.DefaultLocation.Value == nil {
 				return nil
@@ -3884,7 +4126,7 @@ func (self *DeviceRemote) SetDefaultLocation(connectLocation *ConnectLocation) {
 		}
 	}()
 	if event {
-		self.defaultLocationChanged(self.GetDefaultLocation())
+		self.defaultLocationChanged(self.GetDefaultLocation(), false)
 	}
 }
 
@@ -3992,6 +4234,10 @@ func (self *DeviceRemote) Close() {
 		self.cancel()
 		if self.securityPolicyMonitor != nil {
 			self.securityPolicyMonitor.Close()
+		}
+		if self.ingressDnsUnsub != nil {
+			self.ingressDnsUnsub()
+			self.ingressDnsUnsub = nil
 		}
 
 		if self.apiJwtRefreshSub != nil {
@@ -4438,10 +4684,16 @@ func listenerList[T any](listenerMap map[connect.Id]T) []T {
 	return listeners
 }
 
-func (self *DeviceRemote) canShowRatingDialogChanged(canShowRatingDialog bool) {
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc. A report made while a write is pending predates the write, which
+// the next sync applies over it: it is neither kept as last known nor told.
+func (self *DeviceRemote) canShowRatingDialogChanged(canShowRatingDialog bool, reported bool) {
 	listenerList := func() []CanShowRatingDialogChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if reported && self.state.CanShowRatingDialog.IsSet {
+			return nil
+		}
 		self.lastKnownState.CanShowRatingDialog.Set(canShowRatingDialog)
 		return listenerList(self.canShowRatingDialogChangeListeners)
 	}()
@@ -4452,10 +4704,16 @@ func (self *DeviceRemote) canShowRatingDialogChanged(canShowRatingDialog bool) {
 	}
 }
 
-func (self *DeviceRemote) canPromptIntroFunnelChanged(canPromptIntroFunnel bool) {
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc. A report made while a write is pending predates the write, which
+// the next sync applies over it: it is neither kept as last known nor told.
+func (self *DeviceRemote) canPromptIntroFunnelChanged(canPromptIntroFunnel bool, reported bool) {
 	listenerList := func() []CanPromptIntroFunnelChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if reported && self.state.CanPromptIntroFunnel.IsSet {
+			return nil
+		}
 		self.lastKnownState.CanPromptIntroFunnel.Set(canPromptIntroFunnel)
 		return listenerList(self.canPromptIntroFunnelChangeListeners)
 	}()
@@ -4466,10 +4724,16 @@ func (self *DeviceRemote) canPromptIntroFunnelChanged(canPromptIntroFunnel bool)
 	}
 }
 
-func (self *DeviceRemote) allowForegroundChanged(allowForeground bool) {
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc. A report made while a write is pending predates the write, which
+// the next sync applies over it: it is neither kept as last known nor told.
+func (self *DeviceRemote) allowForegroundChanged(allowForeground bool, reported bool) {
 	listenerList := func() []AllowForegroundChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if reported && self.state.AllowForeground.IsSet {
+			return nil
+		}
 		self.lastKnownState.AllowForeground.Set(allowForeground)
 		return listenerList(self.allowForegroundChangeListeners)
 	}()
@@ -4480,10 +4744,16 @@ func (self *DeviceRemote) allowForegroundChanged(allowForeground bool) {
 	}
 }
 
-func (self *DeviceRemote) canReferChanged(canRefer bool) {
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc. A report made while a write is pending predates the write, which
+// the next sync applies over it: it is neither kept as last known nor told.
+func (self *DeviceRemote) canReferChanged(canRefer bool, reported bool) {
 	listenerList := func() []CanReferChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if reported && self.state.CanRefer.IsSet {
+			return nil
+		}
 		self.lastKnownState.CanRefer.Set(canRefer)
 		return listenerList(self.canReferChangeListeners)
 	}()
@@ -4512,11 +4782,17 @@ func (self *DeviceRemote) providerIdentitiesChanged(providerIdentities *Provider
 	}
 }
 
-func (self *DeviceRemote) performanceProfileChanged(performanceProfile *PerformanceProfile) {
+// The device's report of its performance profile (reverse rpc). A report made
+// while a write is pending predates the write, which the next sync applies over
+// it: it is neither kept as last known nor told.
+func (self *DeviceRemote) performanceProfileReported(performanceProfile *PerformanceProfile) {
 	performanceProfile = clonePerformanceProfile(performanceProfile)
 	listenerList := func() []PerformanceProfileChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if self.state.PerformanceProfile.IsSet {
+			return nil
+		}
 		self.lastKnownState.PerformanceProfile.Set(performanceProfile)
 		return listenerList(self.performanceProfileChangeListeners)
 	}()
@@ -4529,10 +4805,16 @@ func (self *DeviceRemote) performanceProfileChanged(performanceProfile *Performa
 	}
 }
 
-func (self *DeviceRemote) provideNetworkModeChanged(provideNetworkMode ProvideNetworkMode) {
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc. A report made while a write is pending predates the write, which
+// the next sync applies over it: it is neither kept as last known nor told.
+func (self *DeviceRemote) provideNetworkModeChanged(provideNetworkMode ProvideNetworkMode, reported bool) {
 	listenerList := func() []ProvideNetworkModeChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if reported && self.state.ProvideNetworkMode.IsSet {
+			return nil
+		}
 		self.lastKnownState.ProvideNetworkMode.Set(provideNetworkMode)
 		return listenerList(self.provideNetworkModeChangeListeners)
 	}()
@@ -4543,10 +4825,16 @@ func (self *DeviceRemote) provideNetworkModeChanged(provideNetworkMode ProvideNe
 	}
 }
 
-func (self *DeviceRemote) defaultLocationChanged(location *ConnectLocation) {
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc. A report made while a write is pending predates the write, which
+// the next sync applies over it: it is neither kept as last known nor told.
+func (self *DeviceRemote) defaultLocationChanged(location *ConnectLocation, reported bool) {
 	listenerList := func() []DefaultLocationChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
+		if reported && self.state.DefaultLocation.IsSet {
+			return nil
+		}
 		self.lastKnownState.DefaultLocation.Set(newDeviceRemoteDefaultLocation(location))
 		return listenerList(self.defaultLocationChangeListeners)
 	}()
@@ -4749,13 +5037,28 @@ func (self *DeviceRemote) blockStatsChanged(blockStats *BlockStats) {
 	}
 }
 
-func (self *DeviceRemote) blockActionOverridesChanged(overridesRpc []*BlockActionOverrideRpc) {
+// `source` says whether the list is the device's or the app's (an edit or a
+// whole list queued for the next sync), which decides whether it is saved
+// (device_remote_saved_settings.go).
+func (self *DeviceRemote) blockActionOverridesChanged(
+	overridesRpc []*BlockActionOverrideRpc,
+	source deviceRemoteSettingSource,
+) {
+	var save func()
 	listenerList := func() []BlockActionOverridesChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-		self.lastKnownState.BlockActionOverrides.Set(overridesRpc)
+		if source == deviceRemoteSettingReported && self.state.BlockActionOverrides.IsSet {
+			// made before the device had the pending write, which the next
+			// sync applies over it: neither kept, told nor saved
+			return nil
+		}
+		save = self.learnBlockActionOverridesWithLock(overridesRpc, source)
 		return listenerList(self.blockActionOverridesChangeListeners)
 	}()
+	if save != nil {
+		save()
+	}
 	blockActionOverrides := toBlockActionOverrideList(overridesRpc)
 	for _, blockActionOverridesChangeListener := range listenerList {
 		connect.HandleError(func() {
@@ -4894,9 +5197,14 @@ func (self *DeviceRemote) providerIngressContractDetailsChanged(contractDetails 
 	}
 }
 
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc with its status. Settings the device reports while a write is
+// pending predate the write, which the next sync applies over them: they are
+// neither kept as last known nor told, and the status still is.
 func (self *DeviceRemote) transportSettingsChanged(
 	settingsRpc *TransportSettingsRpc,
 	statusRpc *TransportStatusRpc,
+	reported bool,
 ) {
 	transportSettings := settingsRpc.toTransportSettings(false)
 	settingsRpc = newTransportSettingsRpc(transportSettings, false)
@@ -4907,13 +5215,20 @@ func (self *DeviceRemote) transportSettingsChanged(
 	) {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-		self.lastKnownState.TransportSettings.Set(settingsRpc)
+		stale := reported && self.state.TransportSettings.IsSet
+		if !stale {
+			self.lastKnownState.TransportSettings.Set(settingsRpc)
+		}
 		var status *TransportStatus
 		if statusRpc != nil {
 			self.lastKnownState.TransportStatus.Set(statusRpc)
 			status = statusRpc.toTransportStatus()
 		}
-		return listenerList(self.transportSettingsChangeListeners),
+		var settingsListeners []TransportSettingsChangeListener
+		if !stale {
+			settingsListeners = listenerList(self.transportSettingsChangeListeners)
+		}
+		return settingsListeners,
 			listenerList(self.transportStatusChangeListeners), status
 	}()
 	for _, listener := range settingsListeners {
@@ -4930,9 +5245,14 @@ func (self *DeviceRemote) transportSettingsChanged(
 	}
 }
 
+// Tells the listeners the remote's own write, or the device's report over the
+// reverse rpc with its status. Settings the device reports while a write is
+// pending predate the write, which the next sync applies over them: they are
+// neither kept as last known nor told, and the status still is.
 func (self *DeviceRemote) providerTransportSettingsChanged(
 	settingsRpc *TransportSettingsRpc,
 	statusRpc *TransportStatusRpc,
+	reported bool,
 ) {
 	transportSettings := settingsRpc.toTransportSettings(true)
 	settingsRpc = newTransportSettingsRpc(transportSettings, true)
@@ -4943,13 +5263,20 @@ func (self *DeviceRemote) providerTransportSettingsChanged(
 	) {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-		self.lastKnownState.ProviderTransportSettings.Set(settingsRpc)
+		stale := reported && self.state.ProviderTransportSettings.IsSet
+		if !stale {
+			self.lastKnownState.ProviderTransportSettings.Set(settingsRpc)
+		}
 		var status *TransportStatus
 		if statusRpc != nil {
 			self.lastKnownState.ProviderTransportStatus.Set(statusRpc)
 			status = statusRpc.toTransportStatus()
 		}
-		return listenerList(self.providerTransportSettingsChangeListeners),
+		var settingsListeners []ProviderTransportSettingsChangeListener
+		if !stale {
+			settingsListeners = listenerList(self.providerTransportSettingsChangeListeners)
+		}
+		return settingsListeners,
 			listenerList(self.providerTransportStatusChangeListeners), status
 	}()
 	for _, listener := range settingsListeners {
@@ -4966,13 +5293,28 @@ func (self *DeviceRemote) providerTransportSettingsChanged(
 	}
 }
 
-func (self *DeviceRemote) dnsResolverSettingsChanged(settingsRpc *DnsResolverSettingsRpc) {
+// `source` says whether the settings are the device's or a whole value the app
+// set, queued for the next sync, which decides whether they are saved
+// (device_remote_saved_settings.go).
+func (self *DeviceRemote) dnsResolverSettingsChanged(
+	settingsRpc *DnsResolverSettingsRpc,
+	source deviceRemoteSettingSource,
+) {
+	var save func()
 	listenerList := func() []DnsResolverSettingsChangeListener {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-		self.lastKnownState.DnsResolverSettings.Set(settingsRpc)
+		if source == deviceRemoteSettingReported && self.state.DnsResolverSettings.IsSet {
+			// made before the device had the pending write, which the next
+			// sync applies over it: neither kept, told nor saved
+			return nil
+		}
+		save = self.learnDnsResolverSettingsWithLock(settingsRpc, source)
 		return listenerList(self.dnsResolverSettingsChangeListeners)
 	}()
+	if save != nil {
+		save()
+	}
 	dnsResolverSettings := settingsRpc.toDnsResolverSettings()
 	for _, dnsResolverSettingsChangeListener := range listenerList {
 		connect.HandleError(func() {
@@ -5399,6 +5741,7 @@ func (self *DeviceRemote) AddBlockActionOverride(override *BlockActionOverride) 
 	overrideRpc := newBlockActionOverrideRpc(override)
 	var eventOverridesRpc []*BlockActionOverrideRpc
 	event := false
+	var save func()
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -5426,15 +5769,18 @@ func (self *DeviceRemote) AddBlockActionOverride(override *BlockActionOverride) 
 		}()
 		if success {
 			self.state.BlockActionOverrides.Unset()
-			self.lastKnownState.BlockActionOverrides.Set(overridesRpc)
+			save = self.learnBlockActionOverridesWithLock(overridesRpc, deviceRemoteSettingEdited)
 		} else {
 			event = true
 			eventOverridesRpc = overridesRpc
 			self.state.BlockActionOverrides.Set(overridesRpc)
 		}
 	}()
+	if save != nil {
+		save()
+	}
 	if event {
-		self.blockActionOverridesChanged(eventOverridesRpc)
+		self.blockActionOverridesChanged(eventOverridesRpc, deviceRemoteSettingEdited)
 	}
 }
 
@@ -5445,6 +5791,7 @@ func (self *DeviceRemote) RemoveBlockActionOverride(overrideId *Id) {
 	}
 	var eventOverridesRpc []*BlockActionOverrideRpc
 	event := false
+	var save func()
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -5471,21 +5818,25 @@ func (self *DeviceRemote) RemoveBlockActionOverride(overrideId *Id) {
 		}()
 		if success {
 			self.state.BlockActionOverrides.Unset()
-			self.lastKnownState.BlockActionOverrides.Set(overridesRpc)
+			save = self.learnBlockActionOverridesWithLock(overridesRpc, deviceRemoteSettingEdited)
 		} else {
 			event = true
 			eventOverridesRpc = overridesRpc
 			self.state.BlockActionOverrides.Set(overridesRpc)
 		}
 	}()
+	if save != nil {
+		save()
+	}
 	if event {
-		self.blockActionOverridesChanged(eventOverridesRpc)
+		self.blockActionOverridesChanged(eventOverridesRpc, deviceRemoteSettingEdited)
 	}
 }
 
 func (self *DeviceRemote) SetBlockActionOverrides(overrides *BlockActionOverrideList) {
 	overridesRpc := newBlockActionOverridesRpc(overrides)
 	event := false
+	var save func()
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -5506,41 +5857,57 @@ func (self *DeviceRemote) SetBlockActionOverrides(overrides *BlockActionOverride
 		}()
 		if success {
 			self.state.BlockActionOverrides.Unset()
-			self.lastKnownState.BlockActionOverrides.Set(overridesRpc)
+			save = self.learnBlockActionOverridesWithLock(overridesRpc, deviceRemoteSettingSet)
 		} else {
 			event = true
 			self.state.BlockActionOverrides.Set(overridesRpc)
 		}
 	}()
+	if save != nil {
+		save()
+	}
 	if event {
-		self.blockActionOverridesChanged(overridesRpc)
+		self.blockActionOverridesChanged(overridesRpc, deviceRemoteSettingSet)
 	}
 }
 
 func (self *DeviceRemote) GetBlockActionOverrides() *BlockActionOverrideList {
-	self.stateLock.Lock()
-	defer self.stateLock.Unlock()
+	var save func()
+	overrides := func() *BlockActionOverrideList {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
 
-	overridesRpc, success := func() ([]*BlockActionOverrideRpc, bool) {
-		if self.service == nil {
-			return nil, false
+		// a pending write is the device's state once delivered; the device's
+		// own answer predates it
+		if self.state.BlockActionOverrides.IsSet {
+			return toBlockActionOverrideList(self.state.BlockActionOverrides.Value)
 		}
 
-		deviceOverrides, err := rpcCallNoArg[*DeviceRemoteBlockActionOverrides](self.service, "DeviceLocalRpc.GetBlockActionOverrides", self.closeService)
-		if err != nil {
-			return nil, false
+		overridesRpc, success := func() ([]*BlockActionOverrideRpc, bool) {
+			if self.service == nil {
+				return nil, false
+			}
+
+			deviceOverrides, err := rpcCallNoArg[*DeviceRemoteBlockActionOverrides](self.service, "DeviceLocalRpc.GetBlockActionOverrides", self.closeService)
+			if err != nil {
+				return nil, false
+			}
+			overridesRpc := deviceOverrides.BlockActionOverrides
+			save = self.learnBlockActionOverridesWithLock(overridesRpc, deviceRemoteSettingReported)
+			return overridesRpc, true
+		}()
+		if success {
+			return toBlockActionOverrideList(overridesRpc)
+		} else {
+			return toBlockActionOverrideList(self.state.BlockActionOverrides.Get(
+				self.lastKnownState.BlockActionOverrides.Get(nil),
+			))
 		}
-		overridesRpc := deviceOverrides.BlockActionOverrides
-		self.lastKnownState.BlockActionOverrides.Set(overridesRpc)
-		return overridesRpc, true
 	}()
-	if success {
-		return toBlockActionOverrideList(overridesRpc)
-	} else {
-		return toBlockActionOverrideList(self.state.BlockActionOverrides.Get(
-			self.lastKnownState.BlockActionOverrides.Get(nil),
-		))
+	if save != nil {
+		save()
 	}
+	return overrides
 }
 
 func (self *DeviceRemote) GetLocalOverrideAppIds() *OverrideLocalAppIds {
@@ -5944,8 +6311,21 @@ func (self *DeviceRemote) SetDnsResolverSettings(dnsResolverSettings *DnsResolve
 	if dnsResolverSettings == nil {
 		return
 	}
+	// The device refuses a selection it cannot apply (see
+	// validateDnsResolverSettingsSelection). Refuse it here too, so it is
+	// never sent or queued for the next sync, and the previous settings stay
+	// in force. The refusal names no id.
+	if err := validateDnsResolverSettingsSelection(dnsResolverSettings); err != nil {
+		if self.log != nil && self.log.V(1).Enabled() {
+			self.log.Infof("[dr]refused dns resolver settings: %v", err)
+		}
+		return
+	}
+	// queued and emitted as the device applies them
+	dnsResolverSettings = dnsResolverSettingsAsEdited(dnsResolverSettings)
 	settingsRpc := newDnsResolverSettingsRpc(dnsResolverSettings)
 	event := false
+	var save func()
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
@@ -5966,41 +6346,57 @@ func (self *DeviceRemote) SetDnsResolverSettings(dnsResolverSettings *DnsResolve
 		}()
 		if success {
 			self.state.DnsResolverSettings.Unset()
-			self.lastKnownState.DnsResolverSettings.Set(settingsRpc)
+			save = self.learnDnsResolverSettingsWithLock(settingsRpc, deviceRemoteSettingSet)
 		} else {
 			event = true
 			self.state.DnsResolverSettings.Set(settingsRpc)
 		}
 	}()
+	if save != nil {
+		save()
+	}
 	if event {
-		self.dnsResolverSettingsChanged(settingsRpc)
+		self.dnsResolverSettingsChanged(settingsRpc, deviceRemoteSettingSet)
 	}
 }
 
 func (self *DeviceRemote) GetDnsResolverSettings() *DnsResolverSettings {
-	self.stateLock.Lock()
-	defer self.stateLock.Unlock()
+	var save func()
+	dnsResolverSettings := func() *DnsResolverSettings {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
 
-	settingsRpc, success := func() (*DnsResolverSettingsRpc, bool) {
-		if self.service == nil {
-			return nil, false
+		// a pending write is the device's state once delivered; the device's
+		// own answer predates it
+		if self.state.DnsResolverSettings.IsSet {
+			return self.state.DnsResolverSettings.Value.toDnsResolverSettings()
 		}
 
-		deviceSettings, err := rpcCallNoArg[*DeviceRemoteDnsResolverSettings](self.service, "DeviceLocalRpc.GetDnsResolverSettings", self.closeService)
-		if err != nil {
-			return nil, false
+		settingsRpc, success := func() (*DnsResolverSettingsRpc, bool) {
+			if self.service == nil {
+				return nil, false
+			}
+
+			deviceSettings, err := rpcCallNoArg[*DeviceRemoteDnsResolverSettings](self.service, "DeviceLocalRpc.GetDnsResolverSettings", self.closeService)
+			if err != nil {
+				return nil, false
+			}
+			settingsRpc := deviceSettings.DnsResolverSettings
+			save = self.learnDnsResolverSettingsWithLock(settingsRpc, deviceRemoteSettingReported)
+			return settingsRpc, true
+		}()
+		if success {
+			return settingsRpc.toDnsResolverSettings()
+		} else {
+			return self.state.DnsResolverSettings.Get(
+				self.lastKnownState.DnsResolverSettings.Get(nil),
+			).toDnsResolverSettings()
 		}
-		settingsRpc := deviceSettings.DnsResolverSettings
-		self.lastKnownState.DnsResolverSettings.Set(settingsRpc)
-		return settingsRpc, true
 	}()
-	if success {
-		return settingsRpc.toDnsResolverSettings()
-	} else {
-		return self.state.DnsResolverSettings.Get(
-			self.lastKnownState.DnsResolverSettings.Get(nil),
-		).toDnsResolverSettings()
+	if save != nil {
+		save()
 	}
+	return dnsResolverSettings
 }
 
 func (self *DeviceRemote) AddDnsResolverSettingsChangeListener(listener DnsResolverSettingsChangeListener) Sub {
@@ -6011,6 +6407,96 @@ func (self *DeviceRemote) AddDnsResolverSettingsChangeListener(listener DnsResol
 		"DeviceLocalRpc.AddDnsResolverSettingsChangeListener",
 		"DeviceLocalRpc.RemoveDnsResolverSettingsChangeListener",
 	)
+}
+
+// GetDnsResolverStatus reads through to the local device, which holds the
+// resolver (on ios the packet tunnel extension). With no service it answers
+// the last status read or pushed, else unknown; a device process too old to
+// answer keeps its rpc session and reads unknown.
+func (self *DeviceRemote) GetDnsResolverStatus() *DnsResolverStatus {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	status, success := func() (*DnsResolverStatus, bool) {
+		if self.service == nil {
+			return nil, false
+		}
+		status, err := rpcCallNoArgAllowMissingMethod[*DnsResolverStatus](
+			self.service,
+			"DeviceLocalRpc.GetDnsResolverStatus",
+			self.closeService,
+		)
+		if err != nil || status == nil {
+			return nil, false
+		}
+		self.lastDnsResolverStatus = cloneDnsResolverStatus(status)
+		return status, true
+	}()
+	if success {
+		return status
+	}
+	if self.lastDnsResolverStatus != nil {
+		return cloneDnsResolverStatus(self.lastDnsResolverStatus)
+	}
+	return unknownDnsResolverStatus()
+}
+
+// The dns resolver status mirrors like the client limit status: the local
+// device's callback is forwarded over the reverse rpc and re-emitted here.
+// Compatible, so an app attached to a device process without the listener
+// keeps its session and degrades to the getter.
+func (self *DeviceRemote) AddDnsResolverStatusChangeListener(listener DnsResolverStatusChangeListener) Sub {
+	return addCompatibleListener(
+		self,
+		listener,
+		self.dnsResolverStatusChangeListeners,
+		"DeviceLocalRpc.AddDnsResolverStatusChangeListener",
+		"DeviceLocalRpc.RemoveDnsResolverStatusChangeListener",
+	)
+}
+
+// GetDnsBlockedCount reads through to the local device, whose mux counts.
+// Not cached: zero while the device process cannot be reached or is too old
+// to answer, since the count belongs to the live connection.
+func (self *DeviceRemote) GetDnsBlockedCount() int64 {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+
+	if self.service == nil {
+		return 0
+	}
+	count, err := rpcCallNoArgAllowMissingMethod[int64](
+		self.service,
+		"DeviceLocalRpc.GetDnsBlockedCount",
+		self.closeService,
+	)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+// The pushed dns resolver status refreshes the cached last value, so a getter
+// called right after a disconnect still answers it.
+func (self *DeviceRemote) dnsResolverStatusChanged(status *DnsResolverStatus) {
+	listenerList := func() []DnsResolverStatusChangeListener {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		if status != nil {
+			self.lastDnsResolverStatus = cloneDnsResolverStatus(status)
+		}
+		return listenerList(self.dnsResolverStatusChangeListeners)
+	}()
+	// a listener is handed the published value, never nil
+	published := cloneDnsResolverStatus(status)
+	if published == nil {
+		published = unknownDnsResolverStatus()
+	}
+	for _, dnsResolverStatusChangeListener := range listenerList {
+		connect.HandleError(func() {
+			dnsResolverStatusChangeListener.DnsResolverStatusChanged(cloneDnsResolverStatus(published))
+		})
+	}
 }
 
 // transport settings
@@ -6072,9 +6558,9 @@ func (self *DeviceRemote) setTransportSettings(transportSettings *TransportSetti
 	}()
 	if event {
 		if provider {
-			self.providerTransportSettingsChanged(settingsRpc, nil)
+			self.providerTransportSettingsChanged(settingsRpc, nil, false)
 		} else {
-			self.transportSettingsChanged(settingsRpc, nil)
+			self.transportSettingsChanged(settingsRpc, nil, false)
 		}
 	}
 }
@@ -6093,6 +6579,15 @@ func (self *DeviceRemote) getTransportSettings(provider bool) *TransportSettings
 	}
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
+
+	// a pending write is the device's state once delivered; the device's own
+	// answer predates it
+	if provider && self.state.ProviderTransportSettings.IsSet {
+		return self.state.ProviderTransportSettings.Value.toTransportSettings(provider)
+	}
+	if !provider && self.state.TransportSettings.IsSet {
+		return self.state.TransportSettings.Value.toTransportSettings(provider)
+	}
 
 	method := "DeviceLocalRpc.GetTransportSettings"
 	if provider {
@@ -7414,6 +7909,9 @@ type DeviceRemoteState struct {
 	// the lag.dev measurements setting (lag.dev/PLAN.md C4), stored beside the
 	// provider extender setting and queued as it is
 	MeasurementsEnabled deviceRemoteValue[bool]
+	// the router port mapping setting (connect EXTENDER.md S10), stored beside
+	// the provider extender setting and queued as it is
+	ProvideExtenderPortMapping deviceRemoteValue[bool]
 	// the id of a reset of the extender state (EXTENDER.md E7) queued for the
 	// device process, a one-shot command applied during sync; a newer reset
 	// replaces an older one, which it covers
@@ -7461,6 +7959,13 @@ type DeviceRemoteState struct {
 	// Nothing copies response state into request state, which is what keeps
 	// the two readings from colliding.
 	ReliabilitySettings deviceRemoteValue[*ReliabilitySettings]
+	// the app's ingress dns: its connection region and bootstrap DoH servers,
+	// for the device's own copy of the network space. Request only, and kept
+	// queued across syncs like the reliability override: the device applies it
+	// in place and persists nothing, and applying the values it already has is
+	// a no-op (device_remote_ingress_dns.go). A device that predates the field
+	// ignores it.
+	IngressDns deviceRemoteValue[*DeviceRemoteIngressDns]
 
 	// only last known state
 
@@ -7496,6 +8001,7 @@ func (self *DeviceRemoteState) Merge(update *DeviceRemoteState) {
 	self.ProvideNetworkMode.Merge(update.ProvideNetworkMode)
 	self.ProvideExtender.Merge(update.ProvideExtender)
 	self.MeasurementsEnabled.Merge(update.MeasurementsEnabled)
+	self.ProvideExtenderPortMapping.Merge(update.ProvideExtenderPortMapping)
 	self.ExtenderReset.Merge(update.ExtenderReset)
 	self.ProvidePaused.Merge(update.ProvidePaused)
 	self.Offline.Merge(update.Offline)
@@ -7518,6 +8024,7 @@ func (self *DeviceRemoteState) Merge(update *DeviceRemoteState) {
 	self.TransportStatus.Merge(update.TransportStatus)
 	self.ProviderTransportStatus.Merge(update.ProviderTransportStatus)
 	self.ReliabilitySettings.Merge(update.ReliabilitySettings)
+	self.IngressDns.Merge(update.IngressDns)
 	self.ConnectEnabled.Merge(update.ConnectEnabled)
 	self.ProvideEnabled.Merge(update.ProvideEnabled)
 	self.EgressSecurityPolicyStats.Merge(update.EgressSecurityPolicyStats)
@@ -7527,8 +8034,9 @@ func (self *DeviceRemoteState) Merge(update *DeviceRemoteState) {
 }
 
 // Reports queued request state, including a reliability reset. A successfully
-// applied non-nil reliability override is preserved only after this check, so
-// it does not create an endless resync loop.
+// applied non-nil reliability override, and the app's ingress dns, are
+// preserved only after this check, so they do not create an endless resync
+// loop.
 func (self *DeviceRemoteState) hasPendingSyncState() bool {
 	return self.CanShowRatingDialog.IsSet ||
 		self.CanPromptIntroFunnel.IsSet ||
@@ -7545,6 +8053,7 @@ func (self *DeviceRemoteState) hasPendingSyncState() bool {
 		self.ProvideNetworkMode.IsSet ||
 		self.ProvideExtender.IsSet ||
 		self.MeasurementsEnabled.IsSet ||
+		self.ProvideExtenderPortMapping.IsSet ||
 		self.ExtenderReset.IsSet ||
 		self.ProvidePaused.IsSet ||
 		self.Offline.IsSet ||
@@ -7562,7 +8071,8 @@ func (self *DeviceRemoteState) hasPendingSyncState() bool {
 		self.DnsResolverSettings.IsSet ||
 		self.TransportSettings.IsSet ||
 		self.ProviderTransportSettings.IsSet ||
-		self.ReliabilitySettings.IsSet
+		self.ReliabilitySettings.IsSet ||
+		self.IngressDns.IsSet
 }
 
 /*
@@ -7730,6 +8240,7 @@ type DeviceRemoteSyncRequest struct {
 	IngressContractStatsChangeListenerIds      []connect.Id
 	IngressContractDetailsChangeListenerIds    []connect.Id
 	DnsResolverSettingsChangeListenerIds       []connect.Id
+	DnsResolverStatusChangeListenerIds         []connect.Id
 	NetworkPeersChangeListenerIds              []connect.Id
 	WindowMonitorEventListenerIds              map[connect.Id][]connect.Id
 	State                                      DeviceRemoteState
@@ -8220,8 +8731,14 @@ func (self *OverrideLocalAppIdsRpc) toOverrideLocalAppIds() *OverrideLocalAppIds
 	}
 }
 
+// The device rpc form of DnsResolverSettings. Gob ignores a field the peer
+// lacks, so an older peer drops the selection and keeps the lists, which are
+// the derived ones (ADBLOCK3RD E3, E5).
+//
 //gomobile:noexport
 type DnsResolverSettingsRpc struct {
+	PresetId              string
+	PresetPersonalId      string
 	EnableRemoteDoh       bool
 	EnableLocalDoh        bool
 	EnableRemoteDns       bool
@@ -8244,6 +8761,8 @@ func newDnsResolverSettingsRpc(dnsResolverSettings *DnsResolverSettings) *DnsRes
 		return nil
 	}
 	return &DnsResolverSettingsRpc{
+		PresetId:              dnsResolverSettings.PresetId,
+		PresetPersonalId:      dnsResolverSettings.PresetPersonalId,
 		EnableRemoteDoh:       dnsResolverSettings.EnableRemoteDoh,
 		EnableLocalDoh:        dnsResolverSettings.EnableLocalDoh,
 		EnableRemoteDns:       dnsResolverSettings.EnableRemoteDns,
@@ -8267,6 +8786,8 @@ func (self *DnsResolverSettingsRpc) toDnsResolverSettings() *DnsResolverSettings
 		return nil
 	}
 	return &DnsResolverSettings{
+		PresetId:              self.PresetId,
+		PresetPersonalId:      self.PresetPersonalId,
 		EnableRemoteDoh:       self.EnableRemoteDoh,
 		EnableLocalDoh:        self.EnableLocalDoh,
 		EnableRemoteDns:       self.EnableRemoteDns,
@@ -8829,6 +9350,9 @@ type DeviceRemoteReliabilityMetricsRpc struct {
 type ExitRpc struct {
 	ClientId                         connect.Id
 	WindowType                       string
+	CapabilityIp                     string
+	CapabilityProtocol               string
+	OverflowStep                     int32
 	Warning                          bool
 	Quarantined                      bool
 	WarningCause                     string
@@ -8857,6 +9381,9 @@ func newExitRpc(exit *Exit) *ExitRpc {
 	}
 	exitRpc := &ExitRpc{
 		WindowType:                       exit.WindowType,
+		CapabilityIp:                     exit.CapabilityIp,
+		CapabilityProtocol:               exit.CapabilityProtocol,
+		OverflowStep:                     exit.OverflowStep,
 		Warning:                          exit.Warning,
 		Quarantined:                      exit.Quarantined,
 		WarningCause:                     exit.WarningCause,
@@ -8891,6 +9418,9 @@ func (self *ExitRpc) toExit() *Exit {
 	return &Exit{
 		ClientId:                         newId(self.ClientId),
 		WindowType:                       self.WindowType,
+		CapabilityIp:                     self.CapabilityIp,
+		CapabilityProtocol:               self.CapabilityProtocol,
+		OverflowStep:                     self.OverflowStep,
 		Warning:                          self.Warning,
 		Quarantined:                      self.Quarantined,
 		WarningCause:                     self.WarningCause,
@@ -9614,6 +10144,7 @@ type DeviceLocalRpc struct {
 	ingressContractStatsChangeListenerIds      map[connect.Id]bool
 	ingressContractDetailsChangeListenerIds    map[connect.Id]bool
 	dnsResolverSettingsChangeListenerIds       map[connect.Id]bool
+	dnsResolverStatusChangeListenerIds         map[connect.Id]bool
 	networkPeersChangeListenerIds              map[connect.Id]bool
 
 	providerPacketStatsChangeListenerIds            map[connect.Id]bool
@@ -9667,6 +10198,7 @@ type DeviceLocalRpc struct {
 	ingressContractStatsChangeListenerSub      Sub
 	ingressContractDetailsChangeListenerSub    Sub
 	dnsResolverSettingsChangeListenerSub       Sub
+	dnsResolverStatusChangeListenerSub         Sub
 	networkPeersChangeListenerSub              Sub
 
 	providerPacketStatsChangeListenerSub            Sub
@@ -9755,6 +10287,7 @@ func newDeviceLocalRpc(
 		ingressContractStatsChangeListenerIds:      map[connect.Id]bool{},
 		ingressContractDetailsChangeListenerIds:    map[connect.Id]bool{},
 		dnsResolverSettingsChangeListenerIds:       map[connect.Id]bool{},
+		dnsResolverStatusChangeListenerIds:         map[connect.Id]bool{},
 		networkPeersChangeListenerIds:              map[connect.Id]bool{},
 		localWindowIds:                             map[connect.Id]connect.Id{},
 		sendPending:                                map[string]func(){},
@@ -10033,6 +10566,9 @@ func (self *DeviceLocalRpc) closeService() {
 	for dnsResolverSettingsChangeListenerId, _ := range self.dnsResolverSettingsChangeListenerIds {
 		self.removeDnsResolverSettingsChangeListener(dnsResolverSettingsChangeListenerId)
 	}
+	for dnsResolverStatusChangeListenerId := range self.dnsResolverStatusChangeListenerIds {
+		self.removeDnsResolverStatusChangeListenerWithLock(dnsResolverStatusChangeListenerId)
+	}
 	for networkPeersChangeListenerId, _ := range self.networkPeersChangeListenerIds {
 		self.removeNetworkPeersChangeListener(networkPeersChangeListenerId)
 	}
@@ -10229,6 +10765,7 @@ func (self *DeviceLocalRpc) state() DeviceRemoteState {
 	state.ProvideNetworkMode.Set(self.deviceLocal.GetProvideNetworkMode())
 	state.ProvideExtender.Set(self.deviceLocal.GetProvideExtender())
 	state.MeasurementsEnabled.Set(self.deviceLocal.GetMeasurementsEnabled())
+	state.ProvideExtenderPortMapping.Set(self.deviceLocal.GetProvideExtenderPortMapping())
 	state.ProvidePaused.Set(self.deviceLocal.GetProvidePaused())
 	state.Offline.Set(self.deviceLocal.GetOffline())
 	state.VpnInterfaceWhileOffline.Set(self.deviceLocal.GetVpnInterfaceWhileOffline())
@@ -10437,6 +10974,10 @@ func (self *DeviceLocalRpc) Sync(
 	if state.MeasurementsEnabled.IsSet && !hostedIncompatible {
 		self.deviceLocal.SetMeasurementsEnabled(state.MeasurementsEnabled.Value)
 	}
+	// and so is the router port mapping setting (connect EXTENDER.md S10)
+	if state.ProvideExtenderPortMapping.IsSet && !hostedIncompatible {
+		self.deviceLocal.SetProvideExtenderPortMapping(state.ProvideExtenderPortMapping.Value)
+	}
 	// a reset the app made while this process could not be reached (E7)
 	if state.ExtenderReset.IsSet && !hostedIncompatible {
 		self.deviceLocal.applyExtenderReset(state.ExtenderReset.Value)
@@ -10530,7 +11071,23 @@ func (self *DeviceLocalRpc) Sync(
 		}
 	}
 	if state.DnsResolverSettings.IsSet && !hostedIncompatible {
-		if err := applyPreference(self.deviceLocal.setLocalCatalogPreferenceDeferred("dns-resolver-settings", state.DnsResolverSettings.Value.toDnsResolverSettings())); err != nil {
+		// A selection the device refuses (see
+		// validateDnsResolverSettingsSelection) keeps the previous settings in
+		// force and does not fail the sync, as a refused performance profile
+		// does. The refusal names no id.
+		dnsResolverSettings := state.DnsResolverSettings.Value.toDnsResolverSettings()
+		if err := validateDnsResolverSettingsSelection(dnsResolverSettings); err != nil {
+			if self.deviceLocal.log.V(1).Enabled() {
+				self.deviceLocal.log.Infof("[dlrpc]sync refused dns resolver settings: %v", err)
+			}
+		} else if sameDnsResolverSettings(
+			ownDnsResolverSettings(dnsResolverSettingsAsEdited(dnsResolverSettings)),
+			self.deviceLocal.GetDnsResolverSettings(),
+		) {
+			// the device's own settings, which every remote queues from the
+			// app's copy (device_remote_saved_settings.go). Applying them again
+			// would restart a running device's resolvers on every attach.
+		} else if err := applyPreference(self.deviceLocal.setLocalCatalogPreferenceDeferred("dns-resolver-settings", dnsResolverSettings)); err != nil {
 			return err
 		}
 	}
@@ -10544,6 +11101,13 @@ func (self *DeviceLocalRpc) Sync(
 		} else {
 			self.deviceLocal.ResetReliabilitySettings()
 		}
+	}
+	if state.IngressDns.IsSet && !hostedIncompatible {
+		// the app's connection region and bootstrap DoH servers, applied in
+		// place to this device's copy of the space, persisting nothing; the
+		// values the space already has are a no-op
+		// (device_remote_ingress_dns.go)
+		self.deviceLocal.applyIngressDns(state.IngressDns.Value)
 	}
 
 	// if state.RefreshToken.IsSet {
@@ -10688,6 +11252,9 @@ func (self *DeviceLocalRpc) Sync(
 	}
 	for _, dnsResolverSettingsChangeListenerId := range syncRequest.DnsResolverSettingsChangeListenerIds {
 		self.addDnsResolverSettingsChangeListener(dnsResolverSettingsChangeListenerId)
+	}
+	for _, dnsResolverStatusChangeListenerId := range syncRequest.DnsResolverStatusChangeListenerIds {
+		self.addDnsResolverStatusChangeListenerWithLock(dnsResolverStatusChangeListenerId)
 	}
 	for _, networkPeersChangeListenerId := range syncRequest.NetworkPeersChangeListenerIds {
 		self.addNetworkPeersChangeListener(networkPeersChangeListenerId)
@@ -10896,6 +11463,9 @@ func (self *DeviceLocalRpc) SyncReverse(_ RpcNoArg, _ RpcVoid) error {
 	}
 	if self.dnsResolverSettingsChangeListenerSub != nil {
 		self.dnsResolverSettingsChanged(self.deviceLocal.GetDnsResolverSettings())
+	}
+	if self.dnsResolverStatusChangeListenerSub != nil {
+		self.dnsResolverStatusChangedWithLock(self.deviceLocal.GetDnsResolverStatus())
 	}
 	if self.networkPeersChangeListenerSub != nil {
 		self.networkPeersChanged(self.deviceLocal.GetNetworkPeers())
@@ -12095,6 +12665,74 @@ func (self *DeviceLocalRpc) dnsResolverSettingsChanged(dnsResolverSettings *DnsR
 	self.reverseNotify("DeviceRemoteRpc.DnsResolverSettingsChanged", event)
 }
 
+// GetDnsResolverStatus answers the device's dns resolver status, with the
+// blocked count.
+func (self *DeviceLocalRpc) GetDnsResolverStatus(_ RpcNoArg, status **DnsResolverStatus) error {
+	*status = self.deviceLocal.GetDnsResolverStatus()
+	return nil
+}
+
+// GetDnsBlockedCount answers this connection's blocked-lookups count. It
+// crosses only this local rpc (ADBLOCK3RD I3).
+func (self *DeviceLocalRpc) GetDnsBlockedCount(_ RpcNoArg, count *int64) error {
+	*count = self.deviceLocal.GetDnsBlockedCount()
+	return nil
+}
+
+// AddDnsResolverStatusChangeListener forwards the device's dns resolver status
+// to the remote listener listenerId.
+func (self *DeviceLocalRpc) AddDnsResolverStatusChangeListener(listenerId connect.Id, _ RpcVoid) error {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.addDnsResolverStatusChangeListenerWithLock(listenerId)
+	return nil
+}
+
+// addDnsResolverStatusChangeListenerWithLock subscribes to the device once,
+// for the first remote listener.
+func (self *DeviceLocalRpc) addDnsResolverStatusChangeListenerWithLock(listenerId connect.Id) {
+	self.dnsResolverStatusChangeListenerIds[listenerId] = true
+	if self.dnsResolverStatusChangeListenerSub == nil {
+		self.dnsResolverStatusChangeListenerSub = self.deviceLocal.AddDnsResolverStatusChangeListener(self)
+	}
+}
+
+// RemoveDnsResolverStatusChangeListener stops forwarding to the remote listener
+// listenerId.
+func (self *DeviceLocalRpc) RemoveDnsResolverStatusChangeListener(listenerId connect.Id, _ RpcVoid) error {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.removeDnsResolverStatusChangeListenerWithLock(listenerId)
+	return nil
+}
+
+// removeDnsResolverStatusChangeListenerWithLock unsubscribes from the device
+// with the last remote listener.
+func (self *DeviceLocalRpc) removeDnsResolverStatusChangeListenerWithLock(listenerId connect.Id) {
+	delete(self.dnsResolverStatusChangeListenerIds, listenerId)
+	if len(self.dnsResolverStatusChangeListenerIds) == 0 && self.dnsResolverStatusChangeListenerSub != nil {
+		self.dnsResolverStatusChangeListenerSub.Close()
+		self.dnsResolverStatusChangeListenerSub = nil
+	}
+}
+
+// DnsResolverStatusChanged is the device's DnsResolverStatusChangeListener.
+func (self *DeviceLocalRpc) DnsResolverStatusChanged(status *DnsResolverStatus) {
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	self.dnsResolverStatusChangedWithLock(status)
+}
+
+// dnsResolverStatusChangedWithLock enqueues an async, coalescing reverse
+// notification (see sendLoop). Every field is a plain value, so the status
+// crosses as it stands.
+func (self *DeviceLocalRpc) dnsResolverStatusChangedWithLock(status *DnsResolverStatus) {
+	if status == nil {
+		status = unknownDnsResolverStatus()
+	}
+	self.reverseNotify("DeviceRemoteRpc.DnsResolverStatusChanged", status)
+}
+
 // network peers
 
 func (self *DeviceLocalRpc) GetNetworkPeers(_ RpcNoArg, peers **DeviceRemoteNetworkPeers) error {
@@ -12759,6 +13397,21 @@ func (self *DeviceLocalRpc) GetClientLimitStatus(_ RpcNoArg, status **ClientLimi
 	return nil
 }
 
+// RetryClientLimit ends the device's client limit hold for a remote whose user
+// acted on the prompt, and answers whether it did.
+func (self *DeviceLocalRpc) RetryClientLimit(_ RpcNoArg, retried *bool) error {
+	*retried = self.deviceLocal.RetryClientLimit()
+	return nil
+}
+
+// RetryClientLimitAfterChange ends the device's client limit hold for a remote
+// after a change that frees a slot or raises the limit, and answers whether it
+// did.
+func (self *DeviceLocalRpc) RetryClientLimitAfterChange(_ RpcNoArg, retried *bool) error {
+	*retried = self.deviceLocal.RetryClientLimitAfterChange()
+	return nil
+}
+
 // GetTransportDelay answers the device's transport quality.
 func (self *DeviceLocalRpc) GetTransportDelay(_ RpcNoArg, delay **TransportDelay) error {
 	*delay = self.deviceLocal.GetTransportDelay()
@@ -12793,6 +13446,19 @@ func (self *DeviceLocalRpc) SetMeasurementsEnabled(measurementsEnabled bool, _ R
 		return nil
 	}
 	self.deviceLocal.SetMeasurementsEnabled(measurementsEnabled)
+	return nil
+}
+
+func (self *DeviceLocalRpc) GetProvideExtenderPortMapping(_ RpcNoArg, portMapping *bool) error {
+	*portMapping = self.deviceLocal.GetProvideExtenderPortMapping()
+	return nil
+}
+
+func (self *DeviceLocalRpc) SetProvideExtenderPortMapping(portMapping bool, _ RpcVoid) error {
+	if self.hostedIncompatibleRpcGuarded("SetProvideExtenderPortMapping") {
+		return nil
+	}
+	self.deviceLocal.SetProvideExtenderPortMapping(portMapping)
 	return nil
 }
 
@@ -14044,7 +14710,7 @@ func (self *DeviceRemoteRpc) ProvideChanged(provideEnabled bool, _ RpcVoid) erro
 func (self *DeviceRemoteRpc) CanShowRatingDialogChanged(canShowRatingDialog bool, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]CanShowRatingDialogChanged canShowRatingDialog=%t", canShowRatingDialog)
 	self.dispatch(func() {
-		self.deviceRemote.canShowRatingDialogChanged(canShowRatingDialog)
+		self.deviceRemote.canShowRatingDialogChanged(canShowRatingDialog, true)
 	})
 	return nil
 }
@@ -14052,7 +14718,7 @@ func (self *DeviceRemoteRpc) CanShowRatingDialogChanged(canShowRatingDialog bool
 func (self *DeviceRemoteRpc) CanPromptIntroFunnelChanged(canPromptIntroFunnel bool, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]CanPromptIntroFunnelChanged canPromptIntroFunnel=%t", canPromptIntroFunnel)
 	self.dispatch(func() {
-		self.deviceRemote.canPromptIntroFunnelChanged(canPromptIntroFunnel)
+		self.deviceRemote.canPromptIntroFunnelChanged(canPromptIntroFunnel, true)
 	})
 	return nil
 }
@@ -14060,7 +14726,7 @@ func (self *DeviceRemoteRpc) CanPromptIntroFunnelChanged(canPromptIntroFunnel bo
 func (self *DeviceRemoteRpc) AllowForegroundChanged(allowForeground bool, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]AllowForegroundChanged allowForeground=%t", allowForeground)
 	self.dispatch(func() {
-		self.deviceRemote.allowForegroundChanged(allowForeground)
+		self.deviceRemote.allowForegroundChanged(allowForeground, true)
 	})
 	return nil
 }
@@ -14068,7 +14734,7 @@ func (self *DeviceRemoteRpc) AllowForegroundChanged(allowForeground bool, _ RpcV
 func (self *DeviceRemoteRpc) CanReferChanged(canRefer bool, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]CanReferChanged canRefer=%t", canRefer)
 	self.dispatch(func() {
-		self.deviceRemote.canReferChanged(canRefer)
+		self.deviceRemote.canReferChanged(canRefer, true)
 	})
 	return nil
 }
@@ -14100,7 +14766,7 @@ func (self *DeviceRemoteRpc) ProvideControlModeChanged(provideControlMode Provid
 func (self *DeviceRemoteRpc) ProvideNetworkModeChanged(provideNetworkMode ProvideNetworkMode, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]ProvideNetworkModeChanged provideNetworkMode=%s", provideNetworkMode)
 	self.dispatch(func() {
-		self.deviceRemote.provideNetworkModeChanged(provideNetworkMode)
+		self.deviceRemote.provideNetworkModeChanged(provideNetworkMode, true)
 	})
 	return nil
 }
@@ -14108,7 +14774,7 @@ func (self *DeviceRemoteRpc) ProvideNetworkModeChanged(provideNetworkMode Provid
 func (self *DeviceRemoteRpc) PerformanceProfileChanged(event *DevicePerformanceProfile, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]PerformanceProfileChanged")
 	self.dispatch(func() {
-		self.deviceRemote.performanceProfileChanged(event.PerformanceProfile)
+		self.deviceRemote.performanceProfileReported(event.PerformanceProfile)
 	})
 	return nil
 }
@@ -14172,7 +14838,7 @@ func (self *DeviceRemoteRpc) ConnectLocationChanged(event *DeviceRemoteConnectLo
 func (self *DeviceRemoteRpc) DefaultLocationChanged(event *DeviceRemoteConnectLocation, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]DefaultLocationChanged")
 	self.dispatch(func() {
-		self.deviceRemote.defaultLocationChanged(event.toConnectLocation())
+		self.deviceRemote.defaultLocationChanged(event.toConnectLocation(), true)
 	})
 	return nil
 }
@@ -14247,6 +14913,16 @@ func (self *DeviceRemoteRpc) ClientLimitStatusChanged(status *ClientLimitStatus,
 	return nil
 }
 
+// DnsResolverStatusChanged re-emits a dns resolver status the device process
+// pushed. The log names the event only.
+func (self *DeviceRemoteRpc) DnsResolverStatusChanged(status *DnsResolverStatus, _ RpcVoid) error {
+	self.deviceRemote.log.Infof("[drrpc]DnsResolverStatusChanged")
+	self.dispatch(func() {
+		self.deviceRemote.dnsResolverStatusChanged(status)
+	})
+	return nil
+}
+
 // TransportDelayChanged re-emits a transport quality the device process
 // pushed.
 func (self *DeviceRemoteRpc) TransportDelayChanged(delay *TransportDelay, _ RpcVoid) error {
@@ -14276,7 +14952,7 @@ func (self *DeviceRemoteRpc) BlockStatsChanged(stats *DeviceRemoteBlockStats, _ 
 func (self *DeviceRemoteRpc) BlockActionOverridesChanged(event *DeviceRemoteBlockActionOverrides, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]BlockActionOverridesChanged")
 	self.dispatch(func() {
-		self.deviceRemote.blockActionOverridesChanged(event.BlockActionOverrides)
+		self.deviceRemote.blockActionOverridesChanged(event.BlockActionOverrides, deviceRemoteSettingReported)
 	})
 	return nil
 }
@@ -14364,7 +15040,7 @@ func (self *DeviceRemoteRpc) ProviderIngressContractDetailsChanged(event *Device
 func (self *DeviceRemoteRpc) TransportSettingsChanged(event *DeviceRemoteTransportSettingsRpc, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]TransportSettingsChanged")
 	self.dispatch(func() {
-		self.deviceRemote.transportSettingsChanged(event.TransportSettings, event.TransportStatus)
+		self.deviceRemote.transportSettingsChanged(event.TransportSettings, event.TransportStatus, true)
 	})
 	return nil
 }
@@ -14372,7 +15048,7 @@ func (self *DeviceRemoteRpc) TransportSettingsChanged(event *DeviceRemoteTranspo
 func (self *DeviceRemoteRpc) ProviderTransportSettingsChanged(event *DeviceRemoteTransportSettingsRpc, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]ProviderTransportSettingsChanged")
 	self.dispatch(func() {
-		self.deviceRemote.providerTransportSettingsChanged(event.TransportSettings, event.TransportStatus)
+		self.deviceRemote.providerTransportSettingsChanged(event.TransportSettings, event.TransportStatus, true)
 	})
 	return nil
 }
@@ -14380,7 +15056,7 @@ func (self *DeviceRemoteRpc) ProviderTransportSettingsChanged(event *DeviceRemot
 func (self *DeviceRemoteRpc) DnsResolverSettingsChanged(event *DeviceRemoteDnsResolverSettings, _ RpcVoid) error {
 	self.deviceRemote.log.Infof("[drrpc]DnsResolverSettingsChanged")
 	self.dispatch(func() {
-		self.deviceRemote.dnsResolverSettingsChanged(event.DnsResolverSettings)
+		self.deviceRemote.dnsResolverSettingsChanged(event.DnsResolverSettings, deviceRemoteSettingReported)
 	})
 	return nil
 }

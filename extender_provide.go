@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/urnetwork/connect"
@@ -102,7 +103,8 @@ type ExtenderProvideStatus struct {
 	// prefixes the localized case label (N3, N5).
 	Reason string
 	// True while the role is running: this build carries it, the setting is on,
-	// the device is providing, and the role holds tcp 443 (TcpUnavailableError).
+	// the device is providing, and the role holds tcp 443 (TcpUnavailableError)
+	// or serves the webrtc carrier in its stead (WebRtcCarrier).
 	Enabled bool
 	// Why the role could not start while it was asked to: the space has no
 	// extender directory or no identity. Empty while the role runs or was not
@@ -115,12 +117,21 @@ type ExtenderProvideStatus struct {
 	// tried again every few minutes, the role starting the moment it holds the
 	// port. On a host with several provider processes the first to take the
 	// port serves the extender and the others report this. Empty while the role
-	// holds the port or is not asked to run.
+	// holds the port or is not asked to run -- and empty while the role runs on
+	// the webrtc carrier without the port (G2, C2a), when the tcp bind failure
+	// is in ListenError like any other carrier's.
 	TcpUnavailableError string
-	// True while the tcp carrier is serving, the one port an extender requires
-	// (G2). A role that lost it reports false, with what ended it in ListenError
-	// and no family activated, while it binds the port again.
+	// True while a required carrier is serving (G2, C2a): the tcp carrier, or
+	// the peer-to-peer webrtc carrier of a role without tcp 443. A role that
+	// lost it reports false, with what ended it in ListenError and no family
+	// activated, while it binds the port again.
 	Listening bool
+	// True while the role serves the peer-to-peer webrtc carrier
+	// (connect/EXTENDER.md S, S8): the device setting is on
+	// (DeviceLocalSettings.ProvideExtenderWebRtc) and the device has a client
+	// to signal through, so the operator and the clients reach this extender
+	// without a public tcp port.
+	WebRtcCarrier bool
 	// The carriers that failed to bind or were lost, as "<carrier>: <error>"
 	// joined by "; ". Empty when every configured carrier is serving.
 	ListenError string
@@ -168,6 +179,34 @@ type ExtenderProvideStatus struct {
 	// connection.
 	LimitedBySubnetsCount int
 	LimitedBySourceCount  int
+	// The router port mapping of the role (connect EXTENDER.md S10), one of the
+	// ExtenderPortMapping values below; empty while the role is not running.
+	PortMapping string
+	// How the router mapped: "pcp", "nat-pmp" or "upnp". Empty while nothing
+	// is mapped.
+	PortMappingMethod string
+	// The router's own external address as the router said it, empty when it
+	// did not say.
+	PortMappingExternalIp string
+	// The external port the router forwards to each carrier, which the
+	// activation offers in place of the bound port: tcp 443, udp 443 and udp
+	// 4053, each 0 while the router does not forward it.
+	PortMappingTcpPort int
+	PortMappingUdpPort int
+	PortMappingDnsPort int
+	// Why nothing is mapped, or why a udp carrier is not, in the router's
+	// words where it gave some; empty otherwise. For the log and diagnostics
+	// only: the router's words can name its own or the gateway's address, so
+	// an app shows PortMapping and the two texts below instead.
+	PortMappingError string
+	// The method as an app names it, "PCP", "NAT-PMP" or "UPnP", the same in
+	// every language. Empty while nothing is mapped.
+	PortMappingMethodName string
+	// What the router forwards, the same in every language for an app to put
+	// in its own sentence: each carrier the router forwards, "TCP 443, UDP
+	// 443, UDP 4053", with an external port other than the bound one shown as
+	// "TCP 40443→443". Empty while nothing is mapped.
+	PortMappingPorts string
 	// Connections open over every carrier right now.
 	ConnectionCount int
 	// The client sessions this extender serves: the count open right now,
@@ -186,6 +225,23 @@ type ExtenderProvideStatus struct {
 	// first.
 	LastServed int64
 }
+
+// The states of the router port mapping in the status (connect EXTENDER.md S10),
+// as plain strings for every binding.
+const (
+	// The setting is off: the role asks the router for nothing.
+	ExtenderPortMappingOff = "off"
+	// This device has a public ipv4 address, so there is nothing to map.
+	ExtenderPortMappingNotNeeded = "not_needed"
+	// The router's first answer is awaited.
+	ExtenderPortMappingMapping = "mapping"
+	// The router forwards the tcp carrier, and the udp carriers its ports
+	// name.
+	ExtenderPortMappingMapped = "mapped"
+	// Nothing is mapped. PortMappingError says why, and the role asks the
+	// router again on a backoff of five minutes to an hour.
+	ExtenderPortMappingFailed = "failed"
+)
 
 type ExtenderProvideStatusChangeListener interface {
 	ExtenderProvideStatusChanged(status *ExtenderProvideStatus)
@@ -217,6 +273,7 @@ type extenderProvideState struct {
 	Listening             bool
 	ListenError           string
 	TcpUnavailableError   string
+	WebRtcCarrier         bool
 	ActivatedV4           bool
 	ActivatedV6           bool
 	Ipv4                  string
@@ -238,6 +295,15 @@ type extenderProvideState struct {
 	ServedLifetime        uint64
 	PeakConnected         int
 	LastServed            time.Time
+	PortMapping           string
+	PortMappingMethod     string
+	PortMappingExternalIp string
+	PortMappingTcpPort    int
+	PortMappingUdpPort    int
+	PortMappingDnsPort    int
+	PortMappingError      string
+	PortMappingMethodName string
+	PortMappingPorts      string
 }
 
 // ExtenderServeStats is the observable serving posture and cumulative client
@@ -412,10 +478,20 @@ func extenderServeCount(value uint64) int64 {
 
 func (self extenderProvideState) status(connectionCount int) *ExtenderProvideStatus {
 	return &ExtenderProvideStatus{
+		PortMapping:           self.PortMapping,
+		PortMappingMethod:     self.PortMappingMethod,
+		PortMappingExternalIp: self.PortMappingExternalIp,
+		PortMappingTcpPort:    self.PortMappingTcpPort,
+		PortMappingUdpPort:    self.PortMappingUdpPort,
+		PortMappingDnsPort:    self.PortMappingDnsPort,
+		PortMappingError:      self.PortMappingError,
+		PortMappingMethodName: self.PortMappingMethodName,
+		PortMappingPorts:      self.PortMappingPorts,
 		Enabled:               self.Enabled,
 		Listening:             self.Listening,
 		ListenError:           self.ListenError,
 		TcpUnavailableError:   self.TcpUnavailableError,
+		WebRtcCarrier:         self.WebRtcCarrier,
 		ActivatedV4:           self.ActivatedV4,
 		ActivatedV6:           self.ActivatedV6,
 		Ipv4:                  self.Ipv4,
@@ -578,6 +654,25 @@ const extenderProvideRestartFloor = 1 * time.Minute
 // How long a role must have run for its replacement to start the spread over.
 const extenderProvideRestartStableTimeout = 1 * time.Hour
 
+// The control of the relay's forward sockets, stream and datagram (G2): the
+// provider dial control, which refuses an address a destination name resolved
+// to that is not public or is this host's own (connect
+// docs/IP_SECURITY.md §2.2.4), and then the strategy's own control, if any,
+// so no other control touches a refused socket.
+func extenderForwardDialControl(
+	next func(network string, address string, c syscall.RawConn) error,
+) func(network string, address string, c syscall.RawConn) error {
+	return func(network string, address string, c syscall.RawConn) error {
+		if err := connect.ProviderDialControl(network, address, c); err != nil {
+			return err
+		}
+		if next != nil {
+			return next(network, address, c)
+		}
+		return nil
+	}
+}
+
 // What one extender role is built from (G2, G3). The provider fills it from
 // the network space and the device's own egress; a test replaces the ports,
 // the listen seams and the operator urls through
@@ -612,10 +707,41 @@ type deviceLocalExtenderSettings struct {
 	// (DeviceLocalSettings.ProvideExtenderDnsPrivilegedPort), off on every app
 	// and on in the sn miner. A failed 53 bind leaves the carrier on DnsPort.
 	DnsPrivilegedPort bool
+	// PortMapping asks the router to forward the carriers that bound to this
+	// device (connect EXTENDER.md S10). The provider fills it from the device's
+	// setting (DeviceLocal.GetProvideExtenderPortMapping), off on every app
+	// until its user turns it on and on in the sn miner.
+	PortMapping bool
+	// When set, replaces the probe of whether this device has a public ipv4
+	// address, which needs no mapping (connect.FamilyPublic). Tests pin it.
+	PortMappingPublicAddress func() bool
+	// The longest the first activation waits for the router's first answer.
+	// Zero takes extenderPortMapWaitTimeout.
+	PortMapWaitTimeout time.Duration
 	// When set, replaces time.After as the wait between attempts to bind tcp
 	// 443 while another process holds it (G2). Tests fire the retry through
 	// it, and hold the role without a sleep.
 	TcpRetryAfter func(wait time.Duration) <-chan time.Time
+
+	// WebRtcCarrier serves the peer-to-peer webrtc carrier beside the socket
+	// carriers (connect/EXTENDER.md S, S8; C2a): the role answers the offers
+	// that reach this device's client through the exchange signaling, and the
+	// activation offers the carrier. With it the role runs without tcp 443,
+	// which is then one more bind failure in the status rather than the role
+	// being off (G2); without it, or without a signaling manager, tcp 443
+	// stays the one port the role requires. The provider fills it from the
+	// device setting (DeviceLocalSettings.ProvideExtenderWebRtc), on by
+	// default.
+	WebRtcCarrier bool
+	// SignalingManager, when set, answers the manager of the client this
+	// device signals through, which is where the carrier's offers arrive and
+	// the client the operator names in the record as the rendezvous. Nil, or a
+	// nil answer, is a device with no signaling path, on which the carrier is
+	// unavailable whatever WebRtcCarrier says.
+	SignalingManager func() *connect.WebRtcManager
+	// The peer connection settings of the carrier. Nil takes
+	// connect.DefaultWebRtcExtenderSettings.
+	WebRtcSettings *connect.WebRtcSettings
 
 	// Asks the provider to replace this role with a new one, which is how a role
 	// whose server ended, or whose tcp carrier stayed lost, comes back (G2). The
@@ -676,8 +802,13 @@ type deviceLocalExtenderSettings struct {
 	ClientStrategySettings *connect.ClientStrategySettings
 	// The forward dial of the relay (G2): the device's egress-aware dial, so
 	// the relay never enters the device's own tunnel. The extender narrows it
-	// by the client's family itself (A7).
+	// by the client's family itself (A7). The provider gives its sockets the
+	// forward's dial control (extenderForwardDialControl).
 	DialContext connect.DialContextFunction
+	// The udp dial of the datagram relay (A7), under the same control and
+	// through the same resolver as DialContext. Nil keeps the server's own
+	// dialer.
+	DialPacketContext connect.DialContextFunction
 
 	// Listen and ListenPacket, when set, bind the carriers. Tests bind
 	// ephemeral loopback sockets through them.
@@ -826,6 +957,64 @@ func (self *DeviceLocal) SetProvideExtender(provideExtender bool) {
 	self.updateExtenderProvide()
 }
 
+// The router port mapping setting of this device (connect EXTENDER.md S10):
+// whether the provider extender role asks the router, by PCP, NAT-PMP or UPnP,
+// to forward its own ports -- tcp 443, udp 443 and udp 4053 -- to this device,
+// which opens those ports on the router. The value the space's local state
+// stores; else, on a space that keeps no local state, the value
+// SetProvideExtenderPortMapping set for the life of this device; else the
+// device default, DeviceLocalSettings.DefaultProvideExtenderPortMapping, off on
+// every app and on in the sn miner (owner, 2026-11-11).
+func (self *DeviceLocal) GetProvideExtenderPortMapping() bool {
+	if asyncLocalState := self.networkSpaceAsyncLocalState(); asyncLocalState != nil {
+		if portMapping, stored := asyncLocalState.GetLocalState().getStoredProvideExtenderPortMapping(); stored {
+			return portMapping
+		}
+		return self.settings.DefaultProvideExtenderPortMapping
+	}
+	portMapping, set := func() (bool, bool) {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		return self.provideExtenderPortMapping, self.provideExtenderPortMappingSet
+	}()
+	if set {
+		return portMapping
+	}
+	return self.settings.DefaultProvideExtenderPortMapping
+}
+
+// Sets the router port mapping setting and applies it at once (S10): stored in
+// the space's local state, which keeps it across restarts, or held by this
+// device for its life on a space that keeps no local state. A running role is
+// replaced by one that maps or does not, so turning the setting off removes
+// what the router forwards to this device. A hosted device never runs the role
+// (G1), so the setter is guarded there as SetProvideExtender is.
+func (self *DeviceLocal) SetProvideExtenderPortMapping(portMapping bool) {
+	if self.hostedIncompatibleGuarded("SetProvideExtenderPortMapping") {
+		return
+	}
+	if asyncLocalState := self.networkSpaceAsyncLocalState(); asyncLocalState != nil {
+		if err := asyncLocalState.GetLocalState().setProvideExtenderPortMapping(portMapping); err != nil {
+			self.log.Infof("[device]provide extender port mapping err = %s\n", err)
+		}
+	} else {
+		func() {
+			self.stateLock.Lock()
+			defer self.stateLock.Unlock()
+			self.provideExtenderPortMapping = portMapping
+			self.provideExtenderPortMappingSet = true
+		}()
+	}
+	self.log.Infof("[device]provide extender port mapping = %t\n", portMapping)
+	self.stateLock.Lock()
+	provider := self.provider
+	self.stateLock.Unlock()
+	if provider != nil {
+		provider.setExtenderPortMapping(portMapping)
+	}
+	self.extenderProvideMonitor.NotifyAll()
+}
+
 // The lag.dev measurements setting of this device (lag.dev/PLAN.md C4,
 // decision 18): whether the provider extender role serves the measurement API,
 // on until the owner opts out. The value the space's local state stores; else,
@@ -931,20 +1120,26 @@ func (self *DeviceLocal) ExtenderServeStats() ExtenderServeStats {
 }
 
 // Whether this device would run the role if the setting allowed it (G1, G2):
-// it is providing, the embedder's switch is on, and it is not hosted -- a
-// hosted device's space is shared across unrelated customers and it cannot
-// provide at all. The setting is the other half of the same condition, and
-// N3's first two states are exactly these two halves.
+// it is providing, the embedder's switch is on, it is not hosted -- a hosted
+// device's space is shared across unrelated customers and it cannot provide at
+// all -- and its space's egress is not a proxy. The role binds its carriers and
+// forwards from this host, so in a space whose every other egress leaves
+// through a proxy it would show this host's address beside the proxy's: a
+// proxied space never takes the role (owner 2026-11-18, connect#227). The
+// setting is the other half of the same condition, and N3's first two states
+// are exactly these two halves.
 func (self *DeviceLocal) extenderProvideProviding() bool {
 	self.stateLock.Lock()
 	closed := self.closed
 	held := self.provideExtenderSessionHeld
 	released := self.extenderCarriersReleased
 	self.stateLock.Unlock()
+	proxySettings, _ := self.networkSpace.egressProxy()
 	return !closed &&
 		!released &&
 		self.settings != nil &&
 		!self.settings.HostedIncompatible &&
+		proxySettings == nil &&
 		self.settings.ProvideExtenderEnabled &&
 		!held &&
 		self.GetProvideEnabled()

@@ -27,8 +27,9 @@ package sdk
 // keep the store receipt UI as the user's recourse.
 
 // Purchase report statuses, the wire values of VerifyStorePurchaseResult
-// .Status from POST /subscription/verify-play-purchase and
-// POST /subscription/verify-apple-transaction.
+// .Status from POST /subscription/verify-play-purchase,
+// POST /subscription/verify-apple-transaction and
+// POST /subscription/verify-stripe-checkout.
 const (
 	// PurchaseReportStatusCredited: this report landed the credit. Terminal.
 	PurchaseReportStatusCredited = "credited"
@@ -41,7 +42,8 @@ const (
 	PurchaseReportStatusPending = "pending"
 	// PurchaseReportStatusInvalid: the proof will never verify (unknown
 	// token, failed JWS verification, disallowed product, canceled before
-	// completing). Terminal.
+	// completing). Terminal. A refused card payment is invalid with
+	// VerifyStorePurchaseResult.Error naming why (PurchaseErrorCodeIncorrectCvc).
 	PurchaseReportStatusInvalid = "invalid"
 	// PurchaseReportStatusWrongNetwork: the proof verified but the purchase
 	// is linked to a DIFFERENT network than this session. Terminal for this
@@ -62,6 +64,27 @@ func IsPurchaseReportTerminal(status string) bool {
 		return true
 	}
 	return false
+}
+
+// PurchaseReportErrorCode is the PurchaseErrorCode* value an invalid answer
+// names (VerifyStorePurchaseResult.Error.Code), or "" when the answer is not
+// invalid, names no code, or comes from an older server. Apps pick their
+// line from the code, never from the server's message text.
+func PurchaseReportErrorCode(result *VerifyStorePurchaseResult) string {
+	if result == nil || result.Status != PurchaseReportStatusInvalid || result.Error == nil {
+		return ""
+	}
+	return result.Error.Code
+}
+
+// IsSandboxPurchaseRefusal reports whether the answer refuses an App Store
+// sandbox purchase (a TestFlight build) because the network is not an
+// internal tester (PurchaseErrorCodeSandboxPurchase). The answer is invalid,
+// so the app finishes the transaction as usual; instead of the "couldn't be
+// verified" line it shows the neutral one: test purchases in test builds
+// don't unlock Pro.
+func IsSandboxPurchaseRefusal(result *VerifyStorePurchaseResult) bool {
+	return PurchaseReportErrorCode(result) == PurchaseErrorCodeSandboxPurchase
 }
 
 // purchaseReportBackoffMillis is the retry schedule: quick retries first (the

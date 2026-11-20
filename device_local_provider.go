@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,13 +31,16 @@ type migratablePlatformTransport interface {
 // group and the extender role that runs beside it.
 //
 // A provider whose provide mode includes public never dials the platform
-// through an extender or a proxy on any transport, the standby included, so
-// the platform observes the provider's own address and location
-// (EXTENDER.md J4). The pinned transports of the group are direct by
-// construction (IPV6.md A4); the standby takes the provider's own direct-only
-// strategy while the mode includes public and the device's shared strategy
-// otherwise, since a network or friends-and-family provider carries no
-// location metadata and may keep using extenders. A mode change that flips
+// through an extender on any transport, the standby included, and dials it on
+// its egress: its space's proxy when it has one, else this host's own address.
+// So the platform observes the address the provider's exit leaves from and
+// places the provider there (EXTENDER.md J4; owner 2026-11-18, "route through
+// the proxy", for the sn miner's proxy slots). The pinned transports of the
+// group are egress-only by construction (IPV6.md A4,
+// connect.NewEgressClientStrategy); the standby takes the provider's own
+// egress strategy while the mode includes public and the device's shared
+// strategy otherwise, since a network or friends-and-family provider carries
+// no location metadata and may keep using extenders. A mode change that flips
 // that rebuilds the transports through the migration path.
 //
 // The same flip decides the provide intent every transport declares on its
@@ -69,6 +73,9 @@ type deviceLocalProvider struct {
 	// whether the extender role also binds its dns carrier on 53, the
 	// device's ProvideExtenderDnsPrivilegedPort (L2)
 	extenderDnsPrivilegedPort bool
+	// whether the extender role serves the peer-to-peer webrtc carrier, the
+	// device's ProvideExtenderWebRtc (connect/EXTENDER.md S8)
+	extenderWebRtc bool
 	// extenderRoleChanged, when set, is called after a role asked to be replaced
 	// and has been, which the device's watch of the status must hear of (F3)
 	extenderRoleChanged func()
@@ -90,6 +97,10 @@ type deviceLocalProvider struct {
 	// the device's lag.dev measurements setting, which the role reads as it
 	// starts (lag.dev/PLAN.md C4)
 	extenderMeasurementsEnabled func() bool
+	// extenderPortMapping, when set, is the device's router port mapping
+	// setting, read as each role starts (connect EXTENDER.md S10). A change
+	// replaces a running role (setExtenderPortMapping). Nil maps nothing.
+	extenderPortMapping func() bool
 
 	extenderServeTracker       *extenderServeTracker
 	extenderLoadServedLifetime func() (uint64, error)
@@ -98,11 +109,11 @@ type deviceLocalProvider struct {
 	extenderPacingStore connect.ExtenderActivationPacingStore
 
 	clientStrategy *connect.ClientStrategy
-	// clientStrategySettings seeds the direct-only strategies of the
-	// family-pinned transports; nil falls back to the connect defaults. They
-	// carry the space's DoH settings in force when the provider was built, so
-	// a bootstrap DoH change reaches these strategies when the device is next
-	// built.
+	// clientStrategySettings seeds the egress strategies of the family-pinned
+	// transports and of a public standby, proxy included; nil falls back to the
+	// connect defaults. They carry the space's DoH settings in force when the
+	// provider was built, so a bootstrap DoH change reaches these strategies
+	// when the device is next built.
 	clientStrategySettings *connect.ClientStrategySettings
 	platformUrl            string
 	// platformUrlV4 and platformUrlV6 are the family-pinned urls (IPV6.md
@@ -122,6 +133,16 @@ type deviceLocalProvider struct {
 	// the client limit hold every transport generation shares, carried to
 	// each through its settings. Immutable after construction.
 	clientLimitBackoff *connect.ClientLimitBackoff
+	// when retryClientLimit last ended a hold, zero before the first, and how
+	// many holds it ended in a row, each within the backoff window of the one
+	// before (clientLimitRetryAdmit). Guarded by stateLock.
+	clientLimitRetryTime  time.Time
+	clientLimitRetryCount int
+	// when retryClientLimitAfterChange last ended a hold, and when it last
+	// started retryClientLimit's row over; zero before the first. Guarded by
+	// stateLock.
+	clientLimitChangeRetryTime time.Time
+	clientLimitChangeResetTime time.Time
 
 	// a migrate frame spawns at most one in-flight migration
 	migrating atomic.Bool
@@ -184,7 +205,8 @@ type deviceLocalProvider struct {
 	probeAttestorLog      connect.Logger
 	pingReporterConfigure func(settings *connect.ExtenderPingReporterSettings)
 	// the device's effective provide mode, which decides whether the standby
-	// dials direct (J4). The device hands it over on every change.
+	// dials on the provider's egress alone (J4). The device hands it over on
+	// every change.
 	provideMode ProvideMode
 	// whether a provider that runs one family-agnostic transport also runs
 	// the v6 pin, and who hears the pin's dials
@@ -192,12 +214,12 @@ type deviceLocalProvider struct {
 	// every transport generation. Default off.
 	pinnedIpv6Enabled      bool
 	pinnedIpv6DialObserver PinnedIpv6DialObserver
-	// the direct-only standby strategy of a public provider (J4), built on
-	// the first public transport generation, reused by every later one, and
-	// closed with the provider. It outlives a flip back to a non-public mode
-	// so a flip forward keeps its connect pacing and costs no rebuild of the
-	// strategy itself.
-	directStandbyStrategy *connect.ClientStrategy
+	// the egress standby strategy of a public provider (J4): no extender, and
+	// the space's proxy when it has one. Built on the first public transport
+	// generation, reused by every later one, and closed with the provider. It
+	// outlives a flip back to a non-public mode so a flip forward keeps its
+	// connect pacing and costs no rebuild of the strategy itself.
+	egressStandbyStrategy *connect.ClientStrategy
 	closed                bool
 	auth                  *connect.ClientAuth
 	authVersion           uint64
@@ -273,6 +295,14 @@ func newDeviceLocalProviderWithOverrides(
 		mobileRuntime() || transferMemory != nil,
 		targetMode == connect.TransportModeH1,
 	)
+	if providerMemoryTargetByteCount > 0 && deviceLocalReceiveBackingEnabled(deviceMemoryTargetByteCount, mobileRuntime() || transferMemory != nil) {
+		// A distinct provider RX owner keeps its existing H1 policy. The
+		// enlarged consumer handoff is not authority to resize this role.
+		clientSettings.ReceiveBufferSettings.H1SequenceBufferSize = min(
+			clientSettings.ReceiveBufferSettings.H1SequenceBufferSize,
+			mobileTargetScaledCount(mobileH1ReceiveSequenceBufferMaxCount, deviceMemoryTargetByteCount),
+		)
+	}
 	// the provider always enables the e2e encryption sessions: the responder
 	// serves plain and e2e peers seamlessly (a session only forms when an
 	// initiator starts a handshake), and every enabled provider grows the
@@ -296,12 +326,15 @@ func newDeviceLocalProviderWithOverrides(
 		providerMemoryTargetByteCount,
 		providerTransferParent,
 	)
+	transferMemory.configureProviderHeadRecovery(clientSettings)
 	// Admit the fallback NAT while the new device root is still empty, before
 	// starting the provider client. It is a lifetime owner even with providing
 	// disabled. Refusal is observable; never install a dead/nil NAT as a route.
 	// It carries the device's local route, so it dials through that seam.
-	localUserNatSettings := providerLocalUserNatSettings(
+	localUserNatSettings := providerLocalUserNatSettingsForProfile(
 		providerMemoryTargetByteCount,
+		deviceMemoryTargetByteCount,
+		mobileRuntime() || transferMemory != nil,
 		clientSettings.Log,
 		localDialContextSettings,
 	)
@@ -419,6 +452,9 @@ func newDeviceLocalProviderWithOverrides(
 	// the platform asks the client to migrate its transport when the resident
 	// is draining (make-before-break, CONNECTDRAIN2.md §3.3)
 	client.AddReceiveCallback(provider.handleControlFrames)
+	// the device's webrtc extender dials signal through this client's exchange
+	// connection (connect/EXTENDER.md S8), which opens the space's gate
+	networkSpace.setExtenderWebRtcDialClient(client.WebRtcManager(), client.ClientId())
 	return provider, nil
 }
 
@@ -433,30 +469,31 @@ func provideModeIncludesPublic(provideMode ProvideMode) bool {
 }
 
 // The strategy the standby transport of a new generation dials with (J4).
-// While the provide mode includes public it is the provider's own direct-only
-// strategy -- no extender dialers, no proxy -- so the platform observes the
-// provider's own address and location on every transport; every other mode
-// keeps the device's shared strategy and its extender dialers.
+// While the provide mode includes public it is the provider's own egress
+// strategy -- no extender dialers, and the space's proxy when it has one -- so
+// the platform observes the address the provider's exit leaves from on every
+// transport; every other mode keeps the device's shared strategy and its
+// extender dialers.
 //
-// The direct strategy is built once and reused by every later generation, and
+// The egress strategy is built once and reused by every later generation, and
 // is closed with the provider. It is built with no lock held, because the
 // strategy constructor subscribes to network changes; a loser of the race
 // closes its own build.
 func (self *deviceLocalProvider) standbyClientStrategy(
 	clientStrategySettings *connect.ClientStrategySettings,
 ) *connect.ClientStrategy {
-	directStandbyStrategy, public := func() (*connect.ClientStrategy, bool) {
+	egressStandbyStrategy, public := func() (*connect.ClientStrategy, bool) {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-		return self.directStandbyStrategy, provideModeIncludesPublic(self.provideMode)
+		return self.egressStandbyStrategy, provideModeIncludesPublic(self.provideMode)
 	}()
 	if !public {
 		return self.clientStrategy
 	}
-	if directStandbyStrategy != nil {
-		return directStandbyStrategy
+	if egressStandbyStrategy != nil {
+		return egressStandbyStrategy
 	}
-	directStandbyStrategy = connect.NewDirectClientStrategy(
+	egressStandbyStrategy = connect.NewEgressClientStrategy(
 		self.client.Ctx(),
 		clientStrategySettings,
 		0,
@@ -464,13 +501,13 @@ func (self *deviceLocalProvider) standbyClientStrategy(
 	installed := func() *connect.ClientStrategy {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-		if self.directStandbyStrategy == nil {
-			self.directStandbyStrategy = directStandbyStrategy
+		if self.egressStandbyStrategy == nil {
+			self.egressStandbyStrategy = egressStandbyStrategy
 		}
-		return self.directStandbyStrategy
+		return self.egressStandbyStrategy
 	}()
-	if installed != directStandbyStrategy {
-		directStandbyStrategy.Close()
+	if installed != egressStandbyStrategy {
+		egressStandbyStrategy.Close()
 	}
 	return installed
 }
@@ -559,6 +596,133 @@ func providerPinnedIpv6PlatformUrl(platformUrlV6 string, disableFamilyTransports
 		return ""
 	}
 	return platformUrlV6
+}
+
+// retryClientLimit ends the client limit hold in force at `now`, so the
+// transports parked on it dial again, and returns whether it did. It ends
+// none when no hold is in force, and none before the retry floor since the
+// last hold it ended (clientLimitRetryAdmit: `minInterval`, doubling with each
+// retry in a row up to `maxInterval`); see DeviceLocal.RetryClientLimit. A
+// provider built without a hold ends none.
+func (self *deviceLocalProvider) retryClientLimit(now time.Time, minInterval time.Duration, maxInterval time.Duration) bool {
+	if self.clientLimitBackoff == nil {
+		return false
+	}
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	if self.closed || !self.clientLimitBackoff.Status().Exceeded {
+		return false
+	}
+	admit, count := clientLimitRetryAdmit(
+		self.clientLimitRetryTime,
+		self.clientLimitRetryCount,
+		now,
+		minInterval,
+		maxInterval,
+	)
+	if !admit {
+		return false
+	}
+	self.clientLimitRetryTime = now
+	self.clientLimitRetryCount = count
+	// under the lock, as setProvideMode resets it: the platform judges the next
+	// dial again, and a refusal starts a new hold
+	self.clientLimitBackoff.Reset()
+	return true
+}
+
+// retryClientLimitAfterChange ends the client limit hold in force at `now`
+// after a change that frees a slot or raises the limit, and returns whether it
+// did (DeviceLocal.RetryClientLimitAfterChange). The backoff of the ordinary
+// retries refused before it does not hold it back: change retries are bounded
+// on their own, none within `minInterval` of the last one admitted. It ends
+// none when no hold is in force. A provider built without a hold ends none.
+//
+// The change also starts the ordinary retries' row over, since the retries
+// refused before it were refused for a reason it removed, but at most once per
+// twice the larger of `minInterval` and `maxInterval`, the quiet that starts a
+// row over on its own (clientLimitChangeResetAdmit). So a host that calls both
+// retries in a loop gets the change retries' bound plus the ordinary retries'
+// own backoff, not both at their least floor.
+func (self *deviceLocalProvider) retryClientLimitAfterChange(now time.Time, minInterval time.Duration, maxInterval time.Duration) bool {
+	if self.clientLimitBackoff == nil {
+		return false
+	}
+	self.stateLock.Lock()
+	defer self.stateLock.Unlock()
+	if self.closed || !self.clientLimitBackoff.Status().Exceeded {
+		return false
+	}
+	if !clientLimitChangeRetryAdmit(self.clientLimitChangeRetryTime, now, minInterval) {
+		return false
+	}
+	self.clientLimitChangeRetryTime = now
+	if clientLimitChangeResetAdmit(self.clientLimitChangeResetTime, now, minInterval, maxInterval) {
+		// the change's retry is the first of a new row
+		self.clientLimitChangeResetTime = now
+		self.clientLimitRetryTime = now
+		self.clientLimitRetryCount = 1
+	}
+	self.clientLimitBackoff.Reset()
+	return true
+}
+
+// clientLimitChangeRetryAdmit decides a change retry at `now`, the last one at
+// `last` (zero before the first): at most one per minInterval, whatever the
+// backoff of the ordinary retries. A non-positive minInterval does not limit.
+func clientLimitChangeRetryAdmit(last time.Time, now time.Time, minInterval time.Duration) bool {
+	return last.IsZero() || minInterval <= 0 || minInterval <= now.Sub(last)
+}
+
+// clientLimitChangeResetAdmit decides whether a change retry at `now` starts
+// the ordinary retries' row over, the last change retry that did at `last`
+// (zero before the first): the first does, and then one more than twice the
+// larger interval after the last that did, as a row starts over on its own
+// after that much quiet (clientLimitRetryAdmit).
+func clientLimitChangeResetAdmit(last time.Time, now time.Time, minInterval time.Duration, maxInterval time.Duration) bool {
+	return last.IsZero() || 2*max(minInterval, maxInterval) < now.Sub(last)
+}
+
+// clientLimitRetryAdmit decides a retry at `now`, after `count` retries in a
+// row that ended a hold, the last at `last` (zero before the first): whether it
+// may end the hold in force, and the count to keep when it does.
+//
+// A hold is in force at every retry, so each retry after the first in a row
+// follows a redial the platform refused again. The floor after the first is
+// minInterval, and it doubles with each retry in a row up to maxInterval (the
+// platform's shortest hold), so an app that loops on the retry costs at most
+// the dials the holds themselves allow, not one per minInterval. A retry more
+// than twice the larger interval after the last starts a new row. A
+// non-positive minInterval does not limit.
+func clientLimitRetryAdmit(
+	last time.Time,
+	count int,
+	now time.Time,
+	minInterval time.Duration,
+	maxInterval time.Duration,
+) (admit bool, nextCount int) {
+	if last.IsZero() || minInterval <= 0 {
+		return true, 1
+	}
+	elapsed := now.Sub(last)
+	if 2*max(minInterval, maxInterval) < elapsed {
+		return true, 1
+	}
+	if elapsed < clientLimitRetryFloor(count, minInterval, maxInterval) {
+		return false, count
+	}
+	return true, count + 1
+}
+
+// clientLimitRetryFloor is how long after the last of `count` retries in a row
+// the next may end a hold: minInterval after the first, doubling with each
+// retry since, up to maxInterval, and never less than minInterval.
+func clientLimitRetryFloor(count int, minInterval time.Duration, maxInterval time.Duration) time.Duration {
+	floor := minInterval
+	for i := 1; i < count && floor < maxInterval; i += 1 {
+		floor *= 2
+	}
+	return max(minInterval, min(floor, maxInterval))
 }
 
 // newProviderPlatformTransport builds the provider's transport group: the
@@ -721,6 +885,10 @@ func configureDeviceLocalProviderMemory(
 	receiveQueueBudget = deviceLocalTransferBudgetWithParent(max(byteCountFraction(pairTarget, 4, 7), 384*1024), parents...)
 	clientSettings.SendBufferSettings.ResendQueueBudget = resendQueueBudget
 	clientSettings.ReceiveBufferSettings.ReceiveQueueBudget = receiveQueueBudget
+	// A provider's distinct RX parent cannot inherit the consumer-only child.
+	clientSettings.ReceiveBufferSettings.ReceiveHeadRecoveryBudget = nil
+	clientSettings.ReceiveBufferSettings.AdvertisedReceiveWindowBudgetScaleNumerator = 0
+	clientSettings.ReceiveBufferSettings.AdvertisedReceiveWindowBudgetScaleDenominator = 0
 
 	// Public P2P connections admit against a dedicated phone-sized pool, not
 	// the active transfer receive queue (which is legitimately full precisely
@@ -1372,6 +1540,9 @@ func (self *deviceLocalProvider) Close() {
 			platformTransport.Close()
 		}
 		if self.client != nil {
+			// no webrtc extender dial signals through a client that is closing
+			// (connect/EXTENDER.md S8); another device's client stays
+			self.networkSpace.clearExtenderWebRtcDialClient(self.client.WebRtcManager())
 			self.client.Close()
 		}
 		if self.localUserNat != nil {
@@ -1385,12 +1556,12 @@ func (self *deviceLocalProvider) Close() {
 			platformTransport := self.platformTransport
 			// read after the migration workers have drained, so a generation
 			// built by the last migration is covered too
-			directStandbyStrategy := self.directStandbyStrategy
+			egressStandbyStrategy := self.egressStandbyStrategy
 			self.stateLock.Unlock()
 			closeMigratablePlatformTransportAndWait(platformTransport)
-			if directStandbyStrategy != nil {
+			if egressStandbyStrategy != nil {
 				// after the transports that dial with it are joined (J4)
-				directStandbyStrategy.Close()
+				egressStandbyStrategy.Close()
 			}
 			if self.client != nil {
 				_ = self.client.CloseAndWait(context.Background())
@@ -1493,6 +1664,18 @@ func newDeviceClientSettings(
 	if clientSettings.WebRtcSettings == nil {
 		webRtcSettings := *defaults.WebRtcSettings
 		clientSettings.WebRtcSettings = &webRtcSettings
+	}
+	// a client whose egress is a proxy opens no p2p stream: ice would gather
+	// this host's candidates, hand them to the peer and carry the stream over
+	// this host's udp, outside the proxy (connect#227, owner 2026-11-18). Its
+	// peers stay on the platform transport, which goes through the proxy. And
+	// the platform sees its transports at the proxy's address, which is not
+	// this host's, so it keeps them out of the process's provider-local guard,
+	// where they would replace this host's own public address. The settings
+	// are this client's own copy.
+	if clientStrategy != nil && clientStrategy.ConnectSettings().ProxySettings != nil {
+		clientSettings.WebRtcSettings.DisablePeerConnections = true
+		clientSettings.SkipObservedAddresses = true
 	}
 	// Install the default out-of-band peer-key cross-check when none
 	// is configured. Callers who want to disable the check can set a
@@ -1677,6 +1860,12 @@ func (self *deviceLocalProvider) setExtenderEnabledWithLock(enabled bool) {
 		// ios, android and js carry no role at all (G1)
 		enabled = false
 	}
+	if proxySettings, _ := self.networkSpace.egressProxy(); proxySettings != nil {
+		// the role binds and forwards on this host, outside the proxy every
+		// other egress of the space takes: a proxied space never runs it, as
+		// the device already decides (extenderProvideProviding)
+		enabled = false
+	}
 	if !enabled {
 		// nothing is asked for, so nothing failed to start
 		func() {
@@ -1751,9 +1940,11 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 	}
 
 	// the relay's forward dial is the device's own egress: the extender
-	// narrows it by the client's family itself (A7, G2). A proxy the strategy
-	// names is left out, as it is from the role's activations (C2): the operator
-	// proved this host's address, and a proxy can't keep the client's family
+	// narrows it by the client's family itself (A7, G2). A space whose egress
+	// is a proxy never runs the role (setExtenderEnabledWithLock); a proxy is
+	// still left out here, as it is from the role's activations (C2): the
+	// operator proved this host's address, and a proxy can't keep the client's
+	// family
 	connectSettings := *connect.DefaultConnectSettings()
 	if self.clientStrategySettings != nil {
 		connectSettings = self.clientStrategySettings.ConnectSettings
@@ -1761,6 +1952,18 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 	connectSettings.ProxySettings = nil
 	if self.dialContextSettings != nil {
 		connectSettings.DialContextSettings = self.dialContextSettings
+	}
+	// a client names where the relay forwards to, and the name resolves on
+	// this host, so every forward socket is judged before it connects: an
+	// address that is not public, or is this host's own or on its links, is
+	// refused (connect docs/IP_SECURITY.md §2.2.4). A dial the host supplies
+	// itself (dialContextSettings, a test harness seam) is the host's
+	connectSettings.DialControl = extenderForwardDialControl(connectSettings.DialControl)
+	// the datagram relay's udp sockets: the same control and resolver as the
+	// stream forward's
+	packetDialer := &net.Dialer{
+		Resolver: connectSettings.Resolver,
+		Control:  connectSettings.DialControl,
 	}
 
 	settings := &deviceLocalExtenderSettings{
@@ -1772,6 +1975,8 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 		UdpPort:                    connect.ExtenderQuicPort,
 		DnsPort:                    connect.ExtenderDnsPort,
 		DnsPrivilegedPort:          self.extenderDnsPrivilegedPort,
+		WebRtcCarrier:              self.extenderWebRtc,
+		SignalingManager:           self.signalingManager,
 		DnsTld:                     connect.DefaultExtenderDnsTld,
 		ApiUrlV4:                   networkSpace.GetApiUrlV4(),
 		ApiUrlV6:                   networkSpace.GetApiUrlV6(),
@@ -1780,20 +1985,33 @@ func (self *deviceLocalProvider) extenderSettings() (*deviceLocalExtenderSetting
 		ByJwt:                      self.byJwt,
 		ClientStrategySettings:     self.clientStrategySettings,
 		DialContext:                connectSettings.DialContext,
+		DialPacketContext:          packetDialer.DialContext,
 		Restart:                    self.restartExtender,
-		RestartJitter:              self.extenderRestartJitter,
-		ActivatorState:             self.extenderActivatorState,
+		RenewKey:                   self.renewExtenderKey,
 		ServeTracker:               self.extenderServeTracker,
 		LoadExtenderServedLifetime: self.extenderLoadServedLifetime,
 		SaveExtenderServedLifetime: self.extenderSaveServedLifetime,
 		PacingStore:                self.extenderPacingStore,
-		RenewKey:                   self.renewExtenderKey,
+		RestartJitter:              self.extenderRestartJitter,
+		ActivatorState:             self.extenderActivatorState,
 	}
 	settings.MeasurementsEnabled = self.extenderMeasurementsEnabled
+	settings.PortMapping = self.extenderPortMapping != nil && self.extenderPortMapping()
 	if self.extenderSettingsConfigure != nil {
 		self.extenderSettingsConfigure(settings)
 	}
 	return settings, nil
+}
+
+// The manager the extender role's webrtc carrier answers offers on: this
+// provider's client's, which is the client the activation is posted under and
+// so the client the operator names in the record as the rendezvous
+// (connect/EXTENDER.md S8). Nil while there is no client.
+func (self *deviceLocalProvider) signalingManager() *connect.WebRtcManager {
+	if client := self.Client(); client != nil {
+		return client.WebRtcManager()
+	}
+	return nil
 }
 
 // Applies the measurements setting to the running role at once
@@ -1810,6 +2028,33 @@ func (self *deviceLocalProvider) setExtenderMeasurementsEnabled(measurementsEnab
 	}()
 	if extender != nil {
 		extender.setMeasurementsEnabled(measurementsEnabled)
+	}
+}
+
+// Applies the router port mapping setting to the running role (connect
+// EXTENDER.md S10): a role that maps otherwise than the setting now says is
+// replaced at once, which removes what its router forwards when the setting
+// turns off, and asks the router when it turns on. The new role starts as a new
+// process does, every family due, since a family the operator refused for want
+// of a reachable port is what the setting changes. Taken with the role's start
+// and stop, so a role being built reads the setting once it stands.
+func (self *deviceLocalProvider) setExtenderPortMapping(portMapping bool) {
+	self.extenderLock.Lock()
+	defer self.extenderLock.Unlock()
+	current, closed := func() (*deviceLocalExtender, bool) {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		return self.extender, self.closed
+	}()
+	if closed || current == nil || current.portMappingEnabled() == portMapping {
+		return
+	}
+	self.setExtenderEnabledWithLock(false)
+	self.extenderActivatorState = nil
+	self.setExtenderEnabledWithLock(true)
+	// the watch of the status holds the old role's channel (F3)
+	if self.extenderRoleChanged != nil {
+		self.extenderRoleChanged()
 	}
 }
 

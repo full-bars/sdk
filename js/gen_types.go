@@ -59,6 +59,7 @@ func generateTypes() ([]byte, error) {
 		sdk.VlessSettings{},
 		sdk.ProxyAuthResult{},
 		sdk.ProxyConfigResult{},
+		sdk.ProxyExit{},
 		sdk.WgConfig{},
 
 		/**
@@ -73,6 +74,7 @@ func generateTypes() ([]byte, error) {
 		sdk.SessionSignOutResult{},
 		sdk.ClientSessionError{},
 		sdk.ClientSessionAction{},
+		sdk.ClientSessionGroup{},
 		sdk.ClientSessionSnapshot{},
 		sdk.RevokeNetworkSessionArgs{},
 		sdk.RevokeOtherNetworkSessionsArgs{},
@@ -176,11 +178,21 @@ func generateTypes() ([]byte, error) {
 		sdk.SnEpochSchedule{},
 		sdk.SnClaimsResult{},
 		sdk.SnLedgerAccount{},
+		sdk.SnLedgerUnavailablePool{},
 		sdk.SnLedgerAccountsResult{},
 		sdk.SnUnsignedTx{},
 		sdk.SnLedgerUnsignedTx{},
+		sdk.SnLedgerClaimItem{},
+		sdk.SnLedgerClaimOutcome{},
+		sdk.SnLedgerClaimTransactionsResult{},
+		sdk.SnCtfClientRole{},
+		sdk.SnCtfClientEpoch{},
+		sdk.SnCtfWin{},
+		sdk.SnCtfClientResult{},
 		sdk.SnEpochResult{},
 		sdk.AccountEpoch{},
+		sdk.AccountCurrentEpoch{},
+		sdk.AccountCurrentBlock{},
 		sdk.AccountEpochsResult{},
 		sdk.SnHeadResult{},
 	}
@@ -299,6 +311,8 @@ func goTypeToTypeScript(t reflect.Type) string {
 			return "NetworkSessionInfo[]"
 		case "sdk.ClientSessionActionList":
 			return "ClientSessionAction[]"
+		case "sdk.ClientSessionGroupList":
+			return "ClientSessionGroup[]"
 		case "sdk.StringList":
 			return "string[]"
 		case "sdk.LocationResultList":
@@ -327,6 +341,16 @@ func goTypeToTypeScript(t reflect.Type) string {
 			return "SnUnsignedTx[]"
 		case "sdk.SnLedgerUnsignedTxList":
 			return "SnLedgerUnsignedTx[]"
+		case "sdk.SnLedgerUnavailablePoolList":
+			return "SnLedgerUnavailablePool[]"
+		case "sdk.SnLedgerClaimItemList":
+			return "SnLedgerClaimItem[]"
+		case "sdk.SnLedgerClaimOutcomeList":
+			return "SnLedgerClaimOutcome[]"
+		case "sdk.SnCtfClientEpochList":
+			return "SnCtfClientEpoch[]"
+		case "sdk.SnCtfWinList":
+			return "SnCtfWin[]"
 		case "sdk.AccountEpochList":
 			return "AccountEpoch[]"
 		case "sdk.PointsLeaderboardRowList":

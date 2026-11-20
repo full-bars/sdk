@@ -21,7 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -80,7 +80,7 @@ func networkRenewalJitter(interval time.Duration) time.Duration {
 	if interval <= 0 {
 		return 0
 	}
-	return time.Duration(mathrand.Int63n(int64(interval)))
+	return time.Duration(mathrand.Int64N(int64(interval)))
 }
 
 // renewableNetworkCredential reports whether the server renews a credential on
@@ -307,8 +307,9 @@ type apiNetworkCredentialRenewer struct {
 	jitter   func(time.Duration) time.Duration
 	// a token's point in its refresh window, in [0, 1) (jwtRefreshDraw)
 	draw func(byJwt string) float64
-	// tests observe each completed renewal attempt, and each time the worker
-	// parks with nothing to renew; installed before start
+	// tests observe startup, each completed renewal attempt, and each time the
+	// worker parks with nothing to renew; installed before start
+	testingAfterStart func()
 	testingAfterRenew func()
 	testingParked     func()
 
@@ -347,10 +348,12 @@ func (self *apiNetworkCredentialRenewer) credentialChanged() {
 	if self == nil {
 		return
 	}
+	// Publish the wake before starting: the new worker reads the current
+	// credential and must not receive that startup change a second time.
+	self.monitor.NotifyAll()
 	if _, ok := self.api.currentNetworkRenewalTarget(); ok {
 		self.start()
 	}
-	self.monitor.NotifyAll()
 }
 
 // transportAvailable ends the wait of a failed renewal, which retries over
@@ -374,6 +377,9 @@ func (self *apiNetworkCredentialRenewer) start() {
 		defer close(self.done)
 		connect.HandleError(self.run)
 	}()
+	if self.testingAfterStart != nil {
+		self.testingAfterStart()
+	}
 }
 
 // doneChannel is closed once the worker stopped, or at once when it never

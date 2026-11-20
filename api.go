@@ -16,9 +16,13 @@ import (
 // the api is asychronous, which is the most natural for the target platforms
 
 type Api struct {
-	credentialPersistenceError     error
-	networkSessionsListeners       *connect.CallbackList[NetworkSessionsChangeListener]
-	clientInfo                     connect.ClientInfo
+	credentialPersistenceError error
+	networkSessionsListeners   *connect.CallbackList[NetworkSessionsChangeListener]
+	clientInfo                 connect.ClientInfo
+	// the device's zone and languages the api sends with sign-up, sign-in
+	// and auth-client (api_mail_locale.go); guarded by mutex
+	mailTimeZone                   string
+	mailLocales                    []string
 	accountSignInRequiredListeners *connect.CallbackList[AccountSignInRequiredListener]
 	ctx                            context.Context
 	cancel                         context.CancelFunc
@@ -84,6 +88,13 @@ type Api struct {
 	clientRefreshIntegrityListeners *connect.CallbackList[ClientRefreshIntegrityListener]
 	tokenManager                    *apiTokenManager
 	networkRenewer                  *apiNetworkCredentialRenewer
+	// SignOut's budgets; tests change them before signing out
+	signOutSettings *apiSignOutSettings
+	// an account sign-in notice (AccountSignInRequired) still to be
+	// dismissed, and the LocalState that keeps it across restarts (nil keeps
+	// it in memory only); guarded by mutex
+	accountSignInNoticePending bool
+	accountSignInNoticeStore   *LocalState
 }
 
 // Delivers at most one terminal result. Marking delivery before entering the
@@ -165,6 +176,7 @@ func newApi(
 		networkSessionsListeners:        connect.NewCallbackList[NetworkSessionsChangeListener](),
 		accountSignInRequiredListeners:  connect.NewCallbackList[AccountSignInRequiredListener](),
 		clientRefreshIntegrityListeners: connect.NewCallbackList[ClientRefreshIntegrityListener](),
+		signOutSettings:                 defaultApiSignOutSettings(),
 	}
 	// both workers read the same immutable schedule
 	refreshSettings := defaultApiTokenRefreshSettings()
@@ -185,6 +197,7 @@ func (self *Api) newSession(ctx context.Context) *Api {
 func (self *Api) newSessionWithStrategy(ctx context.Context, strategy *connect.ClientStrategy) *Api {
 	session := newApi(ctx, strategy, self.apiUrl)
 	session.SetClientInfo(self.GetClientInfo())
+	session.setMailLocale(self.getMailLocale())
 	session.setHttpPostRaw(self.transportHttpPostRaw())
 	session.setHttpGetRaw(self.transportHttpGetRaw())
 	session.setHttpPostStreamRaw(self.transportHttpPostStreamRaw())
@@ -484,6 +497,10 @@ func (self *Api) CloseAndWait(ctx context.Context) error {
 // ApiError represents a generic error response from the API
 // with a message field. This is used across multiple API result types.
 type ApiError struct {
+	// SessionErrorCodeLimitReached on a route that creates a session
+	// (api_session_limit.go); a route's own codes where it documents them;
+	// else empty
+	Code    string `json:"code,omitempty"`
 	Message string `json:"message"`
 }
 
@@ -499,6 +516,12 @@ type AuthLoginArgs struct {
 	// another account, WalletAuthErrorCodeSignatureMismatch) in the result
 	// `Error` instead of an HTTP 401 error, so the apps can read the code
 	ResultErrors bool `json:"result_errors,omitempty"`
+	// TimeZone is the device's IANA zone and Locales its languages, most
+	// preferred first: the campaign emails are placed in the reader's day and
+	// written in their language from them. Left empty, the api fills both
+	// from SetMailLocale.
+	TimeZone string      `json:"time_zone,omitempty"`
+	Locales  *StringList `json:"locales,omitempty"`
 }
 
 // The `Code` of a wallet sign-in, network create or add-auth refusal for a
@@ -533,7 +556,8 @@ type AuthLoginResult struct {
 // `model.AuthLoginResultError`
 type AuthLoginResultError struct {
 	SuggestedUserAuth string `json:"suggested_user_auth,omitempty"`
-	// WalletAuthErrorCodeSignatureMismatch (with `ResultErrors`), else ""
+	// WalletAuthErrorCodeSignatureMismatch (with `ResultErrors`),
+	// SessionErrorCodeLimitReached (api_session_limit.go), else ""
 	Code    string `json:"code,omitempty"`
 	Message string `json:"message"`
 }
@@ -544,6 +568,7 @@ type AuthLoginResultNetwork struct {
 }
 
 func (self *Api) AuthLogin(authLogin *AuthLoginArgs, callback AuthLoginCallback) {
+	authLogin = self.authLoginArgsWithMailLocale(authLogin)
 	if authLogin != nil && authLogin.UserAuth != "" && callback != nil {
 		originalCallback := callback
 		callback = connect.NewApiCallback(func(result *AuthLoginResult, err error) {
@@ -558,7 +583,7 @@ func (self *Api) AuthLogin(authLogin *AuthLoginArgs, callback AuthLoginCallback)
 	runAsyncApiRequest[*AuthLoginResult](callback, func(callback connect.ApiCallback[*AuthLoginResult]) {
 		connect.HttpPostWithRawFunction(
 			self.ctx,
-			self.getHttpPostRaw(),
+			sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw()),
 			fmt.Sprintf("%s/auth/login", self.apiUrl),
 			authLogin,
 			self.GetByJwt(),
@@ -635,6 +660,12 @@ type AuthLoginWithPasswordArgs struct {
 	UserAuth         string `json:"user_auth"`
 	Password         string `json:"password"`
 	VerifyOtpNumeric bool   `json:"verify_otp_numeric,omitempty"`
+	// TimeZone is the device's IANA zone and Locales its languages, most
+	// preferred first: the campaign emails are placed in the reader's day and
+	// written in their language from them. Left empty, the api fills both
+	// from SetMailLocale.
+	TimeZone string      `json:"time_zone,omitempty"`
+	Locales  *StringList `json:"locales,omitempty"`
 }
 
 type AuthLoginWithPasswordResult struct {
@@ -656,10 +687,11 @@ type AuthLoginWithPasswordResultNetwork struct {
 }
 
 func (self *Api) AuthLoginWithPassword(authLoginWithPassword *AuthLoginWithPasswordArgs, callback AuthLoginWithPasswordCallback) {
+	authLoginWithPassword = self.authLoginWithPasswordArgsWithMailLocale(authLoginWithPassword)
 	runAsyncApiRequest[*AuthLoginWithPasswordResult](callback, func(callback connect.ApiCallback[*AuthLoginWithPasswordResult]) {
 		connect.HttpPostWithRawFunction(
 			self.ctx,
-			self.getHttpPostRaw(),
+			sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw()),
 			fmt.Sprintf("%s/auth/login-with-password", self.apiUrl),
 			authLoginWithPassword,
 			self.GetByJwt(),
@@ -671,9 +703,10 @@ func (self *Api) AuthLoginWithPassword(authLoginWithPassword *AuthLoginWithPassw
 
 //gomobile:noexport
 func (self *Api) AuthLoginWithPasswordSyncWithContext(ctx context.Context, args *AuthLoginWithPasswordArgs) (*AuthLoginWithPasswordResult, error) {
+	args = self.authLoginWithPasswordArgsWithMailLocale(args)
 	return connect.HttpPostWithRawFunction(
 		ctx,
-		self.getHttpPostRaw(),
+		sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw()),
 		fmt.Sprintf("%s/auth/login-with-password", self.apiUrl),
 		args,
 		self.GetByJwt(),
@@ -687,6 +720,12 @@ type AuthVerifyCallback connect.ApiCallback[*AuthVerifyResult]
 type AuthVerifyArgs struct {
 	UserAuth   string `json:"user_auth"`
 	VerifyCode string `json:"verify_code"`
+	// TimeZone is the device's IANA zone and Locales its languages, most
+	// preferred first: the campaign emails are placed in the reader's day and
+	// written in their language from them. Left empty, the api fills both
+	// from SetMailLocale.
+	TimeZone string      `json:"time_zone,omitempty"`
+	Locales  *StringList `json:"locales,omitempty"`
 }
 
 type AuthVerifyResult struct {
@@ -699,10 +738,11 @@ type AuthVerifyResultNetwork struct {
 }
 
 func (self *Api) AuthVerify(authVerify *AuthVerifyArgs, callback AuthVerifyCallback) {
+	authVerify = self.authVerifyArgsWithMailLocale(authVerify)
 	runAsyncApiRequest[*AuthVerifyResult](callback, func(callback connect.ApiCallback[*AuthVerifyResult]) {
 		connect.HttpPostWithRawFunction(
 			self.ctx,
-			self.getHttpPostRaw(),
+			sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw()),
 			fmt.Sprintf("%s/auth/verify", self.apiUrl),
 			authVerify,
 			self.GetByJwt(),
@@ -846,6 +886,12 @@ type NetworkCreateArgs struct {
 	// the apps can read the code in `Error`. The status stays a refusal: the
 	// server's signup monitor counts every 2xx create as a created network.
 	ResultErrors bool `json:"result_errors,omitempty"`
+	// TimeZone is the device's IANA zone and Locales its languages, most
+	// preferred first: the campaign emails are placed in the reader's day and
+	// written in their language from them. Left empty, the api fills both
+	// from SetMailLocale.
+	TimeZone string      `json:"time_zone,omitempty"`
+	Locales  *StringList `json:"locales,omitempty"`
 }
 
 type NetworkCreateResult struct {
@@ -875,14 +921,16 @@ type NetworkCreateResultVerification struct {
 
 type NetworkCreateResultError struct {
 	// WalletAuthErrorCodeSignatureMismatch (with `ResultErrors`, from the body
-	// of the refusal's 401), else ""
+	// of the refusal's 401), SessionErrorCodeLimitReached
+	// (api_session_limit.go), else ""
 	Code    string `json:"code,omitempty"`
 	Message string `json:"message"`
 }
 
 func (self *Api) NetworkCreate(networkCreate *NetworkCreateArgs, callback NetworkCreateCallback) {
+	networkCreate = self.networkCreateArgsWithMailLocale(networkCreate)
 	runAsyncApiRequest[*NetworkCreateResult](callback, func(callback connect.ApiCallback[*NetworkCreateResult]) {
-		httpPostRaw := self.getHttpPostRaw()
+		httpPostRaw := sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw())
 		if networkCreate != nil && networkCreate.ResultErrors {
 			// a coded refusal keeps its 401, with the result as the body
 			httpPostRaw = codedRefusalResult(httpPostRaw)
@@ -969,12 +1017,15 @@ type AuthNetworkClientArgs struct {
 
 	ProxyConfig *ProxyConfig `json:"proxy_config,omitempty"`
 
-	// TimeZone is the device's IANA zone ("America/Chicago") and Locale its
-	// BCP 47 tag ("pt-BR"): the onboarding campaign sends in the user's local
-	// morning and picks the email template's language from them
-	// (mmm/onboarding/PLAN.md). Optional; the apps set both on every call.
-	TimeZone string `json:"time_zone,omitempty"`
-	Locale   string `json:"locale,omitempty"`
+	// TimeZone is the device's IANA zone ("America/Chicago"), Locale its
+	// BCP 47 tag ("pt-BR") and Locales its languages, most preferred first:
+	// the campaign emails are placed in the reader's day and written in their
+	// language from them (server controller/mail_context.go). Left empty, the
+	// api fills them from SetMailLocale, Locale as the first language; a
+	// derived client (SourceClientId) carries none.
+	TimeZone string      `json:"time_zone,omitempty"`
+	Locale   string      `json:"locale,omitempty"`
+	Locales  *StringList `json:"locales,omitempty"`
 
 	// Creates a provider install: a client that only provides publicly, such
 	// as an embedded provider. A new top-level client created with it is
@@ -999,17 +1050,78 @@ type AuthNetworkClientResult struct {
 type AuthNetworkClientError struct {
 	// can be a hard limit or a rate limit
 	ClientLimitExceeded bool `json:"client_limit_exceeded"`
-	// the network is at its PLAN's limit for concurrent connected clients, rather
-	// than a hard cap. The client should prompt the user to upgrade (or, for an
-	// agent, pay inline over x402 -- the same request answers 402 with payment
-	// terms). Distinct from ClientLimitExceeded, which no upgrade can lift.
-	UpgradeRequired bool   `json:"upgrade_required,omitempty"`
-	Message         string `json:"message"`
+	// a plan limit refused the request and UR Pro lifts it: the network is on
+	// the free plan at its concurrent connected client limit, its hosted proxy
+	// cap or rate, or asked for a Pro-only feature. The client should prompt the
+	// user to upgrade (an agent may pay inline over x402: a request that asks
+	// with `X-UR-X402: 1` is answered 402 with payment terms, which this sdk
+	// reads back as this refusal). With ClientLimitExceeded and without this, no
+	// upgrade lifts the limit: a Pro network at the Pro limit, or a cap.
+	UpgradeRequired bool `json:"upgrade_required,omitempty"`
+	// a unique-exit proxy (ProxyConfig.UniqueExit) has no exit IP the network
+	// does not already hold in the location; nothing was created and neither
+	// the cap nor the creation rate was spent
+	NoUniqueSupply bool `json:"no_unique_supply,omitempty"`
+	// SessionErrorCodeLimitReached: the network holds its cap of active
+	// sessions and the new client's session would go over it
+	// (api_session_limit.go); else empty
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message"`
+	// What an app offers for this refusal, set by the sdk from the fields
+	// above and never sent by the server (client_limit_status.go):
+	// ClientLimitPromptUpgrade with UpgradeRequired,
+	// ClientLimitPromptRemoveClient for a client limit no upgrade lifts, and
+	// ClientLimitPromptNone for any other refusal.
+	ClientLimitPrompt string `json:"client_limit_prompt,omitempty"`
+}
+
+// authNetworkClientRefusalHttpPostRaw answers auth-client's 402 Payment
+// Required as the refusal it stands for. The server answers a refusal an
+// upgrade lifts with x402 payment terms only to a caller that asks for them
+// (`X-UR-X402: 1`, which this sdk never sends), but servers before 2026-11-10
+// quoted every caller whose client info named no app, and servers before
+// 2026-11-08 every caller. The terms' error is the refusal's message. A
+// person cannot sign x402 terms, and
+// the apps read a 402 as a failed request and showed the raw terms or a
+// generic error, so the 402 reads as the refusal with upgrade_required, the
+// same as the server's JSON body for it, and the apps show their upgrade
+// prompt. Every other answer passes through.
+func authNetworkClientRefusalHttpPostRaw(httpPostRaw connect.HttpPostRawFunction) connect.HttpPostRawFunction {
+	return func(ctx context.Context, requestUrl string, requestBodyBytes []byte, byJwt string) ([]byte, error) {
+		bodyBytes, err := httpPostRaw(ctx, requestUrl, requestBodyBytes, byJwt)
+		var statusError *connect.HttpStatusError
+		if err == nil || !errors.As(err, &statusError) || !statusError.PaymentRequired() {
+			return bodyBytes, err
+		}
+		var terms struct {
+			Error string `json:"error"`
+		}
+		// terms that do not parse still mean an upgrade lifts the refusal
+		_ = json.Unmarshal(statusError.Body, &terms)
+		return json.Marshal(&AuthNetworkClientResult{
+			Error: &AuthNetworkClientError{
+				UpgradeRequired: true,
+				Message:         terms.Error,
+			},
+		})
+	}
+}
+
+// withAuthNetworkClientPrompt sets the prompt of a refused auth-client, so
+// every app reads the same decision (clientLimitPromptForRefusal).
+func withAuthNetworkClientPrompt(result *AuthNetworkClientResult) *AuthNetworkClientResult {
+	if result != nil && result.Error != nil {
+		result.Error.ClientLimitPrompt = clientLimitPromptForRefusal(result.Error)
+	}
+	return result
 }
 
 // Registers with the invoking sign-in, retaining its credential generation
 // even when a later login uses equal token bytes before the goroutine runs.
+// A refusal carries its ClientLimitPrompt, and a 402 reads as the refusal it
+// stands for (authNetworkClientRefusalHttpPostRaw).
 func (self *Api) AuthNetworkClient(authNetworkClient *AuthNetworkClientArgs, callback AuthNetworkClientCallback) {
+	authNetworkClient = self.authNetworkClientArgsWithMailLocale(authNetworkClient)
 	byJwt, networkGeneration := func() (string, uint64) {
 		self.mutex.Lock()
 		defer self.mutex.Unlock()
@@ -1018,12 +1130,14 @@ func (self *Api) AuthNetworkClient(authNetworkClient *AuthNetworkClientArgs, cal
 	request := func(callback connect.ApiCallback[*AuthNetworkClientResult]) {
 		connect.HttpPostWithRawFunction(
 			self.ctx,
-			self.getHttpPostRaw(networkGeneration),
+			authNetworkClientRefusalHttpPostRaw(sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw(networkGeneration))),
 			fmt.Sprintf("%s/network/auth-client", self.apiUrl),
 			authNetworkClient,
 			byJwt,
 			&AuthNetworkClientResult{},
-			callback,
+			connect.NewApiCallback(func(result *AuthNetworkClientResult, err error) {
+				callback.Result(withAuthNetworkClientPrompt(result), err)
+			}),
 		)
 	}
 	if self.authNetworkClientLaunch != nil {
@@ -1039,15 +1153,17 @@ func (self *Api) AuthNetworkClient(authNetworkClient *AuthNetworkClientArgs, cal
 //
 //gomobile:noexport
 func (self *Api) AuthNetworkClientSyncWithContext(ctx context.Context, authNetworkClient *AuthNetworkClientArgs) (*AuthNetworkClientResult, error) {
-	return connect.HttpPostWithRawFunction(
+	authNetworkClient = self.authNetworkClientArgsWithMailLocale(authNetworkClient)
+	result, err := connect.HttpPostWithRawFunction(
 		ctx,
-		self.getHttpPostRaw(),
+		authNetworkClientRefusalHttpPostRaw(sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw())),
 		fmt.Sprintf("%s/network/auth-client", self.apiUrl),
 		authNetworkClient,
 		self.GetByJwt(),
 		&AuthNetworkClientResult{},
 		connect.NewNoopApiCallback[*AuthNetworkClientResult](),
 	)
+	return withAuthNetworkClientPrompt(result), err
 }
 
 // AuthNetworkClientSync uses the API lifetime as its bound.
@@ -1061,6 +1177,10 @@ type GetNetworkClientsCallback connect.ApiCallback[*NetworkClientsResult]
 
 type NetworkClientsResult struct {
 	Clients *NetworkClientInfoList `json:"clients"`
+	// the network's plan beside its proxies; only the /network/proxies
+	// listing fills it, and a server before it never does (see
+	// pro_features_status.go)
+	Plan *NetworkProxiesPlan `json:"plan,omitempty"`
 }
 
 type NetworkClientInfo struct {
@@ -1086,8 +1206,15 @@ type NetworkClientInfo struct {
 	ProvideMode int `json:"provide_mode"`
 	// ProxyClient carries the hosted proxy device's credentials; only the
 	// /network/proxies listing fills it, /network/clients never does
-	ProxyClient *ProxyClient                 `json:"proxy_client,omitempty"`
+	ProxyClient *ProxyClient `json:"proxy_client,omitempty"`
+	// Exit is a unique-exit proxy's current exit (ProxyConfig.UniqueExit),
+	// beside ProxyClient in the /network/proxies listing; nil otherwise
+	Exit        *ProxyExit                   `json:"exit,omitempty"`
 	Connections *NetworkClientConnectionList `json:"connections"`
+	// ProFeatures are the Pro-only features the hosted proxy holds
+	// credentials for (ProFeatureSocksProxy, ProFeatureWireguardProxy), in
+	// the /network/proxies listing; nil otherwise
+	ProFeatures *StringList `json:"pro_features,omitempty"`
 }
 
 // `model.ProxyClient`: the credentials of a hosted proxy device
@@ -1623,8 +1750,10 @@ type Blockchain = string
 const (
 	SOL   string = "SOL"
 	MATIC string = "MATIC"
-	// TAO (bittensor) wallets are recorded for future use only: they cannot
-	// be the payout wallet (payouts are USDC on Solana/Polygon)
+	// TAO (bittensor) account wallets are recorded for future use only. They
+	// never received payouts: USDC payouts went to Solana/Polygon wallets until
+	// they ended on 2026-11-12, and SN25α is paid to the coldkey of the network
+	// consent (sn_wallet), not to an account wallet
 	TAO string = "TAO"
 )
 
@@ -1655,31 +1784,10 @@ func (self *Api) CreateAccountWallet(createAccountWallet *CreateAccountWalletArg
 	})
 }
 
-/**
- * Set payout wallet
- */
-
-type SetPayoutWalletArgs struct {
-	WalletId *Id `json:"wallet_id"`
-}
-
-type SetPayoutWalletResult struct{}
-
-type SetPayoutWalletCallback connect.ApiCallback[*SetPayoutWalletResult]
-
-func (self *Api) SetPayoutWallet(payoutWallet *SetPayoutWalletArgs, callback SetPayoutWalletCallback) {
-	go connect.HandleError(func() {
-		connect.HttpPostWithRawFunction(
-			self.ctx,
-			self.getHttpPostRaw(),
-			fmt.Sprintf("%s/account/payout-wallet", self.apiUrl),
-			payoutWallet,
-			self.GetByJwt(),
-			&SetPayoutWalletResult{},
-			callback,
-		)
-	})
-}
+// The USDC payout wallet routes (`GET` and `POST /account/payout-wallet`) have
+// no client here: USDC provider payouts ended on 2026-11-12, so there is no
+// payout wallet to read or set. SN25α earnings go to the network consent's
+// coldkey (sn_wallet).
 
 type GetAccountWalletsResult struct {
 	Wallets *AccountWalletsList `json:"wallets"`
@@ -1695,25 +1803,6 @@ func (self *Api) GetAccountWallets(callback GetAccountWalletsCallback) {
 			fmt.Sprintf("%s/account/wallets", self.apiUrl),
 			self.GetByJwt(),
 			&GetAccountWalletsResult{},
-			callback,
-		)
-	})
-}
-
-type GetPayoutWalletIdResult struct {
-	WalletId *Id `json:"wallet_id"`
-}
-
-type GetPayoutWalletCallback connect.ApiCallback[*GetPayoutWalletIdResult]
-
-func (self *Api) GetPayoutWallet(callback GetPayoutWalletCallback) {
-	go connect.HandleError(func() {
-		connect.HttpGetWithRawFunction(
-			self.ctx,
-			self.getHttpGetRaw(),
-			fmt.Sprintf("%s/account/payout-wallet", self.apiUrl),
-			self.GetByJwt(),
-			&GetPayoutWalletIdResult{},
 			callback,
 		)
 	})
@@ -1755,6 +1844,10 @@ func (self *Api) WalletBalance(callback WalletBalanceCallback) {
 }
 
 type GetAccountPaymentsCallback connect.ApiCallback[*GetNetworkAccountPaymentsResult]
+
+// The network's past USDC payouts. USDC provider payouts ended on 2026-11-12
+// and every unsent payout was closed, so a payment that is not completed is
+// not paid and never will be: read the list as history, never as pending.
 
 type GetNetworkAccountPaymentsError struct {
 	Message string `json:"message"`
@@ -1890,10 +1983,12 @@ type SubscriptionBalanceResult struct {
 	 * A list rather than a slice because gomobile binds neither slices of struct
 	 * pointers nor slices of slices (same reason as ActiveTransferBalances).
 	 */
-	Subscriptions             *SubscriptionList    `json:"subscriptions,omitempty"`
-	ActiveTransferBalances    *TransferBalanceList `json:"active_transfer_balances,omitempty"`
-	PendingPayoutUsdNanoCents int64                `json:"pending_payout_usd_nano_cents"`
-	UpdateTime                string               `json:"update_time"`
+	Subscriptions          *SubscriptionList    `json:"subscriptions,omitempty"`
+	ActiveTransferBalances *TransferBalanceList `json:"active_transfer_balances,omitempty"`
+	// The server's `pending_payout_usd_nano_cents` is not read: it was the USDC
+	// not yet paid out, and USDC provider payouts ended on 2026-11-12 with every
+	// unsent payout closed, so no app may show it as pending.
+	UpdateTime string `json:"update_time"`
 	/**
 	 * Guest - the network has no login method (a legacy guest network). The
 	 * server reads it from the live auth methods, so unlike the jwt's
@@ -1919,9 +2014,17 @@ type SubscriptionBalanceResult struct {
 
 	// ----- crypto payments (crypto_pay_api.go) -----
 	// CryptoAssets are the coins the network can pay in now and what each
-	// sells (PaymentMethods). nil when none is enabled, and from an older
-	// server, so no crypto method is offered then.
+	// sells (PaymentMethods, CryptoPaymentTabs): never one whose quotes the
+	// server refuses for now, which the tabs grey out. nil when there is none,
+	// and from an older server, so no crypto method is offered then.
 	CryptoAssets *CryptoPaymentAssetList `json:"crypto_assets,omitempty"`
+	// CryptoUnavailableAssets are the coins that are on but cannot be quoted
+	// now (GET /pay/crypto/assets' unavailable_assets), each with its
+	// unavailable_reason: never offered, and passed beside CryptoAssets to
+	// CryptoPaymentTabs, which shows them greyed out ("Temporarily
+	// unavailable") instead of leaving them out. nil when there is none, and
+	// from a server before 2026-11-10.
+	CryptoUnavailableAssets *CryptoPaymentAssetList `json:"crypto_unavailable_assets,omitempty"`
 	// CryptoTerm is the network's latest one-time crypto credit whose grace
 	// has not ended, for the renewal notice (CryptoTermNoticeDue); nil when
 	// there is none.
@@ -2477,7 +2580,7 @@ func (self *Api) AuthCodeLogin(args *AuthCodeLoginArgs, callback AuthCodeLoginCa
 	runAsyncApiRequest[*AuthCodeLoginResult](callback, func(callback connect.ApiCallback[*AuthCodeLoginResult]) {
 		connect.HttpPostWithRawFunction(
 			self.ctx,
-			self.getHttpPostRaw(),
+			sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw()),
 			fmt.Sprintf("%s/auth/code-login", self.apiUrl),
 			args,
 			self.GetByJwt(),
@@ -2496,7 +2599,7 @@ func (self *Api) AuthCodeLoginSyncWithContext(ctx context.Context, args *AuthCod
 	}
 	return connect.HttpPostWithRawFunction(
 		ctx,
-		self.getHttpPostRaw(),
+		sessionLimitRefusalHttpPostRaw(self.getHttpPostRaw()),
 		fmt.Sprintf("%s/auth/code-login", self.apiUrl),
 		args,
 		self.GetByJwt(),
@@ -3279,6 +3382,10 @@ type ProviderAdmission struct {
 // url_checks a share of loaded test sites with Count of Total, speed_test
 // bytes per second, latency milliseconds above the expected delay, weight_*
 // the relative selection weight, tier_* a tier (0 best, 3 past the cutoff).
+//
+// A provider the url checks downgraded (server FP2-PROTOCOL.md §5.5) is told
+// why on its url_checks number, and the decode derives the lines every app
+// shows for it (provider_status_reason.go).
 type ProviderRankingNumber struct {
 	Name        string  `json:"name"`
 	HasValue    bool    `json:"has_value"`
@@ -3291,6 +3398,21 @@ type ProviderRankingNumber struct {
 	Count       int     `json:"count"`
 	Total       int     `json:"total"`
 	Explanation string  `json:"explanation"`
+	// The server's English sentences, one per capability the url checks took
+	// away, the tcp one first. Explanation ends with the same text. "" when
+	// nothing was taken away, and from servers before it.
+	Reason string `json:"reason,omitempty"`
+	// The checks the tcp sentence counts: those that failed only over HTTP/3
+	// (UDP). At least 1 exactly when the provider is offered for TCP traffic
+	// only.
+	ReasonTcpCount int `json:"reason_tcp_count,omitempty"`
+	// The checks the ipv4 sentence counts: those that failed only over IPv6.
+	// At least 1 exactly when the provider's IPv6 was taken away and it is
+	// offered for IPv4 traffic only.
+	ReasonIpv4Count int `json:"reason_ipv4_count,omitempty"`
+	// What the apps show for the reason, in order. Derived from the reason
+	// fields when the number is decoded; a value on the wire is replaced.
+	ReasonLines *ProviderStatusReasonLineList `json:"reason_lines,omitempty"`
 }
 
 // The bound form of []*ProviderRankingNumber, in the order a status lists them.
@@ -3410,15 +3532,34 @@ type SolanaPaymentIntentResult struct {
 	SplTokenMint string `json:"spl_token_mint,omitempty"`
 }
 
-// Stable codes for a refused checkout or payment intent (the server's
-// PurchaseErrorCode*): CreateSolanaPaymentIntent, CreateStripePaymentIntent,
-// CreateStripeCheckoutSession and StripePaymentSheet. Apps pick a flow or a
-// localized message from the code and fall back to `Message`.
+// Stable codes for a refused checkout, payment intent or card payment (the
+// server's PurchaseErrorCode*): CreateSolanaPaymentIntent,
+// CreateStripePaymentIntent, CreateStripeCheckoutSession, StripePaymentSheet,
+// and the card payment report (ReportStripePurchase, VerifyStripeCheckout:
+// VerifyStorePurchaseResult.Error). Apps pick a flow or a localized message
+// from the code and fall back to `Message`.
 const (
 	// The network is a legacy guest network (no sign-in method): nothing
 	// could sign back in to a plan bought on it. Add a sign-in method
 	// (AddAuth) first; the apps open their add-sign-in sheet.
 	PurchaseErrorCodeGuestSignInRequired = "guest_sign_in_required"
+	// A Stripe yearly trial's card failed its CVC check when the card was
+	// attached: the trial did not start (no Pro) and the card was detached,
+	// so it is never charged. Only the card payment report answers it, with
+	// the invalid status, and every later report of the same purchase answers
+	// the same. The app ends its purchase confirmation, shows the refusal and
+	// lets the buyer check the card and try again, which takes a NEW payment
+	// sheet (StripePaymentSheet) or a NEW checkout session
+	// (CreateStripeCheckoutSession).
+	PurchaseErrorCodeIncorrectCvc = "incorrect_cvc"
+	// An App Store sandbox purchase (a TestFlight build, a sandbox tester) for
+	// a network that is not one of the server's internal testers: sandbox
+	// purchases are free, so they unlock nothing. Only the App Store purchase
+	// report (VerifyAppleTransaction, and so a restore) answers it, with the
+	// invalid status. The app finishes the transaction as for any invalid
+	// answer and shows its neutral line for this code
+	// (IsSandboxPurchaseRefusal), never a way to pay elsewhere.
+	PurchaseErrorCodeSandboxPurchase = "sandbox_purchase"
 )
 
 type SolanaPaymentIntentError struct {
@@ -3696,7 +3837,12 @@ type RedeemBalanceCodeArgs struct {
 
 type RedeemBalanceCodeResult struct {
 	TransferBalance *RedeemBalanceCodeTransferBalance `json:"transfer_balance,omitempty"`
-	Error           *RedeemBalanceCodeError           `json:"error,omitempty"`
+	// Pro is set when the code was a gift code (kind "pro_gift"): the year of
+	// Pro it granted. A gift answer still carries TransferBalance, with
+	// BalanceByteCount 0 and the year's window, so ClassifyBalanceCodeRedeem
+	// counts it as redeemed. Nil for a data code.
+	Pro   *RedeemBalanceCodePro   `json:"pro,omitempty"`
+	Error *RedeemBalanceCodeError `json:"error,omitempty"`
 }
 
 type RedeemBalanceCodeTransferBalance struct {
@@ -3704,6 +3850,16 @@ type RedeemBalanceCodeTransferBalance struct {
 	StartTime         *Time `json:"start_time"`
 	EndTime           *Time `json:"end_time"`
 	BalanceByteCount  int64 `json:"balance_byte_count"`
+}
+
+// RedeemBalanceCodePro is the year of Pro a redeemed gift code granted, from
+// StartTime to EndTime. Queued is true when the year starts after the
+// network's current paid Pro period instead of now; the app then says when
+// the gift year starts (StartTime).
+type RedeemBalanceCodePro struct {
+	StartTime *Time `json:"start_time"`
+	EndTime   *Time `json:"end_time"`
+	Queued    bool  `json:"queued"`
 }
 
 type RedeemBalanceCodeError struct {
@@ -3750,9 +3906,25 @@ type CheckBalanceCodeError struct {
 	Message string `json:"message"`
 }
 
+// Balance code kinds (CheckBalanceCodeResult.Kind).
+const (
+	// BalanceCodeKindData: the code adds data.
+	BalanceCodeKindData = "data"
+	// BalanceCodeKindProGift: a gift code. It grants a year of Pro from when
+	// it is redeemed, queued after a paid Pro period.
+	BalanceCodeKindProGift = "pro_gift"
+)
+
 type CheckBalanceCodeResult struct {
 	Balance *CheckBalanceCodeBalance `json:"balance,omitempty"`
-	Error   *CheckBalanceCodeError   `json:"error,omitempty"`
+	// Kind is BalanceCodeKindData or BalanceCodeKindProGift; empty from a
+	// server that predates gift codes, whose codes all add data.
+	Kind string `json:"kind,omitempty"`
+	// ProDays is the days of Pro a gift code grants (365); 0 for a data code.
+	ProDays int64 `json:"pro_days,omitempty"`
+	// RedeemBy is the last time the code can be redeemed.
+	RedeemBy *Time                  `json:"redeem_by,omitempty"`
+	Error    *CheckBalanceCodeError `json:"error,omitempty"`
 }
 
 type CheckBalanceCodeCallback connect.ApiCallback[*CheckBalanceCodeResult]
@@ -3802,12 +3974,20 @@ type VerifyAppleTransactionArgs struct {
 	SignedTransaction string `json:"signed_transaction"`
 }
 
-// VerifyStorePurchaseResult is the shared response of both verify endpoints.
-// Status is one of the PurchaseReportStatus* values; use
-// IsPurchaseReportTerminal to decide whether to keep retrying.
+// VerifyStorePurchaseResult is the shared response of the verify endpoints:
+// Play, the App Store, and the card payment report (VerifyStripeCheckout,
+// ReportStripePurchase). Status is one of the PurchaseReportStatus* values;
+// use IsPurchaseReportTerminal to decide whether to keep retrying.
 type VerifyStorePurchaseResult struct {
 	Status     string `json:"status"`
 	ExpiryTime *Time  `json:"expiry_time,omitempty"`
+	// Why the server refused the purchase, when it names a reason; the status
+	// is then invalid. Code is a PurchaseErrorCode* value
+	// (PurchaseErrorCodeIncorrectCvc: a card payment report of a yearly trial
+	// whose card failed the CVC check), Message the server's English words
+	// for an app that has no line of its own for the code. Nil on every other
+	// answer, and from an older server.
+	Error *OnboardingError `json:"error,omitempty"`
 }
 
 // ExpiryTimeMillis is the store-side subscription expiry as unix millis, or 0
@@ -3995,6 +4175,65 @@ func (self *Api) RemoveNetworkClientSyncWithContextAndJwt(ctx context.Context, a
 //gomobile:noexport
 func (self *Api) RemoveNetworkClientSync(args *RemoveNetworkClientArgs) (*RemoveNetworkClientResult, error) {
 	return self.RemoveNetworkClientSyncWithContext(self.ctx, args)
+}
+
+/**
+ * Rotate a unique-exit proxy's exit
+ */
+
+type RotateProxyExitArgs struct {
+	// ClientId is the unique-exit proxy's client
+	ClientId *Id `json:"client_id"`
+}
+
+type RotateProxyExitResult struct {
+	// Exit is the proxy's new exit
+	Exit  *ProxyExit            `json:"exit,omitempty"`
+	Error *RotateProxyExitError `json:"error,omitempty"`
+}
+
+// A refused rotate: the proxy keeps its current exit
+type RotateProxyExitError struct {
+	// no other unique exit is available in the proxy's location
+	NoUniqueSupply bool `json:"no_unique_supply,omitempty"`
+	// the proxy rotated in the last minute, or 60 times today
+	RateLimited bool   `json:"rate_limited,omitempty"`
+	Message     string `json:"message"`
+}
+
+type RotateProxyExitCallback connect.ApiCallback[*RotateProxyExitResult]
+
+// Assigns a unique-exit proxy (ProxyConfig.UniqueExit) a new exit whose
+// egress IP no other active unique-exit proxy of the network uses. The server
+// rate-limits rotation per proxy. It administers the network's proxies, so it
+// is sent with the network credential (apiAdminRouteAccess).
+func (self *Api) RotateProxyExit(args *RotateProxyExitArgs, callback RotateProxyExitCallback) {
+	go connect.HandleError(func() {
+		connect.HttpPostWithRawFunction(
+			self.ctx,
+			self.getHttpPostRaw(),
+			fmt.Sprintf("%s/network/proxy/rotate-exit", self.apiUrl),
+			args,
+			self.GetByJwt(),
+			&RotateProxyExitResult{},
+			callback,
+		)
+	})
+}
+
+// Uses the API lifetime as its bound.
+//
+//gomobile:noexport
+func (self *Api) RotateProxyExitSync(args *RotateProxyExitArgs) (*RotateProxyExitResult, error) {
+	return connect.HttpPostWithRawFunction(
+		self.ctx,
+		self.getHttpPostRaw(),
+		fmt.Sprintf("%s/network/proxy/rotate-exit", self.apiUrl),
+		args,
+		self.GetByJwt(),
+		&RotateProxyExitResult{},
+		connect.NewNoopApiCallback[*RotateProxyExitResult](),
+	)
 }
 
 /**

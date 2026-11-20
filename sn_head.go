@@ -29,6 +29,37 @@ type AccountEpoch struct {
 	ShareBps int64 `json:"share_bps"`
 	// leaderboard rank for the epoch when the server reports it
 	Rank int64 `json:"rank,omitempty"`
+	// the bytes the network served behind the epoch's points: the weekly
+	// operator blocks that end in the epoch (0 from a server that predates
+	// the field)
+	ServedByteCount int64 `json:"served_byte_count"`
+}
+
+// AccountCurrentEpoch is the open epoch, not yet finalized, and the bytes
+// served so far that count toward it, by the rule of AccountEpoch.
+type AccountCurrentEpoch struct {
+	Epoch       int64 `json:"epoch"`
+	StartMillis int64 `json:"start_millis"`
+	// projected: the epoch is still open
+	EndMillis       int64 `json:"end_millis"`
+	ServedByteCount int64 `json:"served_byte_count"`
+	// the traffic is counted through this time
+	AsOfMillis int64 `json:"as_of_millis"`
+}
+
+// AccountCurrentBlock is the open weekly operator block, Sunday 00:00 UTC to
+// the next, and the bytes served in it so far: a figure that grows all week.
+// The block counts in Epoch once it ends, the epoch whose window holds its
+// end; while that is the open epoch, these bytes are part of
+// AccountCurrentEpoch's figure too.
+type AccountCurrentBlock struct {
+	BlockNumber     int64 `json:"block_number"`
+	StartMillis     int64 `json:"start_millis"`
+	EndMillis       int64 `json:"end_millis"`
+	ServedByteCount int64 `json:"served_byte_count"`
+	// the traffic is counted through this time
+	AsOfMillis int64 `json:"as_of_millis"`
+	Epoch      int64 `json:"epoch"`
 }
 
 type AccountEpochList struct {
@@ -44,7 +75,11 @@ func NewAccountEpochList() *AccountEpochList {
 type AccountEpochsResult struct {
 	Epochs      *AccountEpochList `json:"epochs"`
 	TotalPoints float64           `json:"total_points,omitempty"`
-	Error       *SnError          `json:"error,omitempty"`
+	// nil when the server reports no open epoch
+	CurrentEpoch *AccountCurrentEpoch `json:"current_epoch,omitempty"`
+	// nil when the server reports no open block
+	CurrentBlock *AccountCurrentBlock `json:"current_block,omitempty"`
+	Error        *SnError             `json:"error,omitempty"`
 }
 
 type AccountEpochsCallback connect.ApiCallback[*AccountEpochsResult]
@@ -65,13 +100,26 @@ func (self *Api) AccountEpochs(callback AccountEpochsCallback) {
 
 // Head spot (Top 200)
 
-// SnHeadResult is the network's head-miner eligibility (GET /sn/head).
+// SnHeadResult is the network's head-miner eligibility (GET /sn/head). Since
+// 2026-11-17 the server calls a network eligible only while the validator can
+// measure it, the claim guide's rule; InHead is the rank alone, eligible's
+// meaning before. A server older than that sends no measurability: Measurable
+// reads false, NotMeasurableReason "", and Eligible the rank alone.
 type SnHeadResult struct {
 	Eligible     bool    `json:"eligible"`
 	Score        float64 `json:"score"`
 	Floor        float64 `json:"floor"`
 	RankEstimate int64   `json:"rank_estimate"`
 	Cutoff       int64   `json:"cutoff"`
+	// ranked inside the cutoff with a positive score, measurable or not
+	InHead bool `json:"in_head"`
+	// the validator can measure the network (the board's row)
+	Measurable bool `json:"measurable"`
+	// why not, as GET /sn/top/me gives it: "not_in_cohort", "shared_egress",
+	// "not_providing"; "" when measurable or unknown
+	NotMeasurableReason string `json:"not_measurable_reason"`
+	// the board's claim prompt: measurable, inside the cutoff, not claimed yet
+	ClaimPrompt bool `json:"claim_prompt"`
 	// a hotkey is bound to this network's fleet
 	Bound  bool   `json:"bound"`
 	Hotkey string `json:"hotkey,omitempty"`
@@ -86,19 +134,23 @@ type SnHeadResult struct {
 }
 
 type snHeadResultJson struct {
-	Eligible     bool            `json:"eligible"`
-	Score        float64         `json:"score"`
-	Floor        float64         `json:"floor"`
-	RankEstimate int64           `json:"rank_estimate"`
-	Cutoff       int64           `json:"cutoff"`
-	Bound        json.RawMessage `json:"bound"`
-	Hotkey       string          `json:"hotkey"`
-	Uid          int64           `json:"uid"`
-	Rank         int64           `json:"rank"`
-	Epoch        int64           `json:"epoch"`
-	Netuid       int64           `json:"netuid"`
-	Source       string          `json:"source"`
-	Error        *SnError        `json:"error"`
+	Eligible            bool            `json:"eligible"`
+	Score               float64         `json:"score"`
+	Floor               float64         `json:"floor"`
+	RankEstimate        int64           `json:"rank_estimate"`
+	Cutoff              int64           `json:"cutoff"`
+	InHead              bool            `json:"in_head"`
+	Measurable          bool            `json:"measurable"`
+	NotMeasurableReason string          `json:"not_measurable_reason"`
+	ClaimPrompt         bool            `json:"claim_prompt"`
+	Bound               json.RawMessage `json:"bound"`
+	Hotkey              string          `json:"hotkey"`
+	Uid                 int64           `json:"uid"`
+	Rank                int64           `json:"rank"`
+	Epoch               int64           `json:"epoch"`
+	Netuid              int64           `json:"netuid"`
+	Source              string          `json:"source"`
+	Error               *SnError        `json:"error"`
 }
 
 // UnmarshalJSON accepts `bound` either as a bool or as an object
@@ -109,18 +161,22 @@ func (self *SnHeadResult) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*self = SnHeadResult{
-		Eligible:     j.Eligible,
-		Score:        j.Score,
-		Floor:        j.Floor,
-		RankEstimate: j.RankEstimate,
-		Cutoff:       j.Cutoff,
-		Hotkey:       j.Hotkey,
-		Uid:          j.Uid,
-		Rank:         j.Rank,
-		Epoch:        j.Epoch,
-		Netuid:       j.Netuid,
-		Source:       j.Source,
-		Error:        j.Error,
+		Eligible:            j.Eligible,
+		Score:               j.Score,
+		Floor:               j.Floor,
+		RankEstimate:        j.RankEstimate,
+		Cutoff:              j.Cutoff,
+		InHead:              j.InHead,
+		Measurable:          j.Measurable,
+		NotMeasurableReason: j.NotMeasurableReason,
+		ClaimPrompt:         j.ClaimPrompt,
+		Hotkey:              j.Hotkey,
+		Uid:                 j.Uid,
+		Rank:                j.Rank,
+		Epoch:               j.Epoch,
+		Netuid:              j.Netuid,
+		Source:              j.Source,
+		Error:               j.Error,
 	}
 	if len(j.Bound) > 0 && string(j.Bound) != "null" {
 		var flag bool

@@ -71,6 +71,9 @@ type ReliabilitySettings struct {
 	// before it is treated as failed and removed. 0 waits for the 30s ack
 	// timeout instead, which is what freezes a flow until the app retries
 	SendStallTimeoutMillis int64
+	// How long a hole in an exit's return stream may stay open before new
+	// flows avoid the exit until it fills. 0 disables the hold
+	ReceiveGapStallTimeoutMillis int64
 	// ClusterAffinityFallback groups a site's ips when no hostname is known
 	ClusterAffinityFallback bool
 	// ServerNameAffinityBridge converges late-named flows onto the exit an
@@ -127,6 +130,10 @@ type ReliabilitySettings struct {
 	// StickyFlowIdleTimeoutMillis is the minimum idle age for that retirement.
 	// 0 disables it even when MaxStickyFlowsPerExit is nonzero.
 	StickyFlowIdleTimeoutMillis int64
+	// ScoredAffinityDonor ranks the eligible affinity donors of a new flow by
+	// their placement score instead of taking the newest. false, the default,
+	// keeps the newest-donor scan.
+	ScoredAffinityDonor bool
 	// QuarantineGroupFollow is retained for settings compatibility. Fresh
 	// flows now always scatter from a quarantined donor; a sustained
 	// no-receive verdict must not attract another H1 handshake.
@@ -142,6 +149,11 @@ type ReliabilitySettings struct {
 	// nothing received anywhere. 0 disables the gate, which is the comparison
 	// point for measuring how many verdicts it holds.
 	UplinkStalenessGateMillis int64
+	// UplinkStalenessMaxHoldMillis bounds how long the uplink staleness gate
+	// holds the verdicts through continuous staleness, so a window that is
+	// really dead is still recycled. Connect's default is 60s. 0 permits
+	// verdicts at once, so the gate never holds.
+	UplinkStalenessMaxHoldMillis int64
 	// SoftVerdictDemote demotes the soft removal verdicts (no-receive-ack,
 	// no-receive-syn, stats-unhealthy) against an exit carrying live flows:
 	// the exit is warned out of selection and kept, its established flows
@@ -230,6 +242,17 @@ type ReliabilitySettings struct {
 	// the send-retry pace, the pre-change behavior -- unlike the other duration
 	// knobs here, 0 is not "off".
 	FormationPollTimeoutMillis int64
+	// WindowOutcomeDeadlineMillis is the window outcome watchdog: a window
+	// that has added no provider this long after it first tried to expand
+	// gets one silent rebuild, the programmatic form of a manual disconnect
+	// and reconnect. Connect's default is 45s. 0 disables the rebuild and the
+	// failed latch below.
+	WindowOutcomeDeadlineMillis int64
+	// WindowOutcomeRebuildDeadlineMillis is the watchdog's second half: no
+	// provider added this long after the rebuild latches the failed state,
+	// which a provider added later clears. Connect's default is 45s. 0
+	// disables the failed latch only.
+	WindowOutcomeRebuildDeadlineMillis int64
 	// BusyProbe interposes an active liveness probe on the send-stall bar:
 	// instead of convicting a stalled exit immediately, one control ping is
 	// fired through it with a snappy budget -- an ack acquits (the exit is
@@ -283,12 +306,21 @@ type ReliabilitySettings struct {
 	PlacementDemoteConsecutive int32
 	// RewardInstrumentation emits reward observability lines; false emits none.
 	RewardInstrumentation bool
+	// LightClassifier installs connect's light-tier flow classifier, which
+	// names a flow's class for scored placement. Connect's default is on.
+	// Unlike the other controls, a change takes effect on the next flow:
+	// SetReliabilitySettings installs or clears the classifier itself.
+	LightClassifier bool
 	// QuarantineDampening escalates a quarantine episode's hold time by prior
 	// reconvictions (60s -> 120s -> 240s) instead of the flat hold every
 	// episode gets by default. See the QUARANTINE-DAMPENING CAVEAT in
 	// routing_tier.go: the reconviction counter does not yet decay within a
 	// session.
 	QuarantineDampening bool
+	// QuarantineReentryRampMillis ramps a released exit back to full scored
+	// placement standing over this long after its quarantine lifts. 0, the
+	// default, restores full standing at once.
+	QuarantineReentryRampMillis int64
 }
 
 func reliabilitySettingsFromConnect(reliabilitySettings *connect.ReliabilitySettings) *ReliabilitySettings {
@@ -301,6 +333,7 @@ func reliabilitySettingsFromConnect(reliabilitySettings *connect.ReliabilitySett
 		DialFailureRerace:             reliabilitySettings.DialFailureRerace,
 		TcpCollapseMaxHoldMillis:      reliabilitySettings.TcpCollapseMaxHold.Milliseconds(),
 		SendStallTimeoutMillis:        reliabilitySettings.SendStallTimeout.Milliseconds(),
+		ReceiveGapStallTimeoutMillis:  reliabilitySettings.ReceiveGapStallTimeout.Milliseconds(),
 		ClusterAffinityFallback:       reliabilitySettings.ClusterAffinityFallback,
 		ServerNameAffinityBridge:      reliabilitySettings.ServerNameAffinityBridge,
 		SequenceIdleTimeoutMillis:     reliabilitySettings.SequenceIdleTimeout.Milliseconds(),
@@ -312,9 +345,11 @@ func reliabilitySettingsFromConnect(reliabilitySettings *connect.ReliabilitySett
 		PerformanceAwareAffinity:      reliabilitySettings.PerformanceAwareAffinity,
 		MaxStickyFlowsPerExit:         int32(reliabilitySettings.MaxStickyFlowsPerExit),
 		StickyFlowIdleTimeoutMillis:   reliabilitySettings.StickyFlowIdleTimeout.Milliseconds(),
+		ScoredAffinityDonor:           reliabilitySettings.ScoredAffinityDonor,
 		QuarantineGroupFollow:         reliabilitySettings.QuarantineGroupFollow,
 		GroupFollowWindowMillis:       reliabilitySettings.GroupFollowWindow.Milliseconds(),
 		UplinkStalenessGateMillis:     reliabilitySettings.UplinkStalenessGate.Milliseconds(),
+		UplinkStalenessMaxHoldMillis:  reliabilitySettings.UplinkStalenessMaxHold.Milliseconds(),
 		SoftVerdictDemote:             reliabilitySettings.SoftVerdictDemote,
 		RemovalBudgetCount:            int32(reliabilitySettings.RemovalBudgetCount),
 		RemovalBudgetWindowMillis:     reliabilitySettings.RemovalBudgetWindow.Milliseconds(),
@@ -331,6 +366,8 @@ func reliabilitySettingsFromConnect(reliabilitySettings *connect.ReliabilitySett
 		EvaluationPoolMultiple:        int32(reliabilitySettings.EvaluationPoolMultiple),
 
 		FormationPollTimeoutMillis:               reliabilitySettings.FormationPollTimeout.Milliseconds(),
+		WindowOutcomeDeadlineMillis:              reliabilitySettings.WindowOutcomeDeadline.Milliseconds(),
+		WindowOutcomeRebuildDeadlineMillis:       reliabilitySettings.WindowOutcomeRebuildDeadline.Milliseconds(),
 		BusyProbe:                                reliabilitySettings.BusyProbe,
 		BusyProbeBudgetMillis:                    reliabilitySettings.BusyProbeBudget.Milliseconds(),
 		SchedulerPauseToleranceMillis:            reliabilitySettings.SchedulerPauseTolerance.Milliseconds(),
@@ -338,11 +375,13 @@ func reliabilitySettingsFromConnect(reliabilitySettings *connect.ReliabilitySett
 		BlackholeConnectComparativeTimeoutMillis: reliabilitySettings.BlackholeConnectComparativeTimeout.Milliseconds(),
 		HeartbeatIntervalMillis:                  reliabilitySettings.HeartbeatInterval.Milliseconds(),
 
-		ScoredPlacement:            reliabilitySettings.ScoredPlacement,
-		PlacementHysteresisPct:     reliabilitySettings.PlacementHysteresisPct,
-		PlacementDemoteConsecutive: int32(reliabilitySettings.PlacementDemoteConsecutive),
-		RewardInstrumentation:      reliabilitySettings.RewardInstrumentation,
-		QuarantineDampening:        reliabilitySettings.QuarantineDampening,
+		ScoredPlacement:             reliabilitySettings.ScoredPlacement,
+		PlacementHysteresisPct:      reliabilitySettings.PlacementHysteresisPct,
+		PlacementDemoteConsecutive:  int32(reliabilitySettings.PlacementDemoteConsecutive),
+		RewardInstrumentation:       reliabilitySettings.RewardInstrumentation,
+		LightClassifier:             reliabilitySettings.LightClassifier,
+		QuarantineDampening:         reliabilitySettings.QuarantineDampening,
+		QuarantineReentryRampMillis: reliabilitySettings.QuarantineReentryRamp.Milliseconds(),
 	}
 }
 
@@ -353,6 +392,7 @@ func (self *ReliabilitySettings) toConnect() *connect.ReliabilitySettings {
 		DialFailureRerace:          self.DialFailureRerace,
 		TcpCollapseMaxHold:         millis(self.TcpCollapseMaxHoldMillis),
 		SendStallTimeout:           millis(self.SendStallTimeoutMillis),
+		ReceiveGapStallTimeout:     millis(self.ReceiveGapStallTimeoutMillis),
 		ClusterAffinityFallback:    self.ClusterAffinityFallback,
 		ServerNameAffinityBridge:   self.ServerNameAffinityBridge,
 		SequenceIdleTimeout:        millis(self.SequenceIdleTimeoutMillis),
@@ -364,9 +404,11 @@ func (self *ReliabilitySettings) toConnect() *connect.ReliabilitySettings {
 		PerformanceAwareAffinity:   self.PerformanceAwareAffinity,
 		MaxStickyFlowsPerExit:      int(self.MaxStickyFlowsPerExit),
 		StickyFlowIdleTimeout:      millis(self.StickyFlowIdleTimeoutMillis),
+		ScoredAffinityDonor:        self.ScoredAffinityDonor,
 		QuarantineGroupFollow:      self.QuarantineGroupFollow,
 		GroupFollowWindow:          millis(self.GroupFollowWindowMillis),
 		UplinkStalenessGate:        millis(self.UplinkStalenessGateMillis),
+		UplinkStalenessMaxHold:     millis(self.UplinkStalenessMaxHoldMillis),
 		SoftVerdictDemote:          self.SoftVerdictDemote,
 		RemovalBudgetCount:         int(self.RemovalBudgetCount),
 		RemovalBudgetWindow:        millis(self.RemovalBudgetWindowMillis),
@@ -383,6 +425,8 @@ func (self *ReliabilitySettings) toConnect() *connect.ReliabilitySettings {
 		EvaluationPoolMultiple:     int(self.EvaluationPoolMultiple),
 
 		FormationPollTimeout:               millis(self.FormationPollTimeoutMillis),
+		WindowOutcomeDeadline:              millis(self.WindowOutcomeDeadlineMillis),
+		WindowOutcomeRebuildDeadline:       millis(self.WindowOutcomeRebuildDeadlineMillis),
 		BusyProbe:                          self.BusyProbe,
 		BusyProbeBudget:                    millis(self.BusyProbeBudgetMillis),
 		SchedulerPauseTolerance:            millis(self.SchedulerPauseToleranceMillis),
@@ -394,15 +438,31 @@ func (self *ReliabilitySettings) toConnect() *connect.ReliabilitySettings {
 		PlacementHysteresisPct:     self.PlacementHysteresisPct,
 		PlacementDemoteConsecutive: int(self.PlacementDemoteConsecutive),
 		RewardInstrumentation:      self.RewardInstrumentation,
+		LightClassifier:            self.LightClassifier,
 		QuarantineDampening:        self.QuarantineDampening,
+		QuarantineReentryRamp:      millis(self.QuarantineReentryRampMillis),
 	}
 }
+
+// The window of an Exit that holds the providers offered only for the traffic
+// they can carry (server FP2-PROTOCOL.md §7.4). Its rank mode follows the
+// performance profile, so the window, not a rank mode, names it.
+const ExitWindowTypeLimited = "limited"
 
 // Exit is one provider channel, as shown in the developer menu.
 type Exit struct {
 	ClientId *Id
-	// WindowType is "quality", "speed", or "" for auto
+	// "quality", "speed", ExitWindowTypeLimited, or "" for auto
 	WindowType string
+	// The labels the server's network checks gave the provider (server
+	// FP2-PROTOCOL.md §5.2): "dualstack" or "ipv4", and "dualproto" or "tcp".
+	// An exit found without labels (an older server, a fixed destination)
+	// reads its address family and dualproto.
+	CapabilityIp       string
+	CapabilityProtocol string
+	// 1 when the provider was given as overflow, a tcp provider filling a
+	// window that asked for dualproto (§6.3); 0 otherwise
+	OverflowStep int32
 	// Warning marks an exit new flows already avoid -- unhealthy, or past its
 	// lifetime and draining
 	Warning bool
@@ -547,6 +607,96 @@ func (self *DeviceLocal) ResetReliabilitySettings() {
 	}
 }
 
+// The limited window's size as a fraction of the largest normal window's
+// target (server FP2-PROTOCOL.md §7.4): the current window's, or while
+// disconnected what the next window takes, the runtime override when one is
+// set and the device's default otherwise (defaultLimitedWindowSizeFraction).
+// The limited window holds max(1, floor(fraction × target)) clients, and none
+// at or below 0.
+func (self *DeviceLocal) GetLimitedWindowSizeFraction() float64 {
+	if multi, ok := self.multiClient(); ok {
+		return multi.LimitedWindowSizeFraction()
+	}
+	var override *float64
+	func() {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		override = self.limitedWindowSizeFraction
+	}()
+	if override != nil {
+		return *override
+	}
+	return self.defaultLimitedWindowSizeFraction()
+}
+
+// The fraction this device builds a window with when no override is set:
+// connect's default, 1, the same size (D8), except at or below the 32-MiB
+// low-memory target, which keeps its own (see
+// DeviceLocalSettings.lowMemoryLimitedWindowSizeFraction), and 0 on a device
+// whose host disabled the limited window
+// (DeviceLocalSettings.DisableLimitedWindow), which builds every window with
+// none. The settings are immutable once the device is built.
+func (self *DeviceLocal) defaultLimitedWindowSizeFraction() float64 {
+	if self.limitedWindowDisabled() {
+		return 0
+	}
+	settings := connect.DefaultMultiClientSettings()
+	applyMobileLimitedWindowSettingsForPlatform(
+		settings,
+		0,
+		self.settings.lowMemoryLimitedWindowSizeFraction,
+		self.settings.MemoryTargetByteCount,
+		self.settings.LowMemoryProfile,
+	)
+	return settings.LimitedWindowSizeFraction
+}
+
+// Overrides the limited window's fraction at runtime, for testing, as the
+// reliability controls do: the current window resizes without a reconnect,
+// and the override is stored on the device and built into every window after
+// it. At or below 0 the limited window holds none. The low-memory bound
+// (DeviceLocalSettings) still applies. Safe while disconnected: it is stored
+// now and applied when a window is built. A no-op on a device whose host
+// disabled the limited window (DeviceLocalSettings.DisableLimitedWindow): the
+// override must not give a hosted device the window back.
+func (self *DeviceLocal) SetLimitedWindowSizeFraction(fraction float64) {
+	if self.limitedWindowDisabled() {
+		return
+	}
+	func() {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		self.limitedWindowSizeFraction = &fraction
+	}()
+	if multi, ok := self.multiClient(); ok {
+		multi.SetLimitedWindowSizeFraction(fraction)
+	}
+}
+
+// Clears the limited window's override: the current window returns to the
+// device's default fraction (defaultLimitedWindowSizeFraction), and so does
+// every window after it. A no-op on a device whose host disabled the limited
+// window, which connect's default would otherwise turn back on.
+func (self *DeviceLocal) ResetLimitedWindowSizeFraction() {
+	if self.limitedWindowDisabled() {
+		return
+	}
+	func() {
+		self.stateLock.Lock()
+		defer self.stateLock.Unlock()
+		self.limitedWindowSizeFraction = nil
+	}()
+	if multi, ok := self.multiClient(); ok {
+		multi.SetLimitedWindowSizeFraction(self.defaultLimitedWindowSizeFraction())
+	}
+}
+
+// Whether the host disabled the limited window
+// (DeviceLocalSettings.DisableLimitedWindow).
+func (self *DeviceLocal) limitedWindowDisabled() bool {
+	return self.settings != nil && self.settings.DisableLimitedWindow
+}
+
 // The developer readout of one connect exit. The fields are copied one by one,
 // so every connect ExitInfo field must be carried here or named as left out in
 // TestExitFromConnectCarriesEveryExitInfoField.
@@ -563,9 +713,17 @@ func exitFromConnect(exit *connect.ExitInfo) *Exit {
 	// the provider sends any uint64 and gomobile binds no unsigned type, so a
 	// value past int64 saturates: still the newest, never negative
 	providerSecurityPolicyGeneration := int64(min(exit.ProviderSecurityPolicyGeneration, math.MaxInt64))
+	// the limited window has no rank mode of its own
+	windowType := exit.WindowType.RankMode()
+	if exit.WindowType == connect.WindowTypeLimited {
+		windowType = ExitWindowTypeLimited
+	}
 	return &Exit{
 		ClientId:                         newId(exit.ClientId),
-		WindowType:                       exit.WindowType.RankMode(),
+		WindowType:                       windowType,
+		CapabilityIp:                     string(exit.CapabilityIp),
+		CapabilityProtocol:               string(exit.CapabilityProtocol),
+		OverflowStep:                     int32(exit.OverflowStep),
 		Warning:                          exit.Warning,
 		Quarantined:                      exit.Quarantined,
 		WarningCause:                     exit.WarningCause,

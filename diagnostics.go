@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +59,8 @@ func logSeverityOf(name string) string {
 }
 
 // LogInventory enumerates every log file under the recorded log root, across
-// every process that has written there.
+// every process that has written there: the glog files, and the app's exit
+// diagnostics file (exit_diagnostics.go) where there is one.
 //
 // Symlinks are skipped: glog maintains a <program>.<SEVERITY> symlink beside
 // each real file, and following it would list the same bytes twice.
@@ -142,19 +144,34 @@ func appendLogFilesIn(inventory *LogFileInfoList, dir string, source string) err
 			continue
 		}
 		severity := logSeverityOf(entry.Name())
+		specialFile, special := logSpecialFileOf(entry.Name())
 		if severity == "" {
-			continue
+			// beside the glog files, only the files of log_special_files.go,
+			// and only a regular file of one of those names
+			if !special || !entry.Type().IsRegular() {
+				continue
+			}
+			severity = specialFile.Severity
 		}
 		info, err := entry.Info()
 		if err != nil {
 			continue
+		}
+		byteCount := info.Size()
+		if special {
+			// every process opens its Go crash file; only one a crash wrote
+			// says anything
+			if byteCount == 0 {
+				continue
+			}
+			byteCount = specialFile.carriedByteCount(byteCount)
 		}
 		inventory.Add(&LogFileInfo{
 			Name:           entry.Name(),
 			Path:           filepath.Join(dir, entry.Name()),
 			Source:         source,
 			Severity:       severity,
-			ByteCount:      info.Size(),
+			ByteCount:      byteCount,
 			ModifiedMillis: info.ModTime().UnixMilli(),
 		})
 	}
@@ -294,8 +311,13 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 	// fail, before anything is written to destPath. A RAW export never
 	// reaches this branch and is unaffected.
 	var transform func(string) string
+	// the export's redactor: the redacted export's, and the one the files of
+	// log_special_files.go are masked with in any export, so that an address
+	// is one token in every file
+	var redactor *logRedactor
 	if opts.Redact {
-		redactor, err := newLogRedactor()
+		var err error
+		redactor, err = newLogRedactor()
 		if err != nil {
 			return nil, fmt.Errorf("redacted export not produced: a secure random salt was unavailable: %w", err)
 		}
@@ -365,7 +387,27 @@ func ExportDiagnosticBundle(destPath string, opts *ExportOptions) (*ExportResult
 			sources.incomplete(info.Source, info.Name, err.Error())
 			continue
 		}
-		err = zipWriteEntry(zipWriter, "logs/"+info.Source+"/"+info.Name, f, fi, transform)
+		// a file of log_special_files.go goes as its carried section, and
+		// masked when it is masked, whether or not the export is redacted
+		var entryReader io.Reader = f
+		entryTransform := transform
+		if specialFile, special := logSpecialFileOf(info.Name); special {
+			section, sectionErr := logSpecialFileSection(f, fi.Size(), specialFile.carriedByteCount(fi.Size()))
+			if sectionErr == nil && specialFile.Masked && redactor == nil {
+				redactor, sectionErr = newLogRedactor()
+			}
+			if sectionErr != nil {
+				f.Close()
+				result.MissingSources.Add(info.Name + ": " + sectionErr.Error())
+				sources.incomplete(info.Source, info.Name, sectionErr.Error())
+				continue
+			}
+			entryReader = section
+			if specialFile.Masked {
+				entryTransform = redactor.maskLogLine
+			}
+		}
+		err = zipWriteEntry(zipWriter, "logs/"+info.Source+"/"+info.Name, entryReader, fi, entryTransform)
 		f.Close()
 		if err != nil {
 			// Reading one log file is not allowed to end the export. An i/o

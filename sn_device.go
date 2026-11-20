@@ -96,6 +96,10 @@ func (self *DeviceLocal) SnLedgerClaimTransactions() (*SnLedgerUnsignedTxList, e
 	return self.snDevice().SnLedgerClaimTransactions()
 }
 
+func (self *DeviceLocal) SnLedgerClaimTransactionsForPayer(payerAddress string) (*SnLedgerClaimTransactionsResult, error) {
+	return self.snDevice().SnLedgerClaimTransactionsForPayer(payerAddress)
+}
+
 // claim relay
 
 func (self *DeviceLocal) SnClaimStatus(callback SnClaimStatusCallback) {
@@ -104,6 +108,12 @@ func (self *DeviceLocal) SnClaimStatus(callback SnClaimStatusCallback) {
 
 func (self *DeviceLocal) SnClaimNow(coldkeySs58 string, callback SnClaimNowCallback) {
 	self.snDevice().SnClaimNow(coldkeySs58, callback)
+}
+
+// capture the flag
+
+func (self *DeviceLocal) SnCtfClient(callback SnCtfClientCallback) {
+	self.snDevice().SnCtfClient(callback)
 }
 
 // head spot
@@ -198,6 +208,10 @@ func (self *DeviceRemote) SnLedgerClaimTransactions() (*SnLedgerUnsignedTxList, 
 	return self.snDevice().SnLedgerClaimTransactions()
 }
 
+func (self *DeviceRemote) SnLedgerClaimTransactionsForPayer(payerAddress string) (*SnLedgerClaimTransactionsResult, error) {
+	return self.snDevice().SnLedgerClaimTransactionsForPayer(payerAddress)
+}
+
 // claim relay
 
 func (self *DeviceRemote) SnClaimStatus(callback SnClaimStatusCallback) {
@@ -206,6 +220,12 @@ func (self *DeviceRemote) SnClaimStatus(callback SnClaimStatusCallback) {
 
 func (self *DeviceRemote) SnClaimNow(coldkeySs58 string, callback SnClaimNowCallback) {
 	self.snDevice().SnClaimNow(coldkeySs58, callback)
+}
+
+// capture the flag
+
+func (self *DeviceRemote) SnCtfClient(callback SnCtfClientCallback) {
+	self.snDevice().SnCtfClient(callback)
 }
 
 // GetSnClientKey asks the DeviceLocal for the client public key; "" when

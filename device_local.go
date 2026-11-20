@@ -14,6 +14,7 @@ import (
 
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -371,7 +372,7 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 	// re-derives from the final settings (target overrides, provider fold)
 	clientShareByteCount := memoryTargetByteCount * deviceMemoryRatioClient / deviceMemoryRatioParts
 	bufferSize := deviceLocalSequenceBufferSize(clientShareByteCount)
-	clientSettings := connect.DefaultClientSettingsWithBufferSize(bufferSize)
+	clientSettings := newDeviceLocalDefaultClientSettings(bufferSize, memoryTargetByteCount, lowMemoryProfile)
 	// A VPN device needs only the current physical/default-route addresses.
 	// Enumerating every bridge, stale tunnel, AWDL, and VM interface makes
 	// ICE check a local×remote candidate cross-product for every window
@@ -405,6 +406,15 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 	return &DeviceLocalSettings{
 		MemoryTargetByteCount: memoryTargetByteCount,
 		LowMemoryProfile:      lowMemoryProfile,
+		// the steady-memory gate has not failed: the limited window follows
+		// connect's fraction (D11.5; set 1 here if it fails)
+		lowMemoryLimitedWindowSizeMax: 0,
+		// the 32-MiB tier keeps half its quality window while connect's
+		// default is the full size (see the field)
+		lowMemoryLimitedWindowSizeFraction: 0.5,
+		defaultH1ReceiveCount:              clientSettings.ReceiveBufferSettings.H1SequenceBufferSize,
+		hasDefaultH1ReceiveCount:           true,
+		ProviderSendBorrowByteCount:        0,
 		// a strict window hands a drained slot to its replacement instead of
 		// building candidates its hard max refuses (see the field)
 		StrictWindowHandover: true,
@@ -451,6 +461,12 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 		// every app binds the extender's dns carrier on 4053 alone; the sn
 		// miner opts in to 53 (L2)
 		ProvideExtenderDnsPrivilegedPort: false,
+		// the peer-to-peer webrtc carrier, so a host behind nat extends
+		// (EXTENDER.md S8)
+		ProvideExtenderWebRtc: true,
+		// no app asks the router to open a port until its user turns it on;
+		// the sn miner turns it on (owner, 2026-11-11; connect EXTENDER.md S10)
+		DefaultProvideExtenderPortMapping: false,
 		// Security-policy monitoring clones diagnostic maps and, for a
 		// DeviceRemote, performs synchronous RPC. Keep it opt-in so an app
 		// object never owns background polling.
@@ -475,6 +491,21 @@ func defaultDeviceLocalSettingsWithProfile(memoryTargetByteCount ByteCount, lowM
 		TransportDelayBadDownQueueDelay:     defaultTransportDelayBadDownQueueDelay,
 		TransportDelayQualityStep:           defaultTransportDelayQualityStep,
 		TransportDelayQualityHysteresis:     defaultTransportDelayQualityHysteresis,
+		// and how promptly they connect (transport_connect.go), on the window
+		// transports' own connect timing
+		TransportDelayGoodConnectStall:     defaultTransportDelayGoodConnectStall,
+		TransportDelayBadConnectStall:      defaultTransportDelayBadConnectStall,
+		TransportDelayPromptConnectTimeout: defaultTransportDelayPromptConnectTimeout,
+
+		// a user's retry after acting on the client limit prompt dials at most
+		// this often (DeviceLocal.RetryClientLimit)
+		ClientLimitRetryMinInterval: 30 * time.Second,
+
+		// a preset is verified again after a resolver generation change at most
+		// this often: a phone that walks between networks changes generation
+		// often, and an exit that stops filtering is rare enough that minutes
+		// of a stale verification cost less than a probe at every change
+		DnsResolverVerifyMinInterval: 5 * time.Minute,
 
 		ClientSettings: *clientSettings,
 	}
@@ -589,6 +620,46 @@ func (self *DeviceLocalSettings) SetTransportDelayBadDownQueueDelayMillis(millis
 	self.TransportDelayBadDownQueueDelay = time.Duration(millis) * time.Millisecond
 }
 
+func (self *DeviceLocalSettings) GetTransportDelayGoodConnectStallMillis() int64 {
+	return self.TransportDelayGoodConnectStall.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayGoodConnectStallMillis(millis int64) {
+	self.TransportDelayGoodConnectStall = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetTransportDelayBadConnectStallMillis() int64 {
+	return self.TransportDelayBadConnectStall.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayBadConnectStallMillis(millis int64) {
+	self.TransportDelayBadConnectStall = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetTransportDelayPromptConnectTimeoutMillis() int64 {
+	return self.TransportDelayPromptConnectTimeout.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetTransportDelayPromptConnectTimeoutMillis(millis int64) {
+	self.TransportDelayPromptConnectTimeout = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetClientLimitRetryMinIntervalMillis() int64 {
+	return self.ClientLimitRetryMinInterval.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetClientLimitRetryMinIntervalMillis(millis int64) {
+	self.ClientLimitRetryMinInterval = time.Duration(millis) * time.Millisecond
+}
+
+func (self *DeviceLocalSettings) GetDnsResolverVerifyMinIntervalMillis() int64 {
+	return self.DnsResolverVerifyMinInterval.Milliseconds()
+}
+
+func (self *DeviceLocalSettings) SetDnsResolverVerifyMinIntervalMillis(millis int64) {
+	self.DnsResolverVerifyMinInterval = time.Duration(millis) * time.Millisecond
+}
+
 // DeviceLocalSettings is BOUND and app-facing, despite what a
 // `//gomobile:noexport` on this type used to claim: gobind emits the class
 // with ~50 working members, and Sdk exposes both defaultDeviceLocalSettings()
@@ -631,6 +702,11 @@ type DeviceLocalSettings struct {
 	// Constructor seams observe admission ordering without creating a client.
 	testingBeforePeerPinStoreAdmission func(*deviceLocalTransferMemory)
 	testingBeforeProviderConstruction  func()
+	// testingAfterRpcStart, when set, runs on the constructor's goroutine just
+	// after the device starts its rpc manager, the first moment a remote can
+	// call the device. A test lands a remote's call there; production never
+	// sets it.
+	testingAfterRpcStart func(deviceLocal *DeviceLocal)
 	// MemoryTargetByteCount is this device's memory target. A targeted mobile
 	// or explicitly low-profile device uses DNS 2 parts, one shared 13-part
 	// transfer/topology root with
@@ -652,6 +728,38 @@ type DeviceLocalSettings struct {
 	// or changes the process Go limit/message pools. Zero target still opts
 	// out of per-device sizing; actual mobile hosts retain their policy.
 	LowMemoryProfile bool
+	// The most clients the limited window holds under the low-memory policy
+	// (server FP2-PROTOCOL.md §7.4, D11.5). The steady-memory gate decides it
+	// before each client release, with every window filled against the
+	// device's memory target: 0 while the gate has not failed, which leaves
+	// the window to connect's fraction of the largest normal window, and 1
+	// once it fails. Non-positive is no bound. Unexported, so the bound
+	// settings and the c abi json do not change.
+	lowMemoryLimitedWindowSizeMax int
+	// The limited window's fraction of the largest normal window under the
+	// low-memory policy at or below LowMemoryDeviceTargetByteCount: iOS and
+	// the hosted proxies that share its 32-MiB target. Connect's default is 1,
+	// the normal window's size (server FP2-PROTOCOL.md D8, 2026-11-13); this
+	// tier keeps 0.5, 2 limited clients beside its quality window of 5, until
+	// the owner decides (hold of 2026-11-13). Its iOS extension already runs
+	// its Go heap at the 32-MiB soft limit and 35-40 MiB of phys_footprint
+	// with 8 window clients, under frequent memory-pressure frees, and the
+	// full size would make 11. A larger target, Android's 64 MiB, and desktop
+	// take connect's. Non-positive takes connect's everywhere. A
+	// developer-menu fraction overrides it. Unexported, like the bound.
+	lowMemoryLimitedWindowSizeFraction float64
+	// Preserve constructor provenance when a caller overrides the target.
+	// A different H1 count is an explicit caller cap, including zero.
+	defaultH1ReceiveCount    int
+	hasDefaultH1ReceiveCount bool
+
+	// Extra retained-send permission, in bytes, while providing under a device
+	// transfer root. Non-positive disables; positive requests are capped at the
+	// provider's ordinary send ceiling, so at most one additional ceiling can
+	// borrow unused root capacity. The default preserves the existing profile.
+	// Client, NAT and receive limits stay unchanged; this is overlapping
+	// permission, not reserved memory or a guarantee of fair zero-wait access.
+	ProviderSendBorrowByteCount int64
 
 	// time to give up (drop) sending a packet to a destination
 	//
@@ -768,6 +876,27 @@ type DeviceLocalSettings struct {
 	// embedder supplies the storage (the sn miner a bbolt file). Nil keeps no
 	// pacing state: every start paces as a new process does.
 	ExtenderPacingStore connect.ExtenderActivationPacingStore `json:"-"`
+	// ProvideExtenderWebRtc serves the provider extender role's peer-to-peer
+	// webrtc carrier (EXTENDER.md S, S8; C2a): offers that reach this device's
+	// client through the exchange signaling are answered with the extender
+	// server, the activation offers the carrier, and a role that cannot bind
+	// tcp 443 runs on the carrier instead of staying off (G2), which is how a
+	// host behind nat extends. On by default (owner, 2026-11-11), on every
+	// platform that carries the role; an embedder turns it off to keep the
+	// role on public tcp alone. A plain boolean, so gomobile binds it and the
+	// c abi settings json carries it.
+	ProvideExtenderWebRtc bool
+	// DefaultProvideExtenderPortMapping is the router port mapping setting
+	// this device uses until the user sets one (connect EXTENDER.md S10,
+	// DeviceLocal.SetProvideExtenderPortMapping): whether the provider
+	// extender role asks the router, by PCP, NAT-PMP or UPnP, to forward its
+	// own ports -- tcp 443, udp 443 and udp 4053 -- to this device, so that a
+	// device behind a home router can be reached. Default off, which is what
+	// every app runs with until its user turns the setting on (owner,
+	// 2026-11-11); the sn miner turns it on. A device with a public address
+	// maps nothing either way. A plain boolean, so gomobile binds it and the
+	// c abi settings json carries it.
+	DefaultProvideExtenderPortMapping bool
 	// providerExtenderSettings, when set, adjusts the provider extender role's
 	// settings before it is built (EXTENDER.md G2). Tests bind ephemeral
 	// carrier ports and point the activation at an in-process operator through
@@ -835,6 +964,39 @@ type DeviceLocalSettings struct {
 	// below the level's band (§10.3)
 	TransportDelayQualityStep       float64
 	TransportDelayQualityHysteresis float64
+	// the connect stall, how long the window goes without a transport
+	// connecting while it is trying to connect, where both directions'
+	// quality reaches 0 (at or below good) and 1 (at or above bad)
+	// (transport_connect.go)
+	//
+	//gomobile:noexport time.Duration — bound as GetTransportDelayGoodConnectStallMillis/SetTransportDelayGoodConnectStallMillis
+	TransportDelayGoodConnectStall time.Duration
+	//gomobile:noexport time.Duration — bound as GetTransportDelayBadConnectStallMillis/SetTransportDelayBadConnectStallMillis
+	TransportDelayBadConnectStall time.Duration
+	// a transport that connects within this long of starting its attempt
+	// clears the stalls that ended before the attempt; zero or less clears
+	// none early
+	//
+	//gomobile:noexport time.Duration — bound as GetTransportDelayPromptConnectTimeoutMillis/SetTransportDelayPromptConnectTimeoutMillis
+	TransportDelayPromptConnectTimeout time.Duration
+	// the least time between two client limit holds RetryClientLimit ends.
+	// Each retry is one dial the platform judges again, and a refusal starts a
+	// new hold of at least 15 minutes, so this bounds the dials an app or a
+	// user's repeated taps can make against the limit. The floor doubles with
+	// each retry in a row, up to the platform's shortest hold. Zero or less
+	// does not limit.
+	//
+	//gomobile:noexport time.Duration — bound as GetClientLimitRetryMinIntervalMillis/SetClientLimitRetryMinIntervalMillis
+	ClientLimitRetryMinInterval time.Duration
+	// the least time between two verification probes of the selected dns
+	// preset on one connection (ADBLOCK3RD C6): the device probes after the
+	// preset is applied and the tunnel resolver has answered or failed, and
+	// again after a resolver generation change (a network change) at most
+	// this often. A new selection or a new connection probes at once. Zero
+	// or less probes at every generation change.
+	//
+	//gomobile:noexport time.Duration — bound as GetDnsResolverVerifyMinIntervalMillis/SetDnsResolverVerifyMinIntervalMillis
+	DnsResolverVerifyMinInterval time.Duration
 	// GeneratorFunc, when set, builds the multi client generator instead of
 	// the default api generator
 	//
@@ -902,11 +1064,47 @@ type DeviceLocalSettings struct {
 	// (server CPUOPT4.md, Part B #1); gobind binds it like any bool, and apps
 	// leave it off.
 	OutOfBalanceRefillProbe bool `json:"-"`
+	// Holds the refill of a discovery window whose device has had no user
+	// activity for this long (`connect.MultiClientSettings.IdleRefillHold`):
+	// its expansion builds nothing until the next user activity, which
+	// expands it at once. Zero (the default, and what apps keep) refills
+	// whether or not the user is active. Out of the settings json; only the
+	// proxy service sets it.
+	//gomobile:noexport Go-only hosted-device refill policy.
+	IdleRefillHold time.Duration `json:"-"`
+	// The host's own record of user activity on the device
+	// (`connect.MultiClientSettings.UserActivitySince`), which the windows
+	// read instead of the device's packets; the host calls
+	// DeviceLocal.NoteUserActivity when it records activity. Nil reads the
+	// device's packets. Only the proxy service sets it, because its hosted
+	// devices' tuns send their own upkeep (DoH keepalive pings) through the
+	// device.
+	//gomobile:noexport Go-only host activity reader.
+	UserActivitySince func(since time.Time) bool `json:"-"`
+	// The capabilities the device's normal windows ask find-providers2 for
+	// (`connect.MultiClientSettings.NormalWindowSelectors`). Nil keeps
+	// connect's default, dualstack and dualproto, which apps keep. The proxy
+	// service sets ipv4 and any for its hosted devices: their windows take
+	// every provider by rank alone and build no limited window (owner,
+	// 2026-11-13). Out of the settings json.
+	//gomobile:noexport a pointer to another package's struct, which gomobile
+	// does not bind. Go/headless hosts only.
+	NormalWindowSelectors *connect.ProviderSelectors `json:"-"`
+	// Gives the device's multi clients no limited window: a fraction of 0
+	// (`connect.MultiClientSettings.LimitedWindowSizeFraction`) in place of
+	// connect's default, which the developer override
+	// (SetLimitedWindowSizeFraction, ResetLimitedWindowSizeFraction) does not
+	// change. Off by default, as apps keep it. The proxy service turns it on
+	// beside NormalWindowSelectors ipv4 and any. Out of the settings json.
+	//gomobile:noexport Go-only hosted window policy.
+	DisableLimitedWindow bool `json:"-"`
 	// ProviderDialContextSettings, when set, is applied to the provider carrier
 	// and the exit NAT's TCP and UDP sockets. Headless integration harnesses use
 	// it to bind every path of each provider to one distinct loopback source
 	// identity while exercising the real tunnel stack on one host. Ordinary
-	// applications leave it nil.
+	// applications leave it nil. A device whose space egresses through a proxy
+	// (an sn miner's proxy slot) needs nothing here: its exit takes the space's
+	// proxy and packet endpoint either way (applyProviderExitEgress).
 	//
 	//gomobile:noexport Go-only network dial seam.
 	ProviderDialContextSettings *connect.DialContextSettings `json:"-"`
@@ -1150,6 +1348,10 @@ type DeviceLocal struct {
 
 	// when nil, packets get routed to the local user nat
 	remoteUserNatClient connect.UserNatClient
+	// The current multi client, for NoteUserActivity, which the host calls on
+	// its traffic path without the state lock. Set and cleared with
+	// remoteUserNatClient.
+	activityMultiClient atomic.Pointer[connect.RemoteUserNatMultiClient]
 	contractStatusSub   func()
 	windowMonitorSub    func()
 	// the delay stats of the current multi client generation
@@ -1159,6 +1361,10 @@ type DeviceLocal struct {
 	// goroutine never takes stateLock, and the wake of watchTransportDelay
 	transportDelay       *transportDelayWindow
 	transportDelayNotify chan struct{}
+	// the connect state of the current generation's window transports, which
+	// the generator reports as it builds them (transport_connect.go). Guarded
+	// by its own lock, so the generator's setup path never takes stateLock
+	transportConnect *transportConnectWindow
 
 	// a stable windowMonitor instance per remoteUserNatClient for the
 	// fixed/empty monitor types (see cachedWindowMonitor). Guarded by its own
@@ -1177,6 +1383,13 @@ type DeviceLocal struct {
 	// The settings actually applied to the selected mux. A nil future setting
 	// disables the mux only on rebuild, not the still-live packet interceptor.
 	upgradeMuxLiveSettings *connect.UpgradeMuxSettings
+	// The dns selection the mux settings derive from, and the status of the
+	// resolver and its verification (dns_resolver_status.go). Guarded by
+	// stateLock.
+	dnsResolver dnsResolverStatusTracker
+	// When set, replaces the live mux's ProbeDnsResolver for the
+	// verification probe. Production never sets it.
+	testingDnsResolverProbe func(ctx context.Context, upgradeMux *connect.UpgradeMux, name string) []connect.DnsResolverProbeResult
 
 	// dnsMemoryTarget is the dns share of the device memory target: one live
 	// byte budget shared by the device's resolver caches across mux rebuilds
@@ -1280,6 +1493,12 @@ type DeviceLocal struct {
 	// the setting there instead.
 	measurementsEnabledSet bool
 	measurementsEnabled    bool
+	// The router port mapping setting on a space that keeps no local state
+	// (connect EXTENDER.md S10): set by SetProvideExtenderPortMapping and held
+	// for the life of the device, with settings.DefaultProvideExtenderPortMapping
+	// in force until it is set. A space with local state stores it there.
+	provideExtenderPortMappingSet bool
+	provideExtenderPortMapping    bool
 
 	orderedContractStatusUpdates []*contractStatusUpdate
 	netContractStatus            *ContractStatus
@@ -1310,6 +1529,10 @@ type DeviceLocal struct {
 	// developer-menu experiment set before connecting -- or simply surviving
 	// a reconnect -- would evaporate silently
 	reliabilitySettings *connect.ReliabilitySettings
+	// the runtime limited window fraction, nil when none is set; built into
+	// every multi client's settings for the same reason as the reliability
+	// override (SetLimitedWindowSizeFraction)
+	limitedWindowSizeFraction *float64
 	// routingTier is the persisted RoutingTier dial (off/light/full, see
 	// routing_tier.go), stored as a bare int for the same reason
 	// SetRoutingTier takes one. Zero value is RoutingTierOff, so a device that
@@ -1396,6 +1619,10 @@ type DeviceLocal struct {
 	authLogoutListeners    *connect.CallbackList[AuthLogoutListener]
 	// fed by watchClientLimitStatus from the provider's client limit hold
 	clientLimitStatusChangeListeners *connect.CallbackList[ClientLimitStatusChangeListener]
+	// the plan the client limit prompt follows: the pro and
+	// client_limit_upgrade claims of the client jwt, set at construction and on
+	// every applied refresh (device_local_client_limit.go)
+	clientLimitPlanValue *connect.MonitorValue[clientLimitPlan]
 	// fed by watchTransportDelay from the window transports' delay stats
 	transportDelayChangeListeners *connect.CallbackList[TransportDelayChangeListener]
 	// fed by watchProviderConnected from the provider's transport generations
@@ -1414,6 +1641,7 @@ type DeviceLocal struct {
 	ingressContractStatsChangeListeners      *connect.CallbackList[ContractStatsChangeListener]
 	ingressContractDetailsChangeListeners    *connect.CallbackList[ContractDetailsChangeListener]
 	dnsResolverSettingsChangeListeners       *connect.CallbackList[DnsResolverSettingsChangeListener]
+	dnsResolverStatusChangeListeners         *connect.CallbackList[DnsResolverStatusChangeListener]
 	networkPeersChangeListeners              *connect.CallbackList[NetworkPeersChangeListener]
 
 	providerPacketStatsChangeListeners            *connect.CallbackList[PacketStatsChangeListener]
@@ -1494,10 +1722,9 @@ func NewDeviceLocalWithMemoryTarget(
 	keyMaterial *DeviceLocalKeyMaterial,
 	memoryTargetByteCount int64,
 ) (*DeviceLocal, error) {
-	settings := DefaultDeviceLocalSettings()
+	settings := defaultDeviceLocalSettingsWithMemoryTarget(memoryTargetByteCount)
 	settings.EnableRpc = enableRpc
 	settings.KeyMaterial = keyMaterial
-	settings.MemoryTargetByteCount = memoryTargetByteCount
 	return NewDeviceLocal(
 		networkSpace,
 		byJwt,
@@ -1979,6 +2206,7 @@ func newDeviceLocalWithOverridesForPlatform(
 		remoteUserNatClient:                      nil,
 		upgradeMux:                               nil,
 		upgradeMuxSettings:                       connect.DefaultUpgradeMuxSettings(),
+		dnsResolver:                              newDnsResolverStatusTracker(),
 		remoteUserNatProviderLocalUserNat:        nil,
 		remoteUserNatProvider:                    nil,
 		blocker:                                  blocker,
@@ -2029,6 +2257,7 @@ func newDeviceLocalWithOverridesForPlatform(
 		extenderProvideStatusChangeListeners:     connect.NewCallbackList[ExtenderProvideStatusChangeListener](),
 		extenderProvideMonitor:                   connect.NewMonitor(),
 		clientLimitStatusChangeListeners:         connect.NewCallbackList[ClientLimitStatusChangeListener](),
+		clientLimitPlanValue:                     connect.NewMonitorValue(clientLimitPlanClaims(byJwt)),
 		transportDelayChangeListeners:            connect.NewCallbackList[TransportDelayChangeListener](),
 		transportDelay:                           newTransportDelayWindow(settings),
 		transportDelayNotify:                     make(chan struct{}, 1),
@@ -2049,6 +2278,7 @@ func newDeviceLocalWithOverridesForPlatform(
 		ingressContractStatsChangeListeners:      connect.NewCallbackList[ContractStatsChangeListener](),
 		ingressContractDetailsChangeListeners:    connect.NewCallbackList[ContractDetailsChangeListener](),
 		dnsResolverSettingsChangeListeners:       connect.NewCallbackList[DnsResolverSettingsChangeListener](),
+		dnsResolverStatusChangeListeners:         connect.NewCallbackList[DnsResolverStatusChangeListener](),
 		networkPeersChangeListeners:              connect.NewCallbackList[NetworkPeersChangeListener](),
 
 		providerPacketStatsChangeListeners:            connect.NewCallbackList[PacketStatsChangeListener](),
@@ -2057,6 +2287,8 @@ func newDeviceLocalWithOverridesForPlatform(
 		providerIngressContractStatsChangeListeners:   connect.NewCallbackList[ContractStatsChangeListener](),
 		providerIngressContractDetailsChangeListeners: connect.NewCallbackList[ContractDetailsChangeListener](),
 	}
+	// a connect change wakes the transport delay watch, which reads both
+	deviceLocal.transportConnect = newTransportConnectWindow(ctx, settings, deviceLocal.notifyTransportDelay)
 	// the enabled subprotocols follow the device's own client
 	if provider != nil {
 		deviceLocal.attachSubprotocolsToClient(provider.Client())
@@ -2144,6 +2376,7 @@ func newDeviceLocalWithOverridesForPlatform(
 		// after this device exists, so its device setting and the test seam
 		// are installed here (G2, L2)
 		provider.extenderDnsPrivilegedPort = settings.ProvideExtenderDnsPrivilegedPort
+		provider.extenderWebRtc = settings.ProvideExtenderWebRtc
 		provider.extenderSettingsConfigure = settings.providerExtenderSettings
 		provider.extenderPacingStore = settings.ExtenderPacingStore
 		if settings.ExtenderLoadServedLifetime != nil || settings.ExtenderSaveServedLifetime != nil {
@@ -2162,6 +2395,9 @@ func newDeviceLocalWithOverridesForPlatform(
 		// reaches a running role through setExtenderMeasurementsEnabled
 		// (lag.dev/PLAN.md C4)
 		provider.extenderMeasurementsEnabled = deviceLocal.GetMeasurementsEnabled
+		// the role reads the router port mapping setting as it starts, and a
+		// change replaces a running role (connect EXTENDER.md S10)
+		provider.extenderPortMapping = deviceLocal.GetProvideExtenderPortMapping
 		localUserNatSub := provider.LocalUserNat().AddReceivePacketCallback(deviceLocal.localFallbackReceive)
 		deviceLocal.localUserNatSub = localUserNatSub
 		// the provider client lives as long as the device, so its contract
@@ -2176,13 +2412,14 @@ func newDeviceLocalWithOverridesForPlatform(
 			defer deviceLocal.lifecycleWorkers.Done()
 			deviceLocal.watchNetworkPeers(networkPeersNotify)
 		})
-		// the client limit hold of the provider's transports, armed here for
-		// the same reason
+		// the client limit hold of the provider's transports and the plan its
+		// prompt follows, armed here for the same reason
 		_, clientLimitUpdate := provider.clientLimitStatus()
+		_, clientLimitPlanUpdate := deviceLocal.clientLimitPlanValue.Get()
 		deviceLocal.lifecycleWorkers.Add(1)
 		go connect.HandleError(func() {
 			defer deviceLocal.lifecycleWorkers.Done()
-			deviceLocal.watchClientLimitStatus(provider, clientLimitUpdate)
+			deviceLocal.watchClientLimitStatus(provider, clientLimitUpdate, clientLimitPlanUpdate)
 		})
 		// the connected state of the provider's transports. The watch arms
 		// itself before its first read, so it needs nothing armed here
@@ -2229,12 +2466,6 @@ func newDeviceLocalWithOverridesForPlatform(
 		deviceLocal.runContractStatsFlush()
 	})
 
-	if settings.EnableRpc {
-		deviceLocal.deviceLocalRpcManager = newDeviceLocalRpcManagerWithDefaults(ctx, deviceLocal)
-	} else {
-		deviceLocal.securityPolicyMonitor = newSecurityPolicyMonitor(ctx, deviceLocal, settings.Verbose)
-	}
-
 	// initial allocation: providing starts off (provide mode none), so the
 	// provider share backs the client pair until SetProvideMode enables it
 	deviceLocal.applyProvideMemorySharesWithLock(false)
@@ -2265,8 +2496,10 @@ func newDeviceLocalWithOverridesForPlatform(
 	// but provide mode none -- what every app build is -- probes to rank only.
 	// A hosted device enables none: it never provides, and its space is shared
 	// across unrelated customers, whose probes it would attest -- and report --
-	// in this tenant's name.
-	if provider != nil && !settings.HostedIncompatible {
+	// in this tenant's name. Nor does a device in a space on an extender host:
+	// the space probes nothing, and the host's own device attests the host's
+	// probes.
+	if provider != nil && !settings.HostedIncompatible && !networkSpace.readsExtenderHost() {
 		provider.enableProbeAttestor(log, settings.providerPingReporterSettings)
 	}
 
@@ -2276,6 +2509,23 @@ func newDeviceLocalWithOverridesForPlatform(
 	deviceLocal.extenderReleaseUnbind = func() {}
 	if !settings.HostedIncompatible {
 		deviceLocal.extenderReleaseUnbind = networkSpace.bindExtenderRelease(api.GetByJwt)
+	}
+
+	// The rpc manager starts last. From then on a remote can call the device:
+	// on ios the app's DeviceRemote redials the listener until it answers, and
+	// its first sync sets the provide mode and the transport settings under
+	// stateLock. The setup above runs without the lock, which is safe only
+	// while no remote can call in. Started before that setup, the manager let
+	// the sync race the unlocked updateMobilePacketPerformanceModeWithLock, and
+	// the provide-off applyProvideMemorySharesWithLock(false) overwrote the
+	// shares of a provide mode the sync had set.
+	if settings.EnableRpc {
+		deviceLocal.deviceLocalRpcManager = newDeviceLocalRpcManagerWithDefaults(ctx, deviceLocal)
+		if settings.testingAfterRpcStart != nil {
+			settings.testingAfterRpcStart(deviceLocal)
+		}
+	} else {
+		deviceLocal.securityPolicyMonitor = newSecurityPolicyMonitor(ctx, deviceLocal, settings.Verbose)
 	}
 
 	ownedClientStrategyTransferred = true
@@ -2433,8 +2683,27 @@ func tunnelDnsAddressesWithDefault(
 // (direct pass-through to the exit). gomobile:noexport until a platform-friendly
 // settings surface lands with the per-use-case defaults.
 //
+// Settings given here name their resolver directly, so they read back as
+// custom dns settings (an empty PresetId).
+//
 //gomobile:noexport
 func (self *DeviceLocal) SetUpgradeMuxSettings(settings *connect.UpgradeMuxSettings) {
+	if self.setUpgradeMuxSettingsWithSelection(settings, "", "") {
+		self.dnsResolverStatusChanged(self.GetDnsResolverStatus())
+	}
+}
+
+// Installs the mux settings together with the dns selection they were derived
+// from, so the read-back never pairs one with the other's predecessor. A
+// changed selection starts the live mux's blocked-lookups count over, so the
+// count always names the selected provider (ADBLOCK3RD I3), and starts its
+// verification anew. Returns whether the dns resolver status changed, which
+// the caller publishes after this returns.
+func (self *DeviceLocal) setUpgradeMuxSettingsWithSelection(
+	settings *connect.UpgradeMuxSettings,
+	presetId string,
+	personalId string,
+) bool {
 	self.stateLock.Lock()
 	defer self.stateLock.Unlock()
 	if settings != nil && settings.Dns != nil {
@@ -2445,6 +2714,7 @@ func (self *DeviceLocal) SetUpgradeMuxSettings(settings *connect.UpgradeMuxSetti
 		settings.Dns.ServerStatsSeed = self.dohServerScoresSeed
 	}
 	self.upgradeMuxSettings = settings
+	selectionChanged := self.dnsResolver.setSelection(presetId, personalId)
 	self.sockets.setResolver(self.dnsResolverSettingsWithLock())
 	// apply to the live mux immediately when non-nil (rebuilds its DohCache); nil takes
 	// effect on the next client recreation, which then creates no mux
@@ -2452,6 +2722,11 @@ func (self *DeviceLocal) SetUpgradeMuxSettings(settings *connect.UpgradeMuxSetti
 		self.upgradeMux.SetSettings(settings)
 		self.upgradeMuxLiveSettings = settings
 	}
+	if blockedCounter := self.dnsResolver.blockedCounter; selectionChanged && blockedCounter != nil {
+		// a Fast DNS toggle keeps the selection, and so the count
+		blockedCounter.ResetDnsBlockedCount()
+	}
+	return selectionChanged
 }
 
 // Reports current ownership of the tunnel DNS interceptor, not successful
@@ -2490,6 +2765,7 @@ type DeviceLocalMemoryUsage struct {
 	PeerKeyPinReleasedByteCount   int64
 	PeerKeyPinCount               int
 	PeerKeyPinCapacityRefusals    int64
+	PeerKeyPinEvictions           int64
 	PeerKeyPinPersistenceFailures int64
 	PeerKeyPinRollbackRefusals    int64
 	PeerKeyPinStateFailures       int64
@@ -2497,6 +2773,11 @@ type DeviceLocalMemoryUsage struct {
 	DnsByteCount                  int64
 	ClientSendByteCount           int64
 	ClientReceiveByteCount        int64
+	// Shared consumer-head recovery is included once in ClientReceiveByteCount.
+	ClientReceiveHeadRecoveryBudgetByteCount   int64
+	ClientReceiveHeadRecoveryUsedByteCount     int64
+	ClientReceiveHeadRecoveryReservedByteCount int64
+	ClientReceiveHeadRecoveryReleasedByteCount int64
 	// PackQueue* isolates the device-wide aggregate decoded-pack handoff
 	// budget already included in ClientReceiveByteCount. It is shared by the
 	// control client, window clients, and provider so diagnostics can distinguish
@@ -2505,6 +2786,11 @@ type DeviceLocalMemoryUsage struct {
 	PackQueueCapacityByteCount int64
 	ProviderSendByteCount      int64
 	ProviderReceiveByteCount   int64
+	// Shared provider-head recovery is included once in ProviderReceiveByteCount.
+	ProviderReceiveHeadRecoveryBudgetByteCount   int64
+	ProviderReceiveHeadRecoveryUsedByteCount     int64
+	ProviderReceiveHeadRecoveryReservedByteCount int64
+	ProviderReceiveHeadRecoveryReleasedByteCount int64
 	// The root includes client/provider queues, the shared Pack queue once,
 	// all P2P generations, and both NATs. Child samples are diagnostic subsets,
 	// not additional memory. Root and group fields share one coherent snapshot.
@@ -2564,6 +2850,7 @@ func (self *DeviceLocal) MemoryUsed() *DeviceLocalMemoryUsage {
 		pins := self.peerKeyPinStore.Stats()
 		usage.PeerKeyPinCount = pins.PeerCount
 		usage.PeerKeyPinCapacityRefusals = int64(pins.CapacityRefusals)
+		usage.PeerKeyPinEvictions = int64(pins.Evictions)
 		usage.PeerKeyPinPersistenceFailures = int64(pins.PersistenceFailures)
 		usage.PeerKeyPinRollbackRefusals = int64(pins.RollbackRefusals)
 		usage.PeerKeyPinStateFailures = int64(pins.StateFailures)
@@ -2575,6 +2862,14 @@ func (self *DeviceLocal) MemoryUsed() *DeviceLocalMemoryUsage {
 	if receiveBufferSettings := self.settings.ClientSettings.ReceiveBufferSettings; receiveBufferSettings != nil {
 		if receiveBufferSettings.ReceiveQueueBudget != nil {
 			usage.ClientReceiveByteCount = receiveBufferSettings.ReceiveQueueBudget.UsedByteCount()
+		}
+		if recovery := receiveBufferSettings.ReceiveHeadRecoveryBudget; recovery != nil {
+			stats := recovery.Stats()
+			usage.ClientReceiveHeadRecoveryBudgetByteCount = stats.TotalByteCount
+			usage.ClientReceiveHeadRecoveryUsedByteCount = stats.UsedByteCount
+			usage.ClientReceiveHeadRecoveryReservedByteCount = stats.ReservedByteCount
+			usage.ClientReceiveHeadRecoveryReleasedByteCount = stats.ReleasedByteCount
+			usage.ClientReceiveByteCount += stats.UsedByteCount
 		}
 		if receiveBufferSettings.PackQueueBudget != nil {
 			packQueueBudget = receiveBufferSettings.PackQueueBudget
@@ -2641,12 +2936,26 @@ func applyPlatformTransportMemoryUsage(
 
 // The window policy the host chose for every multi client of the device: the
 // process counters its windows count into, whether its strict windows hand
-// drained slots over, and whether its windows hold their refill while the
-// payer is out of balance.
+// drained slots over, whether its windows hold their refill while the payer is
+// out of balance or while no user is active, whose record of user activity
+// they read, which providers its normal windows ask for, and whether it has a
+// limited window. Applied after the developer override of the limited
+// window's fraction, so a host's DisableLimitedWindow outranks it.
 func applyDeviceLocalWindowClientSettings(settings *connect.MultiClientSettings, deviceLocalSettings *DeviceLocalSettings) {
+	// an app's windows leave a stalled exit in seconds
+	// (app_window_exit_timers.go)
+	applyAppWindowAckTimeout(settings, deviceLocalSettings)
 	settings.WindowClientStats = deviceLocalSettings.WindowClientStats
 	settings.StrictWindowHandover = deviceLocalSettings.StrictWindowHandover
 	settings.OutOfBalanceRefillProbe = deviceLocalSettings.OutOfBalanceRefillProbe
+	settings.IdleRefillHold = deviceLocalSettings.IdleRefillHold
+	settings.UserActivitySince = deviceLocalSettings.UserActivitySince
+	if deviceLocalSettings.NormalWindowSelectors != nil {
+		settings.NormalWindowSelectors = *deviceLocalSettings.NormalWindowSelectors
+	}
+	if deviceLocalSettings.DisableLimitedWindow {
+		settings.LimitedWindowSizeFraction = 0
+	}
 }
 
 // Keeps an absent/reset window unknown instead of manufacturing readiness.
@@ -2679,22 +2988,32 @@ func (self *DeviceLocal) RefreshToken(attempt int) error {
 	return nil
 }
 
-// hostedSafePerformanceProfile forces direct mode (`AllowDirect`) off on the
-// way into a hosted device's stored state, so `GetPerformanceProfile` is
-// truthful and the input profile is not mutated in place. Direct mode on a
-// hosted device would leak that the device is hosted, and where it is hosted,
-// via the host addresses in the direct connection setup. Defense in depth
-// alongside the equivalent hard limit on the live multi client
+// Limits a profile on the way into a hosted device's stored state, so
+// `GetPerformanceProfile` is truthful and the input profile is not mutated in
+// place. Every profile write passes through here (the preference catalog's
+// normalize and apply).
+//
+// Direct mode (`AllowDirect`) is forced off. Direct mode on a hosted device
+// would leak that the device is hosted, and where it is hosted, via the host
+// addresses in the direct connection setup. Defense in depth alongside the
+// equivalent hard limit on the live multi client
 // (`connect.MultiClientSettings.OverrideAllowDirect` = false).
+//
+// Post-quantum encryption (`PostQuantumEncryption`) is forced off, so a hosted
+// device's window clients run no per-peer session, as a hosted window without
+// it always has: no required sessions, no wait for a processed key
+// registration, and no post-quantum-only provider pool. A device that is not
+// hosted, every app's, keeps the setting.
 func (self *DeviceLocal) hostedSafePerformanceProfile(performanceProfile *PerformanceProfile) *PerformanceProfile {
 	if !self.settings.HostedIncompatible {
 		return performanceProfile
 	}
-	if performanceProfile == nil || !performanceProfile.AllowDirect {
+	if performanceProfile == nil || !performanceProfile.AllowDirect && !performanceProfile.PostQuantumEncryption {
 		return performanceProfile
 	}
 	limited := *performanceProfile
 	limited.AllowDirect = false
+	limited.PostQuantumEncryption = false
 	return &limited
 }
 
@@ -2705,7 +3024,11 @@ func (self *DeviceLocal) SetPerformanceProfile(performanceProfile *PerformancePr
 // Applies without saving; its owning operation publishes notifications after unlock.
 func (self *DeviceLocal) applyPerformanceProfileWithLock(performanceProfile *PerformanceProfile) (func(), error) {
 	if limited := self.hostedSafePerformanceProfile(performanceProfile); limited != performanceProfile {
-		self.log.Infof("[device]hosted incompatible: AllowDirect forced off\n")
+		self.log.Infof(
+			"[device]hosted incompatible: forced off AllowDirect=%t PostQuantumEncryption=%t\n",
+			performanceProfile.AllowDirect,
+			performanceProfile.PostQuantumEncryption,
+		)
 		performanceProfile = limited
 	}
 	// Own the stored value. App presentation layers commonly retain and mutate
@@ -2781,6 +3104,18 @@ func (self *DeviceLocal) GetPublicIdentityKeyHash() string {
 		return ""
 	}
 	return PublicIdentityKeyHash(publicKey)
+}
+
+// NoteUserActivity tells the device's windows that the host recorded user
+// activity (DeviceLocalSettings.UserActivitySince): a window whose refill
+// waits for a user wakes and expands. Lock-free, so the host may call it on
+// its traffic path; a device with no multi client ignores it.
+//
+//gomobile:noexport
+func (self *DeviceLocal) NoteUserActivity() {
+	if multi := self.activityMultiClient.Load(); multi != nil {
+		multi.NoteUserActivity()
+	}
 }
 
 // GetProviderIdentities returns the providers with an established,
@@ -3177,6 +3512,8 @@ func (self *DeviceLocal) applyApiRefreshedByJwt(byJwt string) {
 	if apiGenerator != nil {
 		apiGenerator.SetByJwt(byJwt)
 	}
+	// the client limit prompt follows the refreshed plan
+	self.clientLimitPlanValue.Set(clientLimitPlanClaims(byJwt))
 	self.jwtRefreshed(byJwt)
 }
 
@@ -4102,8 +4439,9 @@ func (self *DeviceLocal) canReferChanged(canRefer bool) {
 func (self *DeviceLocal) provideModeChanged(provideMode ProvideMode) {
 	// self.assertNotLockOwner()
 	// the provider's transports and its attestor follow the mode: a public
-	// provider dials the platform directly (EXTENDER.md J4), and only a
-	// providing one attests its probes (connect/DESIGNNOTES4.md §1)
+	// provider dials the platform on its own egress, through no extender
+	// (EXTENDER.md J4), and only a providing one attests its probes
+	// (connect/DESIGNNOTES4.md §1)
 	self.updateProviderProvideMode()
 	for _, listener := range self.provideModeChangeListeners.Get() {
 		connect.HandleError(func() {
@@ -4657,8 +4995,8 @@ func (self *DeviceLocal) GetConnectEnabled() bool {
 // of idling, and the provider pair drops to its working floor. The dns
 // share is unaffected. Applies live — queues admit against the new
 // capacities immediately (a shrunken pool admits nothing new above its new
-// total until it drains). Called under stateLock (and once single-threaded
-// at construction with the initial off state).
+// total until it drains). Called under stateLock, and once by the
+// constructor with the initial off state, before its rpc manager starts.
 func (self *DeviceLocal) applyProvideMemorySharesWithLock(provideActive bool) {
 	_, clientShareByteCount, _, providerShareByteCount := deviceMemoryShares(self.settings)
 	if clientShareByteCount <= 0 {
@@ -4679,13 +5017,12 @@ func (self *DeviceLocal) applyProvideMemorySharesWithLock(provideActive bool) {
 		resendQueueBudget.SetTotalByteCount(max(byteCountFraction(clientPairByteCount, 3, 7), 1024*1024))
 	}
 	if receiveQueueBudget := self.settings.ClientSettings.ReceiveBufferSettings.ReceiveQueueBudget; receiveQueueBudget != nil {
-		receiveQueueBudget.SetTotalByteCount(
-			mobileReceiveQueueBudgetForPlatform(
-				self.settings.MemoryTargetByteCount,
-				clientPairByteCount,
-				mobileRuntime() || self.transferMemory != nil,
-			),
-		)
+		mobile := mobileRuntime() || self.transferMemory != nil
+		logicalReceiveBytes := mobileReceiveQueueBudgetForPlatform(self.settings.MemoryTargetByteCount, clientPairByteCount, mobile)
+		receiveQueueBudget.SetTotalByteCount(deviceLocalPhysicalReceiveBytes(logicalReceiveBytes, self.settings.MemoryTargetByteCount, mobile))
+		if recovery := self.settings.ClientSettings.ReceiveBufferSettings.ReceiveHeadRecoveryBudget; recovery != nil {
+			recovery.SetTotalByteCount(logicalReceiveBytes)
+		}
 	}
 	if packQueueBudget := self.settings.ClientSettings.ReceiveBufferSettings.PackQueueBudget; packQueueBudget != nil {
 		packQueueBudget.SetTotalByteCount(
@@ -4698,13 +5035,29 @@ func (self *DeviceLocal) applyProvideMemorySharesWithLock(provideActive bool) {
 			// working while its pool is reallocated
 			resendQueueBudget.SetTotalByteCount(max(byteCountFraction(providerPairByteCount, 3, 7), 256*1024))
 			receiveQueueBudget.SetTotalByteCount(max(byteCountFraction(providerPairByteCount, 4, 7), 384*1024))
+			if self.transferMemory != nil && self.transferMemory.providerHeadRecovery != nil {
+				self.transferMemory.providerHeadRecovery.SetTotalByteCount(receiveQueueBudget.TotalByteCount())
+			}
+			if provideActive && self.transferMemory != nil &&
+				0 < self.transferMemory.providerShare &&
+				0 < self.settings.ProviderSendBorrowByteCount &&
+				resendQueueBudget.Parent() == self.transferMemory.provider {
+				// The ordinary ceilings were restored above, so repeated role
+				// application never compounds a previous loan. The same root
+				// charges every borrower and preserves already-admitted owners.
+				borrowByteCount := min(self.settings.ProviderSendBorrowByteCount,
+					resendQueueBudget.TotalByteCount())
+				self.transferMemory.provider.SetTotalByteCount(
+					self.transferMemory.provider.TotalByteCount() + borrowByteCount)
+				resendQueueBudget.SetTotalByteCount(resendQueueBudget.TotalByteCount() + borrowByteCount)
+			}
 		}
 	}
 }
 
-// Must be called with stateLock, or during single-threaded construction. The
-// ACK reserve is a provider-off H1 performance spend; H3/Auto and provider-on
-// states keep the measured 1-MiB packet-root byte ceiling.
+// Must be called with stateLock, or by the constructor before its rpc manager
+// starts. The ACK reserve is a provider-off H1 performance spend; H3/Auto and
+// provider-on states keep the measured 1-MiB packet-root byte ceiling.
 func (self *DeviceLocal) updateMobilePacketPerformanceModeWithLock() {
 	h1ProviderOff := self.provideMode == ProvideModeNone &&
 		self.transportSettings != nil &&
@@ -4720,8 +5073,22 @@ func providerLocalUserNatSettings(
 	log connect.Logger,
 	dialContextSettings ...*connect.DialContextSettings,
 ) *connect.LocalUserNatSettings {
+	return providerLocalUserNatSettingsForProfile(memoryTargetByteCount, 0, false, log, dialContextSettings...)
+}
+
+// Low-profile owners retain the phone's full NAT defaults on an unscaled host.
+// The provider share still owns flow counts; it is not the device sizing target.
+func providerLocalUserNatSettingsForProfile(
+	memoryTargetByteCount ByteCount,
+	deviceMemoryTargetByteCount ByteCount,
+	lowMemoryProfile bool,
+	log connect.Logger,
+	dialContextSettings ...*connect.DialContextSettings,
+) *connect.LocalUserNatSettings {
 	var localUserNatSettings *connect.LocalUserNatSettings
-	if memoryTargetByteCount <= 0 && 0 < connect.MemoryBudget() {
+	if lowMemoryProfile && 0 < memoryTargetByteCount && 0 < deviceMemoryTargetByteCount {
+		localUserNatSettings = connect.DefaultProviderLocalUserNatSettingsWithMemoryTargets(memoryTargetByteCount, deviceMemoryTargetByteCount)
+	} else if memoryTargetByteCount <= 0 && 0 < connect.MemoryBudget() {
 		// DeviceLocal promises process-budget sizing when its target is off.
 		// The connect targetless provider profile serves independent server
 		// callers and deliberately does not infer flow caps from that budget.
@@ -4745,13 +5112,44 @@ func providerLocalUserNatSettings(
 	return localUserNatSettings
 }
 
+// Puts a provider's exit on the provider's egress. When the device's space
+// egresses through a proxy (NetworkSpace.egressProxy), the exit nat's tcp goes
+// through the proxy, its udp only through the space's packet endpoint, which
+// connect requires of a datagram dial through a proxy, and its icmp echo not at
+// all (connect net_proxy_packet_path.go). So no exit flow leaves from this
+// host, and the exit leaves where the provider's platform transports place the
+// provider (connect#227, owner 2026-11-18, "route through the proxy"). The
+// device's own dial seam (DeviceLocalSettings.ProviderDialContextSettings), when
+// set, stays the exit's, ahead of the proxy as connect takes them; without one
+// the exit takes the space's seam, which carries the space's packet endpoint.
+// An exit of a space whose egress is this host keeps its settings.
+func applyProviderExitEgress(
+	localUserNatSettings *connect.LocalUserNatSettings,
+	networkSpace *NetworkSpace,
+	providerDialContextSettings *connect.DialContextSettings,
+) {
+	proxySettings, spaceDialContextSettings := networkSpace.egressProxy()
+	if proxySettings == nil {
+		return
+	}
+	dialContextSettings := providerDialContextSettings
+	if dialContextSettings == nil {
+		dialContextSettings = spaceDialContextSettings
+	}
+	localUserNatSettings.TcpBufferSettings.ProxySettings = proxySettings
+	localUserNatSettings.TcpBufferSettings.DialContextSettings = dialContextSettings
+	localUserNatSettings.UdpBufferSettings.ProxySettings = proxySettings
+	localUserNatSettings.UdpBufferSettings.DialContextSettings = dialContextSettings
+}
+
 // A mode that includes public also decides how the provider reaches the
-// platform: a public provider dials directly on every transport, the standby
-// included, so the platform observes the provider's own address and location
-// (EXTENDER.md J4). A network or friends-and-family provider keeps the shared
-// strategy and its extender dialers, since network peers carry no location
-// metadata. A change that flips that rebuilds the provider transports
-// make-before-break.
+// platform: a public provider dials on its egress on every transport, the
+// standby included -- through no extender, and through its space's proxy when
+// it has one -- so the platform observes the address the provider's exit
+// leaves from, and places it there (EXTENDER.md J4). A network or
+// friends-and-family provider keeps the shared strategy and its extender
+// dialers, since network peers carry no location metadata. A change that flips
+// that rebuilds the provider transports make-before-break.
 func (self *DeviceLocal) SetProvideMode(provideMode ProvideMode) {
 	_ = self.setLocalCatalogPreference("provide-mode", provideMode)
 }
@@ -5089,6 +5487,9 @@ func (self *DeviceLocal) applyDestination(
 		// the samples and levels are the retired multi client's. A sample one
 		// of its transports publishes late is dropped from here on
 		self.transportDelay.reset(self.connectionGeneration, nil)
+		// so are its transports and connect stalls; the new generator reports
+		// the new generation's transports from its first
+		self.transportConnect.reset(self.connectionGeneration)
 		// the prior mux is closed here but its learned IP→hostname names are carried
 		// into the new mux below (AdoptServerNames): server names outlive the physical
 		// connection, so a reconnect/location change must not blank the reverse index —
@@ -5191,11 +5592,9 @@ func (self *DeviceLocal) applyDestination(
 				transportMode, modePreferences := toConnectTransportPolicy(self.transportSettings, false)
 				apiGeneratorSettings.PlatformTransportMode = transportMode
 				apiGeneratorSettings.PlatformTransportModePreferences = modePreferences
-				// every window client's transports offer the delay header and
-				// measure (connect/DELAY.md D3)
-				if self.settings.EnableTransportDelay {
-					apiGeneratorSettings.TransportDelay = connect.DefaultTransportDelaySettings()
-				}
+				// every window client's transports measure, and report how
+				// promptly they connect
+				self.applyWindowTransportDelaySettings(apiGeneratorSettings, self.connectionGeneration)
 				apiGenerator := connect.NewApiMultiClientGenerator(
 					self.ctx,
 					connectSpecs,
@@ -5212,7 +5611,7 @@ func (self *DeviceLocal) applyDestination(
 					// connect.DefaultClientSettingsNoNetworkEvents,
 					func() *connect.ClientSettings {
 						clientSettings := newDeviceClientSettings(
-							connect.DefaultClientSettingsWithBufferSize(self.settings.SequenceBufferSize),
+							newDeviceLocalDefaultClientSettings(self.settings.SequenceBufferSize, self.settings.MemoryTargetByteCount, self.settings.LowMemoryProfile),
 							self.networkSpace.apiUrl,
 							self.clientStrategy,
 						)
@@ -5228,12 +5627,14 @@ func (self *DeviceLocal) applyDestination(
 						// mobileReceiveQueueMaxByteCountForPool)
 						clientSettings.SendBufferSettings.ResendQueueBudget = self.settings.SendBufferSettings.ResendQueueBudget
 						clientSettings.ReceiveBufferSettings.ReceiveQueueBudget = self.settings.ReceiveBufferSettings.ReceiveQueueBudget
+						clientSettings.ReceiveBufferSettings.ReceiveHeadRecoveryBudget = self.settings.ReceiveBufferSettings.ReceiveHeadRecoveryBudget
 						clientSettings.ReceiveBufferSettings.PackQueueBudget = self.settings.ReceiveBufferSettings.PackQueueBudget
 						applyMobileLowMemoryClientSettingsForPlatform(
 							clientSettings,
 							self.settings.MemoryTargetByteCount,
 							self.settings.LowMemoryProfile,
 						)
+						copyDeviceLocalReceiveSizingToWindow(clientSettings.ReceiveBufferSettings, self.settings)
 						applyMobileH1PerformanceClientSettingsForPlatform(
 							clientSettings,
 							self.settings.MemoryTargetByteCount,
@@ -5256,6 +5657,9 @@ func (self *DeviceLocal) applyDestination(
 						)
 						clientSettings.WebRtcSettings.UseEgressOnlyIceInterfaces =
 							self.settings.WebRtcSettings.UseEgressOnlyIceInterfaces
+						// an app's windows leave a gap-wedged exit in seconds
+						// (app_window_exit_timers.go)
+						applyAppWindowGapTimeout(clientSettings, self.settings)
 						return clientSettings
 					},
 					apiGeneratorSettings,
@@ -5284,6 +5688,18 @@ func (self *DeviceLocal) applyDestination(
 				self.settings.MemoryTargetByteCount,
 				self.settings.LowMemoryProfile,
 			)
+			applyMobileLimitedWindowSettingsForPlatform(
+				settings,
+				self.settings.lowMemoryLimitedWindowSizeMax,
+				self.settings.lowMemoryLimitedWindowSizeFraction,
+				self.settings.MemoryTargetByteCount,
+				self.settings.LowMemoryProfile,
+			)
+			// a developer-menu fraction outlives the window it was set on
+			// (SetLimitedWindowSizeFraction stores it here)
+			if self.limitedWindowSizeFraction != nil {
+				settings.LimitedWindowSizeFraction = *self.limitedWindowSizeFraction
+			}
 			settings.WindowSizeLimit = windowSizeLimit
 			settings.Log = self.log
 			settings.LocalDialContextSettings = self.settings.LocalDialContextSettings
@@ -5375,6 +5791,11 @@ func (self *DeviceLocal) applyDestination(
 			self.contractStatusSub = multi.AddContractStatusCallback(self.updateContractStatus)
 			self.peerIdentitySub = multi.AddPeerIdentityChangeCallback(self.providerIdentitiesChanged)
 			self.remoteUserNatClient = multi
+			self.activityMultiClient.Store(multi)
+			// whether this generation's window carries traffic: some exit is
+			// added. The mux reads it on its own paths, so it is a plain atomic
+			// the window monitor below keeps current, never the state lock
+			tunnelReady := &atomic.Bool{}
 			if upgradeMux != nil {
 				upgradeMux.SetUpstreamBatchClient(multi)
 				// the mux's DNS reverse index drives ServerName path affinity (point 4)
@@ -5384,8 +5805,13 @@ func (self *DeviceLocal) applyDestination(
 				// while no exit can carry v6, AAAA answers empty so apps do not
 				// blackhole on a v6 address the tunnel cannot route (IPV6.md B6)
 				upgradeMux.SetIpv6Unroutable(multi.Ipv6Unroutable)
+				// resolver failures count, and a preset's Fast DNS fallback races,
+				// only by the window's readiness (ADBLOCK3RD C2, C7)
+				upgradeMux.SetTunnelReady(tunnelReady.Load)
 				self.upgradeMux = upgradeMux
 				self.upgradeMuxLiveSettings = self.upgradeMuxSettings
+				// the dns resolver status follows this mux's resolver health
+				self.dnsResolverMuxChangedWithLock(upgradeMux)
 				// pre-warm the DoH connections in the background: the tunnel dials park
 				// until the window can carry traffic and complete at tunnel-up, so the
 				// first lookup rides an already-open connection (see UpgradeMux.WarmDns)
@@ -5395,6 +5821,9 @@ func (self *DeviceLocal) applyDestination(
 			connectionGeneration := self.connectionGeneration
 			windowMonitorEvent := func(windowExpandEvent *connect.WindowExpandEvent, providerEvents map[connect.Id]*connect.ProviderEvent, reset bool) {
 				windowStatus := toWindowStatus(monitor)
+				// the limited window is outside the monitor; read it as of
+				// this normal-window change
+				windowStatus.LimitedWindowSize = multi.LimitedWindowSize()
 				windowStatus.ConnectionGeneration = connectionGeneration
 				changed := false
 				current := false
@@ -5409,6 +5838,7 @@ func (self *DeviceLocal) applyDestination(
 						return
 					}
 					current = true
+					tunnelReady.Store(0 < windowStatus.ProviderStateAdded)
 					if self.lastWindowStatus == nil || *self.lastWindowStatus != *windowStatus {
 						self.lastWindowStatus = windowStatus
 						changed = true
@@ -5491,6 +5921,8 @@ func (self *DeviceLocal) applyDestination(
 		self.stats.UpdateConnect(connectEnabled)
 		self.connectChanged(connectEnabled)
 		self.windowStatusChanged(self.GetWindowStatus())
+		// the rebuild replaced the mux, and the dns resolver status with it
+		self.dnsResolverStatusChanged(self.GetDnsResolverStatus())
 		// the rebuild reset the window; the watch emits the reset levels if
 		// they changed
 		self.notifyTransportDelay()
@@ -5506,30 +5938,38 @@ func (self *DeviceLocal) applyDestination(
 	}, nil
 }
 
+// The client and its generation are read together under the state lock, and
+// the client is asked for its status after the lock is released.
 func (self *DeviceLocal) GetWindowStatus() *WindowStatus {
-	var windowStatus *WindowStatus
+	var remoteUserNatClient connect.UserNatClient
+	var connectionGeneration int64
 	func() {
 		self.stateLock.Lock()
 		defer self.stateLock.Unlock()
-
-		switch v := self.remoteUserNatClient.(type) {
-		case *connect.RemoteUserNatClient:
-			n := len(v.DestinationIds())
-			windowStatus = &WindowStatus{
-				TargetSize:         n,
-				ProviderStateAdded: n,
-				MinSatisfied:       true,
-				// fixed destinations bypass discovery, so their category is
-				// legacy, which reads as v4-only
-				ProviderV4OnlyCount: n,
-			}
-		case *connect.RemoteUserNatMultiClient:
-			windowStatus = toWindowStatus(v.Monitor())
-		default:
-			windowStatus = &WindowStatus{}
-		}
-		windowStatus.ConnectionGeneration = self.connectionGeneration
+		remoteUserNatClient = self.remoteUserNatClient
+		connectionGeneration = self.connectionGeneration
 	}()
+
+	var windowStatus *WindowStatus
+	switch v := remoteUserNatClient.(type) {
+	case *connect.RemoteUserNatClient:
+		n := len(v.DestinationIds())
+		windowStatus = &WindowStatus{
+			TargetSize:         n,
+			ProviderStateAdded: n,
+			MinSatisfied:       true,
+			// fixed destinations bypass discovery, so their category is
+			// legacy, which reads as v4-only and dualproto
+			ProviderV4OnlyCount: n,
+			UdpAvailable:        0 < n,
+		}
+	case *connect.RemoteUserNatMultiClient:
+		windowStatus = toWindowStatus(v.Monitor())
+		windowStatus.LimitedWindowSize = v.LimitedWindowSize()
+	default:
+		windowStatus = &WindowStatus{}
+	}
+	windowStatus.ConnectionGeneration = connectionGeneration
 	return windowStatus
 }
 
@@ -5541,6 +5981,7 @@ func toWindowStatus(monitor connect.MultiClientMonitor) *WindowStatus {
 		StallReason:   windowExpandEvent.Reason,
 		Failed:        windowExpandEvent.Failed,
 		Ipv6Available: windowExpandEvent.Ipv6Available,
+		UdpAvailable:  windowExpandEvent.UdpAvailable,
 	}
 	for _, providerEvent := range providerEvents {
 		switch providerEvent.State {
@@ -5898,9 +6339,16 @@ func (self *DeviceLocal) sendPacketsWithPolicy(packets [][]byte, nativeIngress b
 				self.settings.SendTimeout,
 			)
 			self.localFallbackEgressPacketCount.Add(int64(sentPacketCount))
-			if sentPacketCount == len(packets) {
-				self.localFallbackEgressByteCount.Add(int64(packetByteCount))
+			if sentPacketCount != len(packets) {
+				// LocalUserNat consumes every root and reports an accepted prefix.
+				// The caller still owns these slice headers; only their lengths
+				// are read after transfer, never the pooled packet bytes.
+				packetByteCount = 0
+				for _, packet := range packets[:sentPacketCount] {
+					packetByteCount += len(packet)
+				}
 			}
+			self.localFallbackEgressByteCount.Add(int64(packetByteCount))
 			return sentPacketCount
 		}
 	}
@@ -6133,6 +6581,10 @@ func (self *DeviceLocal) close() {
 		self.transportDelayStatsSub = nil
 	}
 	self.transportDelay.reset(self.connectionGeneration, nil)
+	// the connect window takes no transport from here on; the join waits out
+	// its transport watchers
+	self.transportConnect.close()
+	self.startLifecycleWorkerWithLock(self.transportConnect.wait)
 	self.closeUpgradeMuxWithLock()
 	self.closeRemoteUserNatClientWithLock()
 	self.updateSendRouteWithLock()
@@ -6432,11 +6884,15 @@ func (self *DeviceLocal) ensureRemoteUserNatProviderWithLock() error {
 	}
 	_, _, _, providerShareByteCount := deviceMemoryShares(self.settings)
 	if self.remoteUserNatProviderLocalUserNat == nil {
-		localUserNatSettings := providerLocalUserNatSettings(
+		localUserNatSettings := providerLocalUserNatSettingsForProfile(
 			providerShareByteCount,
+			self.settings.MemoryTargetByteCount,
+			mobileRuntime() || self.transferMemory != nil,
 			self.log,
 			self.settings.ProviderDialContextSettings,
 		)
+		// the exit leaves through the space's proxy, when it has one
+		applyProviderExitEgress(localUserNatSettings, self.networkSpace, self.settings.ProviderDialContextSettings)
 		if self.transferMemory != nil {
 			localUserNatSettings.MemoryBudget = self.transferMemory.nat
 		}
@@ -6658,6 +7114,8 @@ func (self *DeviceLocal) closeUpgradeMuxWithLock() *connect.UpgradeMux {
 	upgradeMux.Close()
 	self.upgradeMux = nil
 	self.upgradeMuxLiveSettings = nil
+	// no resolver until the next mux: the status reads unknown
+	self.dnsResolverMuxChangedWithLock(nil)
 	self.startLifecycleWorkerWithLock(func() {
 		_ = upgradeMux.WaitForPump(context.Background())
 	})
@@ -6688,6 +7146,7 @@ func (self *DeviceLocal) closeRemoteUserNatClientWithLock() {
 	}
 	remoteUserNatClient := self.remoteUserNatClient
 	self.remoteUserNatClient = nil
+	self.activityMultiClient.Store(nil)
 	if remoteUserNatClient != nil {
 		if multi, ok := remoteUserNatClient.(*connect.RemoteUserNatMultiClient); ok {
 			addConnectPacketStats(&self.packetStatsBase, multi.PacketStats())
@@ -8136,7 +8595,33 @@ func dnsResolverSettingsFromConnect(resolver *connect.DnsResolverSettings) *DnsR
 	}
 }
 
+// The connect resolver the settings resolve with (ADBLOCK3RD A6): the explicit
+// lists for custom settings, else the lists the selection derives
+// (resolveDnsResolverSelection), with the user's mask either way. Every DoH
+// url whose host the catalog knows gets the catalog's pins, so its host is
+// never looked up (dnsResolverPins). The mux settings and the socket resolver
+// both convert through here.
 func (self *DnsResolverSettings) toConnect() *connect.DnsResolverSettings {
+	selection := resolveDnsResolverSelection(self.PresetId, self.PresetPersonalId)
+	var resolver *connect.DnsResolverSettings
+	switch {
+	case selection.custom():
+		resolver = self.customToConnect()
+	case selection.preset != nil:
+		resolver = selection.preset.resolver(selection.personalId)
+	case selection.regional():
+		resolver = cloneConnectDnsResolverSettings(connect.RegionalDnsResolverSettings(selection.countryCode))
+	default:
+		// "default", and a selection that cannot apply (A7)
+		resolver = defaultDnsResolver()
+	}
+	resolver.DnsUpgradeMaskAddress = dnsUpgradeMaskAddress(self.DnsUpgradeMaskAddress)
+	resolver.DohServerHostAddrs = dnsResolverPins(resolver)
+	return resolver
+}
+
+// The explicit lists, as every setting converted before the presets.
+func (self *DnsResolverSettings) customToConnect() *connect.DnsResolverSettings {
 	stringsOf := func(list *StringList) []string {
 		if list == nil {
 			return nil
@@ -8173,6 +8658,18 @@ func dnsUpgradeMaskAddress(value string) string {
 // upgradeMuxSettingsWithDnsResolverSettings builds the next upgrade mux settings
 // with the resolver and the derived fallback applied, copy on write.
 // returns nil when the mux is disabled (base nil)
+//
+// While a catalog preset is selected (ADBLOCK3RD decisions 3 and 5):
+//   - an ad-blocking or no-filtering preset fails over to URnetwork's default
+//     resolver through the tunnel; a family, malware or personal preset has
+//     no failover and fails closed.
+//   - Fast DNS on connect races URnetwork's default resolver over the host
+//     network, never the preset, and only until the tunnel is ready, so the
+//     provider never sees the user's own address and no unfiltered answer
+//     races the preset once connected.
+//
+// "default", custom and regional selections keep the settings as before: no
+// failover, and the fallback as the host projection of the lists.
 func upgradeMuxSettingsWithDnsResolverSettings(base *connect.UpgradeMuxSettings, dnsResolverSettings *DnsResolverSettings) *connect.UpgradeMuxSettings {
 	if base == nil {
 		return nil
@@ -8186,11 +8683,28 @@ func upgradeMuxSettingsWithDnsResolverSettings(base *connect.UpgradeMuxSettings,
 	}
 	resolver := dnsResolverSettings.toConnect()
 	nextDns.Resolver = resolver
-	if dnsResolverSettings.EnableFallback {
-		nextDns.Fallback = hostFallbackDnsResolverSettings(resolver)
+	selection := resolveDnsResolverSelection(dnsResolverSettings.PresetId, dnsResolverSettings.PresetPersonalId)
+	if preset := selection.preset; preset != nil {
+		if dnsResolverSettings.EnableFallback {
+			nextDns.Fallback = dnsPresetFastDnsFallback()
+		} else {
+			nextDns.Fallback = nil
+		}
+		nextDns.FallbackUntilTunnelReady = true
+		if preset.failover {
+			nextDns.Failover = defaultDnsResolver()
+		} else {
+			nextDns.Failover = nil
+		}
 	} else {
-		// nil disables the fallback (see `connect.DnsUpgradeSettings`)
-		nextDns.Fallback = nil
+		if dnsResolverSettings.EnableFallback {
+			nextDns.Fallback = hostFallbackDnsResolverSettings(resolver)
+		} else {
+			// nil disables the fallback (see `connect.DnsUpgradeSettings`)
+			nextDns.Fallback = nil
+		}
+		nextDns.FallbackUntilTunnelReady = false
+		nextDns.Failover = nil
 	}
 	nextSettings.Dns = &nextDns
 	return &nextSettings
@@ -8199,7 +8713,9 @@ func upgradeMuxSettingsWithDnsResolverSettings(base *connect.UpgradeMuxSettings,
 // hostFallbackDnsResolverSettings derives the fallback resolver, which bridges
 // tunnel startup by resolving over the host network, as the host-side projection
 // of the resolver: remote entries are host-dialed (remote doh urls become local
-// doh urls, remote dns ips become local dns ips)
+// doh urls, remote dns ips become local dns ips). The pins of the resolver's
+// DoH hosts carry over, so a host-dialed DoH host the catalog knows is never
+// looked up with the host's resolver.
 func hostFallbackDnsResolverSettings(resolver *connect.DnsResolverSettings) *connect.DnsResolverSettings {
 	union := func(locals []string, remotes []string) []string {
 		var out []string
@@ -8212,7 +8728,7 @@ func hostFallbackDnsResolverSettings(resolver *connect.DnsResolverSettings) *con
 		}
 		return out
 	}
-	return &connect.DnsResolverSettings{
+	fallback := &connect.DnsResolverSettings{
 		EnableLocalDoh:   resolver.EnableLocalDoh || resolver.EnableRemoteDoh,
 		EnableLocalDns:   resolver.EnableLocalDns || resolver.EnableRemoteDns,
 		LocalDohUrlsIpv4: union(resolver.LocalDohUrlsIpv4, resolver.RemoteDohUrlsIpv4),
@@ -8220,11 +8736,24 @@ func hostFallbackDnsResolverSettings(resolver *connect.DnsResolverSettings) *con
 		LocalDnsIpv4:     union(resolver.LocalDnsIpv4, resolver.RemoteDnsIpv4),
 		LocalDnsIpv6:     union(resolver.LocalDnsIpv6, resolver.RemoteDnsIpv6),
 	}
+	if resolver.DohServerHostAddrs != nil {
+		fallback.DohServerHostAddrs = map[string][]string{}
+		for host, addrs := range resolver.DohServerHostAddrs {
+			fallback.DohServerHostAddrs[host] = slices.Clone(addrs)
+		}
+	}
+	return fallback
 }
 
 // SetDnsResolverSettings sets the mux tunnel resolver and the derived
 // host-side fallback (used to bridge tunnel startup), persisted to local state.
-// TLS/cert pinning is applied internally and is not part of this surface
+// TLS/cert pinning is applied internally and is not part of this surface.
+//
+// The selection is the source of truth (ADBLOCK3RD E2): with a PresetId the
+// device derives the lists, and with an empty one the given lists apply, as
+// before. A selection no device can apply, an unknown preset id or a personal
+// id that does not validate, is refused: neither saved nor applied, so the
+// previous settings stay (validateDnsResolverSettingsSelection).
 func (self *DeviceLocal) SetDnsResolverSettings(dnsResolverSettings *DnsResolverSettings) {
 	_ = self.setLocalCatalogPreference("dns-resolver-settings", dnsResolverSettings)
 }
@@ -8242,7 +8771,7 @@ func (self *DeviceLocal) applyDnsResolverSettingsWithLock(dnsResolverSettings *D
 	// The caller owns this mutable gomobile settings object and may reuse it as
 	// soon as this method returns. Retain an owned snapshot so later UI edits
 	// cannot silently alter the installed resolver.
-	dnsResolverSettings = cloneDnsResolverSettings(dnsResolverSettings)
+	dnsResolverSettings = ownDnsResolverSettings(dnsResolverSettings)
 	var upgradeMuxSettings *connect.UpgradeMuxSettings
 	func() {
 		self.stateLock.Lock()
@@ -8255,18 +8784,75 @@ func (self *DeviceLocal) applyDnsResolverSettingsWithLock(dnsResolverSettings *D
 		// the mux is disabled. there is no resolver to configure
 		return nil, nil
 	}
-	// applies to the live mux, if any
-	self.SetUpgradeMuxSettings(upgradeMuxSettings)
-	return func() { self.dnsResolverSettingsChanged(self.GetDnsResolverSettings()) }, nil
+	// applies to the live mux, if any, with the selection it derives from
+	statusChanged := self.setUpgradeMuxSettingsWithSelection(
+		upgradeMuxSettings,
+		dnsResolverSettings.PresetId,
+		dnsResolverSettings.PresetPersonalId,
+	)
+	return func() {
+		self.dnsResolverSettingsChanged(self.GetDnsResolverSettings())
+		if statusChanged {
+			self.dnsResolverStatusChanged(self.GetDnsResolverStatus())
+		}
+	}, nil
 }
 
-func cloneDnsResolverSettings(dnsResolverSettings *DnsResolverSettings) *DnsResolverSettings {
+// The value the device saves and applies for settings a caller gave (ADBLOCK3RD
+// E2, E5): a deep copy of its own, with the lists, toggles and mask the
+// settings resolve with, so the saved record carries the derived lists beside
+// the selection for an older sdk, which ignores the selection. Custom settings
+// keep their lists, as before. A personal preset's id is normalized; a
+// personal id given with a selection that takes none is dropped.
+func ownDnsResolverSettings(dnsResolverSettings *DnsResolverSettings) *DnsResolverSettings {
 	if dnsResolverSettings == nil {
 		return nil
 	}
-	cloned := dnsResolverSettingsFromConnect(dnsResolverSettings.toConnect())
-	cloned.EnableFallback = dnsResolverSettings.EnableFallback
-	return cloned
+	owned := dnsResolverSettingsFromConnect(dnsResolverSettings.toConnect())
+	owned.EnableFallback = dnsResolverSettings.EnableFallback
+	owned.PresetId = dnsResolverSettings.PresetId
+	selection := resolveDnsResolverSelection(dnsResolverSettings.PresetId, dnsResolverSettings.PresetPersonalId)
+	switch {
+	case selection.preset != nil:
+		owned.PresetPersonalId = selection.personalId
+	case selection.unavailable:
+		// kept as stored until the user picks again (A7)
+		owned.PresetPersonalId = dnsResolverSettings.PresetPersonalId
+	}
+	return owned
+}
+
+// A deep copy of every field.
+func copyDnsResolverSettings(dnsResolverSettings *DnsResolverSettings) *DnsResolverSettings {
+	if dnsResolverSettings == nil {
+		return nil
+	}
+	copyList := func(list *StringList) *StringList {
+		if list == nil {
+			return nil
+		}
+		copied := NewStringList()
+		copied.addAll(list.getAll()...)
+		return copied
+	}
+	return &DnsResolverSettings{
+		PresetId:              dnsResolverSettings.PresetId,
+		PresetPersonalId:      dnsResolverSettings.PresetPersonalId,
+		EnableRemoteDoh:       dnsResolverSettings.EnableRemoteDoh,
+		EnableLocalDoh:        dnsResolverSettings.EnableLocalDoh,
+		EnableRemoteDns:       dnsResolverSettings.EnableRemoteDns,
+		EnableLocalDns:        dnsResolverSettings.EnableLocalDns,
+		EnableFallback:        dnsResolverSettings.EnableFallback,
+		DnsUpgradeMaskAddress: dnsResolverSettings.DnsUpgradeMaskAddress,
+		RemoteDohUrlsIpv4:     copyList(dnsResolverSettings.RemoteDohUrlsIpv4),
+		RemoteDohUrlsIpv6:     copyList(dnsResolverSettings.RemoteDohUrlsIpv6),
+		LocalDohUrlsIpv4:      copyList(dnsResolverSettings.LocalDohUrlsIpv4),
+		LocalDohUrlsIpv6:      copyList(dnsResolverSettings.LocalDohUrlsIpv6),
+		RemoteDnsIpv4:         copyList(dnsResolverSettings.RemoteDnsIpv4),
+		RemoteDnsIpv6:         copyList(dnsResolverSettings.RemoteDnsIpv6),
+		LocalDnsIpv4:          copyList(dnsResolverSettings.LocalDnsIpv4),
+		LocalDnsIpv6:          copyList(dnsResolverSettings.LocalDnsIpv6),
+	}
 }
 
 func (self *DeviceLocal) GetDnsResolverSettings() *DnsResolverSettings {
@@ -8275,13 +8861,16 @@ func (self *DeviceLocal) GetDnsResolverSettings() *DnsResolverSettings {
 	return self.dnsResolverSettingsWithLock()
 }
 
-// must be called with `stateLock`
+// must be called with `stateLock`. The lists in force, read back from the mux
+// settings, with the selection they were derived from.
 func (self *DeviceLocal) dnsResolverSettingsWithLock() *DnsResolverSettings {
 	if self.upgradeMuxSettings == nil || self.upgradeMuxSettings.Dns == nil || self.upgradeMuxSettings.Dns.Resolver == nil {
 		return nil
 	}
 	dnsResolverSettings := dnsResolverSettingsFromConnect(self.upgradeMuxSettings.Dns.Resolver)
 	dnsResolverSettings.EnableFallback = self.upgradeMuxSettings.Dns.Fallback != nil
+	dnsResolverSettings.PresetId = self.dnsResolver.presetId
+	dnsResolverSettings.PresetPersonalId = self.dnsResolver.personalId
 	return dnsResolverSettings
 }
 
@@ -8319,7 +8908,9 @@ func dnsIgnoreHostValues(dnsResolverSettings *DnsResolverSettings) []string {
 			add(value)
 		}
 	}
-	// doh urls contribute their host (a hostname or a literal ip)
+	// doh urls contribute their host (a hostname or a literal ip), and a host
+	// the preset catalog knows its pins, which the dial goes to (ADBLOCK3RD A6)
+	hostPins := currentDnsPresetCatalog().hostPins
 	addUrlHosts := func(list *StringList) {
 		if list == nil {
 			return
@@ -8327,6 +8918,9 @@ func dnsIgnoreHostValues(dnsResolverSettings *DnsResolverSettings) []string {
 		for _, value := range list.getAll() {
 			if u, err := url.Parse(strings.TrimSpace(value)); err == nil && u.Hostname() != "" {
 				add(u.Hostname())
+				for _, pin := range hostPins[strings.ToLower(u.Hostname())] {
+					add(pin)
+				}
 			} else {
 				add(value)
 			}

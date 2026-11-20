@@ -57,6 +57,8 @@ var behavioralTypes = map[string]bool{
 	"ClientSessionSnapshot":   true,
 	"NetworkSessionInfoList":  true,
 	"ClientSessionActionList": true,
+	"ClientSessionGroup":      true,
+	"ClientSessionGroupList":  true,
 
 	"Socket": true,
 	// These immutable observations expose private state through getters.
@@ -98,6 +100,12 @@ var behavioralTypes = map[string]bool{
 	// the Top 200 claim, both halves: lock-guarded, with their stores behind them
 	"SnFleetClaim":  true,
 	"SnFleetDevice": true,
+	// the client limit notice's episode state: private fields and methods
+	"ClientLimitNoticeTracker": true,
+	// the Pro features notice's episode state: private fields and methods
+	"ProFeaturesNoticeTracker": true,
+	// the balance's Pro and jwt refresh decision: lock-guarded private state
+	"SubscriptionProTracker": true,
 
 	"AccountPreferencesViewController":    true,
 	"AccountViewController":               true,
@@ -109,6 +117,7 @@ var behavioralTypes = map[string]bool{
 	"ContractDetailsViewController":       true,
 	"ClientSessionViewController":         true,
 	"DevicesViewController":               true,
+	"ManageDevicesViewController":         true,
 	"ExtenderViewController":              true,
 	"FeedbackViewController":              true,
 	"LocationsViewController":             true,
@@ -122,6 +131,7 @@ var behavioralTypes = map[string]bool{
 	"ReferralCodeViewController":          true,
 	"PointsLeaderboardViewController":     true,
 	"ProviderStatusViewController":        true,
+	"ProFeaturesViewController":           true,
 	"WalletViewController":                true,
 }
 
@@ -171,6 +181,9 @@ var skipFuncs = map[string]string{
 	"DecodeBase58":               "byte buffer result; manual export in exports_manual.go",
 	"DecryptData":                "byte buffer result; manual export in exports_manual.go",
 	"GenerateSharedSecret":       "byte buffer result; manual export in exports_manual.go",
+	// the apple apps' MetricKit payloads (exit_diagnostics_metrickit.go)
+	"LogMetricKitDiagnosticPayload": "apple MetricKit payloads (gomobile only): no MetricKit on windows or linux",
+	"LogMetricKitMetricPayload":     "apple MetricKit payloads (gomobile only): no MetricKit on windows or linux",
 }
 
 var skipFuncPatterns = []*regexp.Regexp{
@@ -194,6 +207,7 @@ var skipMethods = map[string]string{
 	"DeviceLocal.SendPacketNoCopy":                   "pool ownership does not cross the abi; use urnet_device_local_send_packet",
 	"DeviceLocal.SendPacketsNoCopy":                  "pool ownership does not cross the abi; use urnet_device_local_send_packet_batch",
 	"DeviceLocal.SendNativePacketsNoCopy":            "pool ownership does not cross the abi; use urnet_device_local_send_packet_batch",
+	"DeviceLocal.NoteUserActivity":                   "Go-only host activity signal (the proxy service's hosted devices)",
 	"PacketBatch.Get":                                "manual export urnet_packet_batch_get",
 	"WebsocketDeviceRpcDialer.Dial":                  "net.Conn internal; used by DeviceRemote internally",
 	"WebsocketDeviceRpcListener.Accept":              "net.Conn internal; used by DeviceLocal internally",
