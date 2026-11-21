@@ -14,7 +14,7 @@ require (
 	github.com/pion/dtls/v3 v3.1.5
 	github.com/pion/webrtc/v4 v4.2.18
 	github.com/quic-go/quic-go v0.61.0
-	github.com/urnetwork/connect v0.0.0-20261114000458-cb9728fb5ebd
+	github.com/urnetwork/connect v0.0.0-20261121001515-860110071521
 	github.com/urnetwork/glog v0.0.0
 	github.com/urnetwork/goidenticons v0.0.0
 	golang.org/x/crypto v0.58.0
@@ -105,9 +105,9 @@ require (
 
 retract [v0.0.1, v1.0.0]
 
-replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261114000458-cb9728fb5ebd
+replace github.com/urnetwork/connect => github.com/full-bars/connect v0.0.0-20261121001515-860110071521
 
-replace github.com/pion/sctp => github.com/full-bars/connect/sctp v0.0.0-20261114000458-cb9728fb5ebd
+replace github.com/pion/sctp => github.com/full-bars/connect/sctp v0.0.0-20261121001515-860110071521
 
 replace github.com/urnetwork/glog => ../glog
 
